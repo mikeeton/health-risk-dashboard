@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import models
 from database import engine
 
-from routes import patients, vitals
+from routes import patients, vitals, auth, reviews
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -20,8 +20,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(patients.router)
 app.include_router(vitals.router)
+app.include_router(reviews.router)
 
 
 @app.get("/")

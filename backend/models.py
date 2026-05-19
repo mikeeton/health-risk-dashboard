@@ -2,6 +2,16 @@ from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    full_name = Column(String, nullable=False)
+    role = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
+
+
 class Patient(Base):
     __tablename__ = "patients"
 
@@ -30,3 +40,17 @@ class Vital(Base):
     calories = Column(Integer, nullable=False)
     risk_score = Column(Integer, nullable=False)
     activity_state = Column(String, nullable=False)
+
+
+class ReviewCase(Base):
+    __tablename__ = "review_cases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    patient_name = Column(String, nullable=False)
+    risk_level = Column(String, nullable=False)
+    risk_score = Column(Integer, nullable=False)
+    status = Column(String, default="Open")
+    note = Column(String, nullable=True)
+    created_at = Column(String, nullable=False)
+    updated_at = Column(String, nullable=True)

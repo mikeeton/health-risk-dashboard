@@ -7,16 +7,19 @@ import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { useHealthData } from "../context/HealthDataContext";
 import type { HealthData, ActivityState } from "../data/healthData";
+
 import { calculateBaseline } from "../utils/baseline";
 import { calculateRiskScore } from "../utils/riskEngine";
+import { createVital } from "../services/api";
 
 export default function UploadData() {
   const navigate = useNavigate();
 
-  const { setHealthData, selectedPatient, healthData } = useHealthData();
+  const { selectedPatient, healthData, refreshVitals } = useHealthData();
 
   const [fileName, setFileName] = useState("");
   const [dataPreview, setDataPreview] = useState<HealthData[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   const cleanActivityState = (value: string): ActivityState => {
     const state = value?.toLowerCase().trim();
@@ -82,27 +85,48 @@ export default function UploadData() {
           };
         });
 
-        const otherPatientsData = healthData.filter(
-          (record) => record.patientId !== selectedPatient.id
-        );
-
-        const mergedData = [...otherPatientsData, ...cleanedData];
-
-        setHealthData(mergedData);
         setDataPreview(cleanedData.slice(0, 5));
       },
     });
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (dataPreview.length === 0) {
       alert("Please choose a CSV file first.");
       return;
     }
 
-    alert(`${selectedPatient.name}'s dataset uploaded successfully!`);
+    try {
+      setIsUploading(true);
 
-    navigate("/");
+      for (const record of dataPreview) {
+        await createVital({
+          patient_id: record.patientId,
+          timestamp: record.timestamp,
+          heart_rate: record.heartRate,
+          spo2: record.spo2,
+          systolic_bp: record.systolicBP,
+          diastolic_bp: record.diastolicBP,
+          steps: record.steps,
+          sleep_hours: record.sleepHours,
+          active_minutes: record.activeMinutes,
+          calories: record.calories,
+          risk_score: record.riskScore,
+          activity_state: record.activityState,
+        });
+      }
+
+      await refreshVitals();
+
+      alert(`${selectedPatient.name}'s dataset uploaded successfully!`);
+
+      navigate("/");
+    } catch (error) {
+      console.error(error);
+      alert("Upload failed. Please check backend is running.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -134,8 +158,8 @@ export default function UploadData() {
           </p>
 
           <p className="mt-3 text-gray-600 dark:text-slate-400">
-            Risk score will now be calculated automatically by the AI risk
-            engine.
+            Risk score will be calculated automatically by the AI risk engine and
+            saved into the backend database.
           </p>
 
           <label className="mt-6 inline-block">
@@ -174,7 +198,7 @@ export default function UploadData() {
         </div>
 
         <p className="mt-3 text-sm text-gray-500 dark:text-slate-400">
-          The CSV may include riskScore, but the app will ignore it and calculate
+          The CSV may include riskScore, but this app ignores it and calculates
           risk automatically.
         </p>
       </Card>
@@ -213,9 +237,10 @@ export default function UploadData() {
 
       <Button
         onClick={handleUpload}
-        className="bg-blue-600 text-white hover:bg-blue-700"
+        disabled={isUploading}
+        className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
       >
-        Upload Dataset
+        {isUploading ? "Uploading..." : "Upload Dataset"}
       </Button>
     </div>
   );

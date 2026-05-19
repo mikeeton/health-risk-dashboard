@@ -28,6 +28,19 @@ def create_vital(
             detail="Patient not found"
         )
 
+    existing_vital = (
+        db.query(models.Vital)
+        .filter(models.Vital.patient_id == vital.patient_id)
+        .filter(models.Vital.timestamp == vital.timestamp)
+        .first()
+    )
+
+    if existing_vital:
+        raise HTTPException(
+            status_code=409,
+            detail="Vital record already exists for this patient and timestamp"
+        )
+
     new_vital = models.Vital(**vital.model_dump())
 
     db.add(new_vital)
@@ -47,3 +60,28 @@ def get_patient_vitals(
         .filter(models.Vital.patient_id == patient_id)
         .all()
     )
+
+
+@router.delete("/{vital_id}")
+def delete_vital(
+    vital_id: int,
+    db: Session = Depends(get_db)
+):
+    vital = (
+        db.query(models.Vital)
+        .filter(models.Vital.id == vital_id)
+        .first()
+    )
+
+    if not vital:
+        raise HTTPException(
+            status_code=404,
+            detail="Vital record not found"
+        )
+
+    db.delete(vital)
+    db.commit()
+
+    return {
+        "message": f"Vital {vital_id} deleted successfully"
+    }

@@ -8,6 +8,8 @@ import AIInsightPanel from "../components/AIInsightPanel";
 import AIExplanationPanel from "../components/AIExplanationPanel";
 import TrendAnalysisPanel from "../components/TrendAnalysisPanel";
 import AlertPanel from "../components/AlertPanel";
+import NotificationCenter from "../components/NotificationCenter";
+import ClinicianQueue from "../components/ClinicianQueue";
 import DataTable from "../components/DataTable";
 import HealthCharts from "../components/HealthCharts";
 import PatientSwitcher from "../components/PatientSwitcher";
@@ -24,11 +26,14 @@ import { calculateRiskScore } from "../utils/riskEngine";
 import { calculateBaseline } from "../utils/baseline";
 import { analyzeTrends } from "../utils/trendAnalysis";
 import { generateLiveHealthRecord } from "../utils/liveMonitoring";
+import { buildClinicianQueue } from "../utils/clinicianQueue";
+import { createVital } from "../services/api";
 
 export default function Dashboard() {
   const reportRef = useRef<HTMLDivElement>(null);
 
-  const { healthData, setHealthData, selectedPatient } = useHealthData();
+  const { healthData, selectedPatient, patients, refreshVitals } =
+    useHealthData();
 
   const [dateRange, setDateRange] = useState("7");
   const [metric, setMetric] = useState("all");
@@ -50,7 +55,10 @@ export default function Dashboard() {
 
   const healthScore = useMemo(() => getHealthScore(filteredData), [filteredData]);
 
-  const alerts = useMemo(() => generateAlerts(filteredData), [filteredData]);
+  const alerts = useMemo(
+    () => generateAlerts(filteredData, selectedPatient),
+    [filteredData, selectedPatient]
+  );
 
   const latestRecord =
     filteredData.length > 0 ? filteredData[filteredData.length - 1] : null;
@@ -63,7 +71,10 @@ export default function Dashboard() {
         riskScore: 0,
         riskLevel: "Low" as const,
         anomalyDetected: false,
+        notifyUser: false,
+        notifyClinician: false,
         reasons: [],
+        advice: [],
       };
     }
 
@@ -72,11 +83,16 @@ export default function Dashboard() {
 
   const trends = useMemo(() => analyzeTrends(filteredData), [filteredData]);
 
+  const clinicianQueue = useMemo(
+    () => buildClinicianQueue(patients, healthData),
+    [patients, healthData]
+  );
+
   useEffect(() => {
     if (!liveMonitoring) return;
     if (patientData.length === 0) return;
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       const liveRecord = generateLiveHealthRecord(selectedPatient.id, baseline);
 
       const riskResult = calculateRiskScore(
@@ -87,7 +103,26 @@ export default function Dashboard() {
 
       liveRecord.riskScore = riskResult.riskScore;
 
-      setHealthData((previousData) => [...previousData, liveRecord]);
+      try {
+        await createVital({
+          patient_id: liveRecord.patientId,
+          timestamp: liveRecord.timestamp,
+          heart_rate: liveRecord.heartRate,
+          spo2: liveRecord.spo2,
+          systolic_bp: liveRecord.systolicBP,
+          diastolic_bp: liveRecord.diastolicBP,
+          steps: liveRecord.steps,
+          sleep_hours: liveRecord.sleepHours,
+          active_minutes: liveRecord.activeMinutes,
+          calories: liveRecord.calories,
+          risk_score: liveRecord.riskScore,
+          activity_state: liveRecord.activityState,
+        });
+
+        await refreshVitals();
+      } catch (error) {
+        console.error("Failed to save live monitoring record:", error);
+      }
     }, 8000);
 
     return () => clearInterval(interval);
@@ -97,7 +132,7 @@ export default function Dashboard() {
     selectedPatient.id,
     baseline,
     patientData.length,
-    setHealthData,
+    refreshVitals,
   ]);
 
   const generateInsight = () => {
@@ -196,13 +231,17 @@ export default function Dashboard() {
       {liveMonitoring && (
         <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-400">
           Live monitoring is active. New smartwatch-style readings are being
-          generated every 8 seconds.
+          generated every 8 seconds and saved to the backend database.
         </div>
       )}
 
       <AIInsightPanel insight={insight} onGenerate={generateInsight} />
 
       <AlertPanel alerts={alerts} />
+
+      <NotificationCenter alerts={alerts} />
+
+      <ClinicianQueue queue={clinicianQueue} />
 
       <AIExplanationPanel
         reasons={aiAnalysis.reasons}

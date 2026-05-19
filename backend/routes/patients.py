@@ -16,7 +16,25 @@ def create_patient(
     patient: schemas.PatientCreate,
     db: Session = Depends(get_db)
 ):
-    new_patient = models.Patient(**patient.model_dump())
+    existing_patient = (
+        db.query(models.Patient)
+        .filter(models.Patient.name.ilike(patient.name.strip()))
+        .first()
+    )
+
+    if existing_patient:
+        raise HTTPException(
+            status_code=409,
+            detail="Patient already exists"
+        )
+
+    new_patient = models.Patient(
+        name=patient.name.strip(),
+        age=patient.age,
+        condition=patient.condition.strip(),
+        risk_level=patient.risk_level,
+        last_checkup=patient.last_checkup,
+    )
 
     db.add(new_patient)
     db.commit()
@@ -48,3 +66,27 @@ def get_patient(
         )
 
     return patient
+
+@router.delete("/{patient_id}")
+def delete_patient(
+    patient_id: int,
+    db: Session = Depends(get_db)
+):
+    patient = (
+        db.query(models.Patient)
+        .filter(models.Patient.id == patient_id)
+        .first()
+    )
+
+    if not patient:
+        raise HTTPException(
+            status_code=404,
+            detail="Patient not found"
+        )
+
+    db.delete(patient)
+    db.commit()
+
+    return {
+        "message": f"Patient {patient_id} deleted successfully"
+    }

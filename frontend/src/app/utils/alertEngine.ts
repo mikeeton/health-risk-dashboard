@@ -1,10 +1,9 @@
 import type { HealthData } from "../data/healthData";
+import type { Patient } from "../../types/patient";
+import { calculateRiskScore } from "./riskEngine";
+import { calculateBaseline } from "./baseline";
 
-export type AlertSeverity =
-  | "info"
-  | "warning"
-  | "high"
-  | "critical";
+export type AlertSeverity = "info" | "warning" | "high" | "critical";
 
 export type HealthAlert = {
   id: string;
@@ -12,104 +11,53 @@ export type HealthAlert = {
   title: string;
   message: string;
   timestamp: string;
+  target: "user" | "clinician";
 };
 
-export function generateAlerts(
-  data: HealthData[]
-): HealthAlert[] {
-  const alerts: HealthAlert[] = [];
-
-  if (data.length === 0) return alerts;
+export function generateAlerts(data: HealthData[], patient?: Patient): HealthAlert[] {
+  if (data.length === 0 || !patient) return [];
 
   const latest = data[data.length - 1];
+  const baseline = calculateBaseline(data);
+  const risk = calculateRiskScore(latest, patient, baseline);
 
-  if (
-    latest.heartRate > 120 &&
-    latest.activityState === "resting"
-  ) {
+  if (!baseline.isReady) {
+    return [
+      {
+        id: crypto.randomUUID(),
+        severity: "info",
+        title: "Baseline Learning",
+        message: `${baseline.recordsUsed}/5 resting baseline records collected. Personalised monitoring will improve after five resting readings.`,
+        timestamp: latest.timestamp,
+        target: "user",
+      },
+    ];
+  }
+
+  const alerts: HealthAlert[] = [];
+
+  if (risk.notifyUser) {
     alerts.push({
       id: crypto.randomUUID(),
-      severity: "critical",
-      title: "Critical Heart Rate",
-      message:
-        "Resting heart rate is critically elevated. Immediate medical review may be required.",
+      severity:
+        risk.riskLevel === "Critical" ? "critical" :
+        risk.riskLevel === "High" ? "high" :
+        "warning",
+      title: `${risk.riskLevel} Health Warning`,
+      message: risk.advice[0] ?? risk.reasons[0] ?? "Abnormal health pattern detected.",
       timestamp: latest.timestamp,
+      target: "user",
     });
   }
 
-  if (latest.spo2 < 92) {
+  if (risk.notifyClinician) {
     alerts.push({
       id: crypto.randomUUID(),
-      severity: "critical",
-      title: "Low Oxygen Level",
-      message:
-        "Blood oxygen level has dropped below safe threshold.",
+      severity: risk.riskLevel === "Critical" ? "critical" : "high",
+      title: "Clinician Review Recommended",
+      message: `Patient ${patient.name} has a ${risk.riskLevel.toLowerCase()} AI risk score. Reasons: ${risk.reasons.join(" ")}`,
       timestamp: latest.timestamp,
-    });
-  }
-
-  if (
-    latest.systolicBP >= 160 ||
-    latest.diastolicBP >= 100
-  ) {
-    alerts.push({
-      id: crypto.randomUUID(),
-      severity: "high",
-      title: "Severe Hypertension Risk",
-      message:
-        "Blood pressure readings are dangerously elevated.",
-      timestamp: latest.timestamp,
-    });
-  }
-
-  if (latest.sleepHours < 5) {
-    alerts.push({
-      id: crypto.randomUUID(),
-      severity: "warning",
-      title: "Poor Sleep Recovery",
-      message:
-        "Sleep duration is critically low and may affect recovery.",
-      timestamp: latest.timestamp,
-    });
-  }
-
-  if (latest.steps < 3000) {
-    alerts.push({
-      id: crypto.randomUUID(),
-      severity: "info",
-      title: "Low Activity Level",
-      message:
-        "Low physical activity detected in recent records.",
-      timestamp: latest.timestamp,
-    });
-  }
-
-  if (latest.riskScore >= 9) {
-    alerts.push({
-      id: crypto.randomUUID(),
-      severity: "critical",
-      title: "Critical Health Risk",
-      message:
-        "AI risk engine classified patient as critical risk.",
-      timestamp: latest.timestamp,
-    });
-  } else if (latest.riskScore >= 7) {
-    alerts.push({
-      id: crypto.randomUUID(),
-      severity: "high",
-      title: "High Health Risk",
-      message:
-        "AI risk engine detected significant health instability.",
-      timestamp: latest.timestamp,
-    });
-  } else if (latest.riskScore >= 4) {
-    alerts.push({
-      id: crypto.randomUUID(),
-      severity: "warning",
-      title: "Moderate Health Risk",
-      message:
-        "Moderate health risk trends detected.",
-      timestamp: latest.timestamp,
+      target: "clinician",
     });
   }
 

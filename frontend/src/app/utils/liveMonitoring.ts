@@ -13,143 +13,59 @@ export function generateLiveHealthRecord(
   patientId: number,
   baseline: PatientBaseline
 ): HealthData {
-  let heartRate = Math.round(
-    baseline.avgHeartRate + randomBetween(-6, 6)
-  );
+  const safeHR = baseline.avgHeartRate || 75;
+  const safeSpo2 = baseline.avgSpo2 || 97;
+  const safeSys = baseline.avgSystolicBP || 120;
+  const safeDia = baseline.avgDiastolicBP || 80;
+  const safeSleep = baseline.avgSleepHours || 7;
+  const safeSteps = baseline.avgSteps || 7000;
 
-  let spo2 = Number(
-    (
-      baseline.avgSpo2 +
-      randomBetween(-1.5, 1.5)
-    ).toFixed(1)
-  );
+  let activityState: HealthData["activityState"] = "resting";
 
-  let systolicBP = Math.round(
-    baseline.avgSystolicBP +
-      randomBetween(-8, 8)
-  );
+  const states = ["resting", "walking", "running", "sleeping"] as const;
+  activityState = states[Math.floor(Math.random() * states.length)];
 
-  let diastolicBP = Math.round(
-    baseline.avgDiastolicBP +
-      randomBetween(-5, 5)
-  );
+  let heartRate = Math.round(safeHR + randomBetween(-6, 6));
+  let spo2 = Number((safeSpo2 + randomBetween(-1.2, 1.2)).toFixed(1));
+  let systolicBP = Math.round(safeSys + randomBetween(-8, 8));
+  let diastolicBP = Math.round(safeDia + randomBetween(-5, 5));
+  let sleepHours = Number((safeSleep + randomBetween(-0.8, 0.8)).toFixed(1));
+  let steps = Math.round(safeSteps + randomBetween(-1200, 1200));
+  let activeMinutes = Math.round(randomBetween(15, 80));
+  let calories = Math.round(randomBetween(1700, 2600));
 
-  let sleepHours = Number(
-    (
-      baseline.avgSleepHours +
-      randomBetween(-1, 1)
-    ).toFixed(1)
-  );
-
-  let steps = Math.round(
-    baseline.avgSteps +
-      randomBetween(-1500, 1500)
-  );
-
-  let activeMinutes = Math.round(
-    randomBetween(15, 90)
-  );
-
-  let calories = Math.round(
-    randomBetween(1700, 2800)
-  );
-
-  let activityState:
-    | "resting"
-    | "walking"
-    | "running"
-    | "sleeping" = "resting";
-
-  // ------------------------------------
-  // RANDOM ACTIVITY STATE
-  // ------------------------------------
-
-  const states = [
-    "resting",
-    "walking",
-    "running",
-    "sleeping",
-  ] as const;
-
-  activityState =
-    states[
-      Math.floor(
-        Math.random() * states.length
-      )
-    ];
-
-  // ------------------------------------
-  // OCCASIONAL ANOMALIES
-  // ------------------------------------
-
-  if (randomChance(0.12)) {
-    heartRate += randomBetween(25, 50);
-
-    systolicBP += randomBetween(15, 30);
-
-    spo2 -= randomBetween(3, 7);
-  }
-
-  if (
-    activityState === "sleeping"
-  ) {
+  if (activityState === "sleeping") {
     heartRate -= 10;
-
     steps = 0;
-
     activeMinutes = 0;
   }
 
-  if (
-    activityState === "running"
-  ) {
-    heartRate += 20;
-
-    steps += 3000;
-
+  if (activityState === "running") {
+    heartRate += 22;
+    steps += 2500;
     activeMinutes += 20;
+  }
+
+  if (randomChance(0.12)) {
+    heartRate += randomBetween(25, 50);
+    systolicBP += randomBetween(15, 30);
+    spo2 -= randomBetween(3, 7);
+    activityState = "resting";
   }
 
   return {
     id: crypto.randomUUID(),
-
     patientId,
-
-    timestamp:
-      new Date().toISOString(),
-
-    heartRate: Math.round(
-      heartRate
-    ),
-
-    spo2: Number(
-      Math.max(
-        85,
-        Math.min(100, spo2)
-      ).toFixed(1)
-    ),
-
-    systolicBP: Math.round(
-      systolicBP
-    ),
-
-    diastolicBP: Math.round(
-      diastolicBP
-    ),
-
-    sleepHours: Math.max(
-      0,
-      sleepHours
-    ),
-
+    timestamp: new Date().toISOString(),
+    heartRate: Math.max(40, Math.round(heartRate)),
+    spo2: Number(Math.max(85, Math.min(100, spo2)).toFixed(1)),
+    systolicBP: Math.round(systolicBP),
+    diastolicBP: Math.round(diastolicBP),
+    sleepHours: Math.max(0, sleepHours),
     activeMinutes,
-
     calories,
-
     steps: Math.max(0, steps),
-
     riskScore: 0,
-
     activityState,
   };
 }
