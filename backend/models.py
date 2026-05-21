@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from database import Base
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
 
 
 class User(Base):
@@ -54,3 +55,13 @@ class ReviewCase(Base):
     note = Column(String, nullable=True)
     created_at = Column(String, nullable=False)
     updated_at = Column(String, nullable=True)
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, nullable=True)
+    action = Column(String, nullable=False)
+    entity = Column(String, nullable=False)
+    entity_id = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)

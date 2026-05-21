@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from database import get_db
+from routes.audit import write_audit_log
 
 router = APIRouter(
     prefix="/vitals",
@@ -47,6 +48,13 @@ def create_vital(
     db.commit()
     db.refresh(new_vital)
 
+    write_audit_log(
+        db=db,
+        action="CREATE_VITAL",
+        entity="Vital",
+        entity_id=str(new_vital.id),
+    )
+
     return new_vital
 
 
@@ -81,6 +89,13 @@ def delete_vital(
 
     db.delete(vital)
     db.commit()
+
+    write_audit_log(
+        db=db,
+        action="DELETE_VITAL",
+        entity="Vital",
+        entity_id=str(vital_id),
+    )
 
     return {
         "message": f"Vital {vital_id} deleted successfully"

@@ -60,8 +60,14 @@ function mapBackendVital(vital: any): HealthData {
   };
 }
 
-export function HealthDataProvider({ children }: { children: React.ReactNode }) {
-  const [healthData, setHealthData] = useState<HealthData[]>(defaultHealthData);
+export function HealthDataProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [healthData, setHealthData] = useState<HealthData[]>(
+    defaultHealthData
+  );
 
   const [patients, setPatients] = useState<Patient[]>([fallbackPatient]);
 

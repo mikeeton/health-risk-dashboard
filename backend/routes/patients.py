@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from database import get_db
+from routes.audit import write_audit_log
 
 router = APIRouter(
     prefix="/patients",
@@ -34,11 +35,19 @@ def create_patient(
         condition=patient.condition.strip(),
         risk_level=patient.risk_level,
         last_checkup=patient.last_checkup,
+        hospital_id=patient.hospital_id,
     )
 
     db.add(new_patient)
     db.commit()
     db.refresh(new_patient)
+
+    write_audit_log(
+        db=db,
+        action="CREATE_PATIENT",
+        entity="Patient",
+        entity_id=str(new_patient.id),
+    )
 
     return new_patient
 
@@ -67,6 +76,7 @@ def get_patient(
 
     return patient
 
+
 @router.delete("/{patient_id}")
 def delete_patient(
     patient_id: int,
@@ -86,6 +96,13 @@ def delete_patient(
 
     db.delete(patient)
     db.commit()
+
+    write_audit_log(
+        db=db,
+        action="DELETE_PATIENT",
+        entity="Patient",
+        entity_id=str(patient_id),
+    )
 
     return {
         "message": f"Patient {patient_id} deleted successfully"

@@ -2,12 +2,15 @@ import { ShieldAlert } from "lucide-react";
 import { Card } from "./ui/card";
 import type { ClinicianCase } from "../utils/clinicianQueue";
 import { createReviewCase } from "../services/api";
+import { useToast } from "../context/ToastContext";
 
 type Props = {
   queue: ClinicianCase[];
 };
 
 export default function ClinicianQueue({ queue }: Props) {
+  const { showToast } = useToast();
+
   const handleReview = async (item: ClinicianCase) => {
     try {
       await createReviewCase({
@@ -18,9 +21,17 @@ export default function ClinicianQueue({ queue }: Props) {
         note: item.reasons.join(" "),
       });
 
-      alert(`${item.patientName} has been added to the clinician review list.`);
+      showToast({
+        type: "success",
+        title: "Review case created",
+        message: `${item.patientName} has been added to the clinician review list.`,
+      });
     } catch {
-      alert("Could not create review case. Check backend is running.");
+      showToast({
+        type: "error",
+        title: "Could not create review case",
+        message: "Check that the backend server is running.",
+      });
     }
   };
 
@@ -34,9 +45,17 @@ export default function ClinicianQueue({ queue }: Props) {
         note: `Escalated case: ${item.reasons.join(" ")}`,
       });
 
-      alert(`${item.patientName} has been escalated for urgent review.`);
+      showToast({
+        type: "warning",
+        title: "Case escalated",
+        message: `${item.patientName} has been escalated for urgent review.`,
+      });
     } catch {
-      alert("Could not escalate case. Check backend is running.");
+      showToast({
+        type: "error",
+        title: "Could not escalate case",
+        message: "Check that the backend server is running.",
+      });
     }
   };
 
@@ -46,9 +65,7 @@ export default function ClinicianQueue({ queue }: Props) {
         <ShieldAlert className="h-6 w-6 text-red-600" />
 
         <div>
-          <h2 className="text-xl font-bold">
-            Clinician Queue
-          </h2>
+          <h2 className="text-xl font-bold">Clinician Queue</h2>
 
           <p className="text-sm text-gray-500 dark:text-slate-400">
             Patients requiring clinician review
@@ -65,13 +82,11 @@ export default function ClinicianQueue({ queue }: Props) {
           {queue.map((item) => (
             <div
               key={item.patientId}
-              className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+              className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-700 dark:bg-slate-900"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold">
-                    {item.patientName}
-                  </h3>
+                  <h3 className="font-semibold">{item.patientName}</h3>
 
                   <p className="text-sm text-gray-500 dark:text-slate-400">
                     {item.condition}
@@ -108,14 +123,14 @@ export default function ClinicianQueue({ queue }: Props) {
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   onClick={() => handleReview(item)}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
                 >
                   Mark for Review
                 </button>
 
                 <button
                   onClick={() => handleEscalate(item)}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                  className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-red-700"
                 >
                   Escalate
                 </button>

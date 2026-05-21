@@ -8,14 +8,10 @@ export type ClinicianCase = {
   patientId: number;
   patientName: string;
   condition: string;
-
   riskLevel: string;
   riskScore: number;
-
   requiresImmediateAttention: boolean;
-
   reasons: string[];
-
   latestTimestamp: string;
 };
 
@@ -32,49 +28,44 @@ export function buildClinicianQueue(
 
     if (patientRecords.length === 0) continue;
 
-    const latest =
-      patientRecords[
-        patientRecords.length - 1
-      ];
+    const latest = patientRecords[patientRecords.length - 1];
 
-    const baseline =
-      calculateBaseline(patientRecords);
+    const baseline = calculateBaseline(patientRecords);
 
-    const risk =
-      calculateRiskScore(
-        latest,
-        patient,
-        baseline
-      );
+    const risk = calculateRiskScore(latest, patient, baseline);
 
-    if (
-      risk.riskLevel === "High" ||
-      risk.riskLevel === "Critical"
-    ) {
+    const fallbackRiskScore = latest.riskScore;
+
+    const finalRiskScore = Math.max(risk.riskScore, fallbackRiskScore);
+
+    const finalRiskLevel =
+      finalRiskScore >= 9
+        ? "Critical"
+        : finalRiskScore >= 7
+        ? "High"
+        : finalRiskScore >= 4
+        ? "Moderate"
+        : "Low";
+
+    if (finalRiskLevel === "High" || finalRiskLevel === "Critical") {
       queue.push({
         patientId: patient.id,
-
         patientName: patient.name,
-
         condition: patient.condition,
-
-        riskLevel: risk.riskLevel,
-
-        riskScore: risk.riskScore,
-
-        requiresImmediateAttention:
-          risk.riskLevel === "Critical",
-
-        reasons: risk.reasons,
-
-        latestTimestamp:
-          latest.timestamp,
+        riskLevel: finalRiskLevel,
+        riskScore: finalRiskScore,
+        requiresImmediateAttention: finalRiskLevel === "Critical",
+        reasons:
+          risk.reasons.length > 0
+            ? risk.reasons
+            : [
+                "High risk score detected from latest vital record.",
+                "Clinician review recommended.",
+              ],
+        latestTimestamp: latest.timestamp,
       });
     }
   }
 
-  return queue.sort(
-    (a, b) =>
-      b.riskScore - a.riskScore
-  );
+  return queue.sort((a, b) => b.riskScore - a.riskScore);
 }

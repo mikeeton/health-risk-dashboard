@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from database import get_db
+from routes.audit import write_audit_log
 
 router = APIRouter(
     prefix="/reviews",
@@ -41,6 +42,13 @@ def create_review_case(
     db.commit()
     db.refresh(new_case)
 
+    write_audit_log(
+        db=db,
+        action="CREATE_REVIEW_CASE",
+        entity="ReviewCase",
+        entity_id=str(new_case.id),
+    )
+
     return new_case
 
 
@@ -74,6 +82,13 @@ def update_review_case(
     db.commit()
     db.refresh(review_case)
 
+    write_audit_log(
+        db=db,
+        action=f"UPDATE_REVIEW_CASE_{review_case.status.upper().replace(' ', '_')}",
+        entity="ReviewCase",
+        entity_id=str(review_case.id),
+    )
+
     return review_case
 
 
@@ -96,6 +111,13 @@ def delete_review_case(
 
     db.delete(review_case)
     db.commit()
+
+    write_audit_log(
+        db=db,
+        action="DELETE_REVIEW_CASE",
+        entity="ReviewCase",
+        entity_id=str(case_id),
+    )
 
     return {
         "message": f"Review case {case_id} deleted successfully"
