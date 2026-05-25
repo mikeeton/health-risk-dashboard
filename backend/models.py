@@ -65,3 +65,25 @@ class AuditLog(Base):
     entity = Column(String, nullable=False)
     entity_id = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+class Medication(Base):
+    __tablename__ = "medications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    name = Column(String, nullable=False)
+    dosage = Column(String, nullable=False)
+    schedule_time = Column(String, nullable=False)
+    status = Column(String, default="Due")
+    notes = Column(String, nullable=True)
+
+
+class PatientEvent(Base):
+    __tablename__ = "patient_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    event_type = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    timestamp = Column(String, nullable=False)

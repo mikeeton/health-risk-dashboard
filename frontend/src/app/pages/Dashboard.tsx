@@ -3,6 +3,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 import StatCard from "../components/StatCard";
+import ClinicianPdfReportButton from "../components/ClinicianPdfReportButton";
 import HealthScoreGauge from "../components/HealthScoreGauge";
 import AIInsightPanel from "../components/AIInsightPanel";
 import AIExplanationPanel from "../components/AIExplanationPanel";
@@ -16,6 +17,15 @@ import PatientDetailModal from "../components/PatientDetailModal";
 import DataTable from "../components/DataTable";
 import HealthCharts from "../components/HealthCharts";
 import PatientSwitcher from "../components/PatientSwitcher";
+import WebSocketLivePanel from "../components/WebSocketLivePanel";
+import AIClinicianReport from "../components/AIClinicianReport";
+import PredictiveRiskPanel from "../components/PredictiveRiskPanel";
+import PatientTimeline from "../components/PatientTimeline";
+import MedicationPanel from "../components/MedicationPanel";
+import DatabaseActivityFeed from "../components/DatabaseActivityFeed";
+import MedicationAdherenceDatabase from "../components/MedicationAdherenceDatabase";
+import PatientTimelineDatabase from "../components/PatientTimelineDatabase";
+import MLPredictionPanel from "../components/MLPredictionPanel";
 
 import { useHealthData } from "../context/HealthDataContext";
 import {
@@ -28,19 +38,27 @@ import { generateAlerts } from "../utils/alertEngine";
 import { calculateRiskScore } from "../utils/riskEngine";
 import { calculateBaseline } from "../utils/baseline";
 import { analyzeTrends } from "../utils/trendAnalysis";
-import { generateLiveHealthRecord } from "../utils/liveMonitoring";
 import { buildClinicianQueue } from "../utils/clinicianQueue";
 import { createVital } from "../services/api";
+import { createLiveVitalsSocket } from "../services/liveSocket";
+import { predictDeteriorationRisk } from "../utils/predictiveRisk";
+import { generateClinicianReport } from "../utils/clinicianReport";
+
+import type { HealthData } from "../data/healthData";
 
 export default function Dashboard() {
   const reportRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<WebSocket | null>(null);
 
-  const { healthData, selectedPatient, patients, refreshVitals } =
+  const { healthData, setHealthData, selectedPatient, patients, refreshVitals } =
     useHealthData();
 
   const [dateRange, setDateRange] = useState("7");
   const [metric, setMetric] = useState("all");
   const [liveMonitoring, setLiveMonitoring] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [latestSocketRecord, setLatestSocketRecord] =
+    useState<HealthData | null>(null);
   const [patientModalOpen, setPatientModalOpen] = useState(false);
 
   const patientData = useMemo(() => {
@@ -92,56 +110,94 @@ export default function Dashboard() {
     [patients, healthData]
   );
 
+  const prediction = useMemo(
+    () => predictDeteriorationRisk(patientData),
+    [patientData]
+  );
+
+  const clinicianReport = useMemo(
+    () => generateClinicianReport(selectedPatient, patientData, prediction),
+    [selectedPatient, patientData, prediction]
+  );
+
   useEffect(() => {
     setInsight(generateDynamicInsight(filteredData));
   }, [filteredData]);
 
   useEffect(() => {
-    if (!liveMonitoring) return;
-    if (patientData.length === 0) return;
+    return () => {
+      socketRef.current?.close();
+    };
+  }, []);
 
-    const interval = setInterval(async () => {
-      const liveRecord = generateLiveHealthRecord(selectedPatient.id, baseline);
+  useEffect(() => {
+    socketRef.current?.close();
+    setSocketConnected(false);
+    setLatestSocketRecord(null);
+    setLiveMonitoring(false);
+  }, [selectedPatient.id]);
 
-      const riskResult = calculateRiskScore(
-        liveRecord,
-        selectedPatient,
-        baseline
+  const handleLiveSocketRecord = async (record: HealthData) => {
+    setLatestSocketRecord(record);
+
+    setHealthData((previousData) => {
+      const alreadyExists = previousData.some(
+        (item) => item.id === record.id
       );
 
-      liveRecord.riskScore = riskResult.riskScore;
+      if (alreadyExists) return previousData;
 
-      try {
-        await createVital({
-          patient_id: liveRecord.patientId,
-          timestamp: liveRecord.timestamp,
-          heart_rate: liveRecord.heartRate,
-          spo2: liveRecord.spo2,
-          systolic_bp: liveRecord.systolicBP,
-          diastolic_bp: liveRecord.diastolicBP,
-          steps: liveRecord.steps,
-          sleep_hours: liveRecord.sleepHours,
-          active_minutes: liveRecord.activeMinutes,
-          calories: liveRecord.calories,
-          risk_score: liveRecord.riskScore,
-          activity_state: liveRecord.activityState,
-        });
+      return [...previousData, record];
+    });
 
-        await refreshVitals();
-      } catch (error) {
-        console.error("Failed to save live monitoring record:", error);
+    try {
+      await createVital({
+        patient_id: record.patientId,
+        timestamp: record.timestamp,
+        heart_rate: record.heartRate,
+        spo2: record.spo2,
+        systolic_bp: record.systolicBP,
+        diastolic_bp: record.diastolicBP,
+        steps: record.steps,
+        sleep_hours: record.sleepHours,
+        active_minutes: record.activeMinutes,
+        calories: record.calories,
+        risk_score: record.riskScore,
+        activity_state: record.activityState,
+      });
+
+      await refreshVitals();
+    } catch (error) {
+      console.error("Failed to persist WebSocket vital:", error);
+    }
+  };
+
+  const toggleLiveMonitoring = () => {
+    if (liveMonitoring) {
+      socketRef.current?.close();
+      socketRef.current = null;
+      setLiveMonitoring(false);
+      setSocketConnected(false);
+      return;
+    }
+
+    const socket = createLiveVitalsSocket(
+      selectedPatient.id,
+      handleLiveSocketRecord,
+      () => {
+        setSocketConnected(true);
+        setLiveMonitoring(true);
+      },
+      () => {
+        setSocketConnected(false);
+      },
+      () => {
+        setSocketConnected(false);
       }
-    }, 8000);
+    );
 
-    return () => clearInterval(interval);
-  }, [
-    liveMonitoring,
-    selectedPatient,
-    selectedPatient.id,
-    baseline,
-    patientData.length,
-    refreshVitals,
-  ]);
+    socketRef.current = socket;
+  };
 
   const generateInsight = () => {
     setInsight(generateDynamicInsight(filteredData));
@@ -220,26 +276,31 @@ export default function Dashboard() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <NotificationDropdown alerts={alerts} />
+  <NotificationDropdown alerts={alerts} />
 
-              <button
-                onClick={() => setLiveMonitoring((value) => !value)}
-                className={`relative rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] ${
-                  liveMonitoring
-                    ? "bg-red-600 shadow-red-500/25 hover:bg-red-700"
-                    : "bg-green-600 shadow-green-500/25 hover:bg-green-700"
-                } ${liveMonitoring ? "live-pulse" : ""}`}
-              >
-                {liveMonitoring ? "Stop Live Monitoring" : "Start Live Monitoring"}
-              </button>
+  <button
+    onClick={toggleLiveMonitoring}
+    className={`relative rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] ${
+      liveMonitoring
+        ? "bg-red-600 shadow-red-500/25 hover:bg-red-700"
+        : "bg-green-600 shadow-green-500/25 hover:bg-green-700"
+    } ${liveMonitoring ? "live-pulse" : ""}`}
+  >
+    {liveMonitoring ? "Stop WebSocket Stream" : "Start WebSocket Stream"}
+  </button>
 
-              <button
-                onClick={exportPDF}
-                className="rounded-xl border border-slate-200 bg-white/80 px-5 py-3 text-sm font-bold shadow-sm transition hover:scale-[1.02] hover:bg-white dark:border-slate-700 dark:bg-slate-900/80"
-              >
-                Export PDF
-              </button>
-            </div>
+  <ClinicianPdfReportButton
+    patient={selectedPatient}
+    vitals={patientData}
+  />
+
+  <button
+    onClick={exportPDF}
+    className="rounded-xl border border-slate-200 bg-white/80 px-5 py-3 text-sm font-bold shadow-sm transition hover:scale-[1.02] hover:bg-white dark:border-slate-700 dark:bg-slate-900/80"
+  >
+    Export Dashboard PDF
+  </button>
+</div>
           </div>
 
           <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
@@ -252,11 +313,25 @@ export default function Dashboard() {
 
           {liveMonitoring && (
             <div className="mt-4 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-400">
-              Live monitoring is active. New simulated wearable readings are
-              generated every 8 seconds and saved to the backend database.
+              WebSocket stream is active. New vitals are coming from the
+              FastAPI backend every few seconds and saved to PostgreSQL.
             </div>
           )}
         </section>
+
+        <WebSocketLivePanel
+          connected={socketConnected}
+          latestRecord={latestSocketRecord}
+        />
+
+        <DatabaseActivityFeed />
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <MLPredictionPanel patientId={selectedPatient.id} />
+          <MedicationAdherenceDatabase patientId={selectedPatient.id} />
+        </div>
+
+        <PatientTimelineDatabase patientId={selectedPatient.id} />
 
         <ClinicianActivityFeed
           alertsCount={alerts.length}
@@ -264,6 +339,13 @@ export default function Dashboard() {
         />
 
         <AIInsightPanel insight={insight} onGenerate={generateInsight} />
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <PredictiveRiskPanel prediction={prediction} />
+          <MedicationPanel patientId={selectedPatient.id} />
+        </div>
+
+        <AIClinicianReport report={clinicianReport} />
 
         <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5">
           <StatCard
@@ -346,6 +428,8 @@ export default function Dashboard() {
         />
 
         <TrendAnalysisPanel trends={trends} />
+
+        <PatientTimeline records={patientData} />
 
         <section className="dashboard-grid">
           <div className="col-span-12 xl:col-span-4">

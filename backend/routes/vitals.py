@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -37,6 +38,7 @@ def create_vital(
     )
 
     if existing_vital:
+        logging.error(f"Vital record already exists for patient {vital.patient_id} at timestamp {vital.timestamp}")
         raise HTTPException(
             status_code=409,
             detail="Vital record already exists for this patient and timestamp"

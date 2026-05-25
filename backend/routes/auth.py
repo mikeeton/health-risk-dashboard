@@ -48,7 +48,6 @@ def register_user(
         email=user.email.lower(),
         full_name=user.full_name.strip(),
         role=user.role.lower(),
-        hospital_id=user.hospital_id,
         password_hash=hash_password(user.password),
     )
 
@@ -88,7 +87,6 @@ def login_user(
         "sub": user.email,
         "role": user.role,
         "user_id": user.id,
-        "hospital_id": user.hospital_id,
     }
 
     write_audit_log(
@@ -123,7 +121,6 @@ def refresh_token(
         "sub": payload.get("sub"),
         "role": payload.get("role"),
         "user_id": payload.get("user_id"),
-        "hospital_id": payload.get("hospital_id"),
     }
 
     return {

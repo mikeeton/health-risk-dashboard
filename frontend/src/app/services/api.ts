@@ -152,3 +152,110 @@ export async function updateReviewCase(
 
   return response.json();
 }
+
+export async function getAuditLogs() {
+  const response = await fetch(`${API_BASE_URL}/audit/`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch audit logs");
+  }
+
+  return response.json();
+}
+
+export async function getMedications(patientId: number) {
+  const response = await fetch(`${API_BASE_URL}/medications/${patientId}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch medications");
+  }
+
+  return response.json();
+}
+
+export async function createMedication(payload: {
+  patient_id: number;
+  name: string;
+  dosage: string;
+  schedule_time: string;
+  status: string;
+  notes?: string;
+}) {
+  const response = await fetch(`${API_BASE_URL}/medications/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to create medication");
+  }
+
+  return response.json();
+}
+
+export async function updateMedication(
+  medicationId: number,
+  payload: {
+    status: string;
+    notes?: string;
+  }
+) {
+  const response = await fetch(`${API_BASE_URL}/medications/${medicationId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to update medication");
+  }
+
+  return response.json();
+}
+
+export async function getPatientEvents(patientId: number) {
+  const response = await fetch(`${API_BASE_URL}/events/${patientId}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch patient events");
+  }
+
+  return response.json();
+}
+
+export async function createPatientEvent(payload: {
+  patient_id: number;
+  event_type: string;
+  title: string;
+  description?: string;
+  timestamp: string;
+}) {
+  const response = await fetch(`${API_BASE_URL}/events/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to create patient event");
+  }
+
+  return response.json();
+}
+
+export async function getMLPrediction(patientId: number) {
+  const response = await fetch(`${API_BASE_URL}/ml/predict/${patientId}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch ML prediction");
+  }
+
+  return response.json();
+}

@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   LineChart,
+  Shield,
 } from "lucide-react";
 
 import { motion, AnimatePresence } from "framer-motion";
@@ -39,12 +40,7 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
-    {
-      label: "Dashboard",
-      path: "/",
-      icon: BarChart3,
-      show: true,
-    },
+    { label: "Dashboard", path: "/", icon: BarChart3, show: true },
     {
       label: "Analytics",
       path: "/analytics",
@@ -67,6 +63,12 @@ export default function Layout() {
       label: "Reports",
       path: "/reports",
       icon: FileText,
+      show: isDoctor || isAdmin,
+    },
+    {
+      label: "Audit Logs",
+      path: "/audit-logs",
+      icon: Shield,
       show: isDoctor || isAdmin,
     },
   ];
@@ -96,9 +98,7 @@ export default function Layout() {
               className="flex flex-1 items-center justify-between"
             >
               <div>
-                <h1 className="text-xl font-bold tracking-tight">
-                  Health AI
-                </h1>
+                <h1 className="text-xl font-bold tracking-tight">Health AI</h1>
 
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Monitoring Platform
@@ -198,7 +198,8 @@ export default function Layout() {
 
             <p className="mt-2 text-xs leading-relaxed text-blue-50">
               Baseline learning, predictive scoring, medication adherence,
-              clinician escalation, and real-time monitoring are active.
+              clinician escalation, audit logging, and real-time monitoring are
+              active.
             </p>
           </>
         ) : (

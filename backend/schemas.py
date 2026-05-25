@@ -74,7 +74,7 @@ class PatientResponse(BaseModel):
 
 class VitalCreate(BaseModel):
     patient_id: int
-    timestamp: datetime
+    timestamp: str
 
     heart_rate: int
     spo2: float
@@ -95,7 +95,7 @@ class VitalResponse(BaseModel):
     id: int
 
     patient_id: int
-    timestamp: datetime
+    timestamp: str
 
     heart_rate: int
     spo2: float
@@ -113,7 +113,6 @@ class VitalResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # =========================
 # REVIEW CASES
@@ -168,3 +167,69 @@ class AuditLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# =========================
+# MEDICATIONS
+# =========================
+
+class MedicationCreate(BaseModel):
+    patient_id: int
+    name: str
+    dosage: str
+    schedule_time: str
+    status: str = "Due"
+    notes: str | None = None
+
+
+class MedicationUpdate(BaseModel):
+    status: str
+    notes: str | None = None
+
+
+class MedicationResponse(BaseModel):
+    id: int
+    patient_id: int
+    name: str
+    dosage: str
+    schedule_time: str
+    status: str
+    notes: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+# =========================
+# PATIENT EVENTS
+# =========================
+
+class PatientEventCreate(BaseModel):
+    patient_id: int
+    event_type: str
+    title: str
+    description: str | None = None
+    timestamp: str
+
+
+class PatientEventResponse(BaseModel):
+    id: int
+    patient_id: int
+    event_type: str
+    title: str
+    description: str | None = None
+    timestamp: str
+
+    class Config:
+        from_attributes = True
+
+
+# =========================
+# ML PREDICTION
+# =========================
+
+class MLPredictionResponse(BaseModel):
+    patient_id: int
+    prediction_score: int
+    prediction_level: str
+    confidence: float
+    message: str

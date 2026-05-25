@@ -9,6 +9,7 @@ import Reports from "./pages/Reports";
 import Login from "./pages/Login";
 import ReviewCases from "./pages/ReviewCases";
 import AdvancedAnalytics from "./pages/AdvancedAnalytics";
+import AuditLogs from "./pages/AuditLogs";
 
 export const router = createBrowserRouter([
   {
@@ -40,6 +41,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "review-cases",
+        element: (
+          <ProtectedRoute allowedRoles={["admin", "doctor"]}>
+            <ReviewCases />
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: "reports",
         element: (
           <ProtectedRoute allowedRoles={["admin", "doctor"]}>
@@ -48,10 +57,10 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: "review-cases",
+        path: "audit-logs",
         element: (
           <ProtectedRoute allowedRoles={["admin", "doctor"]}>
-            <ReviewCases />
+            <AuditLogs />
           </ProtectedRoute>
         ),
       },
