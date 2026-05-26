@@ -10,6 +10,10 @@ import Login from "./pages/Login";
 import ReviewCases from "./pages/ReviewCases";
 import AdvancedAnalytics from "./pages/AdvancedAnalytics";
 import AuditLogs from "./pages/AuditLogs";
+import AdminDashboard from "./pages/AdminDashboard";
+import DoctorDashboard from "./pages/DoctorDashboard";
+import NurseDashboard from "./pages/NurseDashboard";
+import PatientDashboard from "./pages/PatientDashboard";
 
 export const router = createBrowserRouter([
   {
@@ -68,6 +72,39 @@ export const router = createBrowserRouter([
         path: "login",
         Component: Login,
       },
+
+      {
+  path: "admin",
+  element: (
+    <ProtectedRoute allowedRoles={["admin"]}>
+      <AdminDashboard />
+    </ProtectedRoute>
+  ),
+},
+{
+  path: "doctor",
+  element: (
+    <ProtectedRoute allowedRoles={["doctor", "admin"]}>
+      <DoctorDashboard />
+    </ProtectedRoute>
+  ),
+},
+{
+  path: "nurse",
+  element: (
+    <ProtectedRoute allowedRoles={["nurse", "admin"]}>
+      <NurseDashboard />
+    </ProtectedRoute>
+  ),
+},
+{
+  path: "patient",
+  element: (
+    <ProtectedRoute allowedRoles={["patient", "admin"]}>
+      <PatientDashboard />
+    </ProtectedRoute>
+  ),
+},
     ],
   },
 ]);

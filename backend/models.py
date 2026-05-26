@@ -87,3 +87,14 @@ class PatientEvent(Base):
     title = Column(String, nullable=False)
     description = Column(String, nullable=True)
     timestamp = Column(String, nullable=False)
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, nullable=True)
+    title = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    type = Column(String, default="info")
+    is_read = Column(String, default="false")
+    created_at = Column(String, nullable=False)

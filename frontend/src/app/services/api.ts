@@ -259,3 +259,99 @@ export async function getMLPrediction(patientId: number) {
 
   return response.json();
 }
+
+// New API functions for notifications
+export async function getNotifications() {
+  const response = await fetch(`${API_BASE_URL}/notifications/`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch notifications");
+  }
+
+  return response.json();
+}
+
+export async function createNotification(payload: {
+  user_email?: string | null;
+  title: string;
+  message: string;
+  type: string;
+}) {
+  const response = await fetch(`${API_BASE_URL}/notifications/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to create notification");
+  }
+
+  return response.json();
+}
+
+export async function markNotificationRead(notificationId: number) {
+  const response = await fetch(
+    `${API_BASE_URL}/notifications/${notificationId}/read`,
+    {
+      method: "PATCH",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to mark notification as read");
+  }
+
+  return response.json();
+}
+
+// linear API functions for analytics
+export async function getLinearRegressionForecast(patientId: number) {
+  const response = await fetch(
+    `${API_BASE_URL}/analytics/linear-regression/${patientId}`
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch linear regression forecast");
+  }
+
+  return response.json();
+}
+
+export async function getSystemSummary() {
+  const response = await fetch(`${API_BASE_URL}/analytics/system-summary`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch system summary");
+  }
+
+  return response.json();
+}
+
+export async function getAIPatientSummary(patientId: number) {
+  const response = await fetch(
+    `${API_BASE_URL}/assistant/patient-summary/${patientId}`
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch AI patient summary");
+  }
+
+  return response.json();
+}
+
+export async function askHealthAI(patientId: number, question: string) {
+  const response = await fetch(
+    `${API_BASE_URL}/assistant/ask/${patientId}?question=${encodeURIComponent(
+      question
+    )}`
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to ask Health AI");
+  }
+
+  return response.json();
+}

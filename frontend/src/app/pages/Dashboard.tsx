@@ -3,6 +3,8 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 import StatCard from "../components/StatCard";
+import LinearRegressionPanel from "../components/LinearRegressionPanel";
+import HealthAIAssistant from "../components/HealthAIAssistant";
 import ClinicianPdfReportButton from "../components/ClinicianPdfReportButton";
 import HealthScoreGauge from "../components/HealthScoreGauge";
 import AIInsightPanel from "../components/AIInsightPanel";
@@ -328,6 +330,8 @@ export default function Dashboard() {
 
         <div className="grid gap-6 xl:grid-cols-2">
           <MLPredictionPanel patientId={selectedPatient.id} />
+          <LinearRegressionPanel patientId={selectedPatient.id} />
+<HealthAIAssistant patientId={selectedPatient.id} />
           <MedicationAdherenceDatabase patientId={selectedPatient.id} />
         </div>
 

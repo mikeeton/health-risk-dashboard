@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from routes import analytics, assistant
 import asyncio
 import random
 from datetime import datetime
@@ -7,6 +8,7 @@ from routes import medications, events, ml
 import models
 from database import engine
 from routes import patients, vitals, auth, reviews, audit
+from routes import notifications
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -19,7 +21,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+app.include_router(analytics.router)
+app.include_router(assistant.router)
 app.include_router(auth.router)
 app.include_router(patients.router)
 app.include_router(vitals.router)
@@ -28,7 +31,7 @@ app.include_router(audit.router)
 app.include_router(medications.router)
 app.include_router(events.router)
 app.include_router(ml.router)
-
+app.include_router(notifications.router)
 
 @app.get("/")
 def root():

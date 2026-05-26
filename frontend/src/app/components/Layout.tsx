@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { Outlet, NavLink } from "react-router";
 import {
+  Stethoscope,
+  UserCog,
+  UserRound,
+  HeartHandshake,
+} from "lucide-react";
+
+import {
   Activity,
   BarChart3,
   Upload,
@@ -59,6 +66,30 @@ export default function Layout() {
       icon: ClipboardList,
       show: isDoctor || isAdmin,
     },
+    {
+  label: "Admin",
+  path: "/admin",
+  icon: UserCog,
+  show: isAdmin,
+},
+{
+  label: "Doctor",
+  path: "/doctor",
+  icon: Stethoscope,
+  show: isDoctor || isAdmin,
+},
+{
+  label: "Nurse",
+  path: "/nurse",
+  icon: HeartHandshake,
+  show: isAdmin,
+},
+{
+  label: "Patient",
+  path: "/patient",
+  icon: UserRound,
+  show: true,
+},
     {
       label: "Reports",
       path: "/reports",

@@ -233,3 +233,25 @@ class MLPredictionResponse(BaseModel):
     prediction_level: str
     confidence: float
     message: str
+
+# =========================
+# NOTIFICATIONS 
+# =========================
+class NotificationCreate(BaseModel):
+    user_email: str | None = None
+    title: str
+    message: str
+    type: str = "info"
+
+
+class NotificationResponse(BaseModel):
+    id: int
+    user_email: str | None = None
+    title: str
+    message: str
+    type: str
+    is_read: str
+    created_at: str
+
+    class Config:
+        from_attributes = True
