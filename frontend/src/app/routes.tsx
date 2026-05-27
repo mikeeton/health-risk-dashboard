@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import UploadData from "./pages/UploadData";
 import Reports from "./pages/Reports";
 import Login from "./pages/Login";
+import AIAssistantPage from "./pages/AIAssistantPage";
 import ReviewCases from "./pages/ReviewCases";
 import AdvancedAnalytics from "./pages/AdvancedAnalytics";
 import AuditLogs from "./pages/AuditLogs";
@@ -72,7 +73,14 @@ export const router = createBrowserRouter([
         path: "login",
         Component: Login,
       },
-
+      {
+        path: "ai-assistant",
+        element: (
+          <ProtectedRoute allowedRoles={["admin", "doctor", "nurse"]}>
+            <AIAssistantPage />
+          </ProtectedRoute>
+        ),
+      },
       {
   path: "admin",
   element: (

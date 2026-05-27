@@ -22,6 +22,7 @@ import {
   X,
   LineChart,
   Shield,
+  Bot,
 } from "lucide-react";
 
 import { motion, AnimatePresence } from "framer-motion";
@@ -76,6 +77,12 @@ export default function Layout() {
   label: "Doctor",
   path: "/doctor",
   icon: Stethoscope,
+  show: isDoctor || isAdmin,
+},
+{
+  label: "AI Assistant",
+  path: "/ai-assistant",
+  icon: Bot,
   show: isDoctor || isAdmin,
 },
 {
