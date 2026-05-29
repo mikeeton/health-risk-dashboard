@@ -328,10 +328,12 @@ export default function Dashboard() {
 
         <DatabaseActivityFeed />
 
+
+        <HealthAIAssistant patientId={selectedPatient.id} />
+
         <div className="grid gap-6 xl:grid-cols-2">
           <MLPredictionPanel patientId={selectedPatient.id} />
           <LinearRegressionPanel patientId={selectedPatient.id} />
-<HealthAIAssistant patientId={selectedPatient.id} />
           <MedicationAdherenceDatabase patientId={selectedPatient.id} />
         </div>
 

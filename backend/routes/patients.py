@@ -30,13 +30,12 @@ def create_patient(
         )
 
     new_patient = models.Patient(
-        name=patient.name.strip(),
-        age=patient.age,
-        condition=patient.condition.strip(),
-        risk_level=patient.risk_level,
-        last_checkup=patient.last_checkup,
-        hospital_id=patient.hospital_id,
-    )
+    name=patient.name.strip(),
+    age=patient.age,
+    condition=patient.condition.strip(),
+    risk_level=patient.risk_level,
+    last_checkup=str(patient.last_checkup),
+)
 
     db.add(new_patient)
     db.commit()

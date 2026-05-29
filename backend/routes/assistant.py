@@ -1,9 +1,8 @@
-import os
-
-from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, Query
-from google import genai
 from sqlalchemy.orm import Session
+
+import os
+from dotenv import load_dotenv
 
 import models
 from database import get_db
@@ -15,13 +14,33 @@ router = APIRouter(
     tags=["AI Assistant"]
 )
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# =========================
+# GROQ CLIENT
+# =========================
+from groq import Groq
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
 
+# =========================
+# FALLBACK MODELS
+# =========================
+
+GROQ_MODELS = [
+    "llama-3.1-8b-instant",
+    "qwen/qwen3-32b",
+    "llama-3.3-70b-versatile",
+    "openai/gpt-oss-20b",
+    "meta-llama/llama-4-scout-17b-16e-instruct"
+]
+
+# =========================
+# PATIENT CONTEXT
+# =========================
 
 def build_patient_context(patient_id: int, db: Session):
+
     patient = (
         db.query(models.Patient)
         .filter(models.Patient.id == patient_id)
@@ -35,7 +54,7 @@ def build_patient_context(patient_id: int, db: Session):
         db.query(models.Vital)
         .filter(models.Vital.patient_id == patient_id)
         .order_by(models.Vital.id.desc())
-        .limit(15)
+        .limit(5)
         .all()
     )
 
@@ -53,129 +72,117 @@ def build_patient_context(patient_id: int, db: Session):
             db.query(models.PatientEvent)
             .filter(models.PatientEvent.patient_id == patient_id)
             .order_by(models.PatientEvent.id.desc())
-            .limit(10)
-            .all()
-        )
-
-    review_cases = []
-    if hasattr(models, "ReviewCase"):
-        review_cases = (
-            db.query(models.ReviewCase)
-            .filter(models.ReviewCase.patient_id == patient_id)
-            .order_by(models.ReviewCase.id.desc())
             .limit(5)
             .all()
         )
 
-    vitals_text = "\n".join(
-        [
-            (
-                f"- {v.timestamp}: HR {v.heart_rate}, SpO2 {v.spo2}, "
-                f"BP {v.systolic_bp}/{v.diastolic_bp}, sleep {v.sleep_hours}h, "
-                f"risk {v.risk_score}/10, activity {v.activity_state}"
-            )
-            for v in vitals
-        ]
-    )
+    vitals_text = "\n".join([
+        (
+            f"- HR {v.heart_rate}, "
+            f"SpO2 {v.spo2}, "
+            f"BP {v.systolic_bp}/{v.diastolic_bp}, "
+            f"sleep {v.sleep_hours}h, "
+            f"risk {v.risk_score}/10"
+        )
+        for v in vitals
+    ])
 
-    medications_text = "\n".join(
-        [
-            (
-                f"- {m.name} {m.dosage}, scheduled {m.schedule_time}, "
-                f"status {m.status}, notes {m.notes or 'none'}"
-            )
-            for m in medications
-        ]
-    )
+    meds_text = "\n".join([
+        (
+            f"- {m.name} {m.dosage}, "
+            f"status {m.status}"
+        )
+        for m in medications
+    ])
 
-    events_text = "\n".join(
-        [
-            (
-                f"- {e.timestamp}: {e.event_type} - {e.title}. "
-                f"{e.description or ''}"
-            )
-            for e in events
-        ]
-    )
-
-    review_cases_text = "\n".join(
-        [
-            (
-                f"- Case #{case.id}: {case.risk_level}, score {case.risk_score}, "
-                f"status {case.status}, note {case.note or 'none'}"
-            )
-            for case in review_cases
-        ]
-    )
+    events_text = "\n".join([
+        (
+            f"- {e.event_type}: {e.title}"
+        )
+        for e in events
+    ])
 
     return f"""
-PATIENT PROFILE
+PATIENT
 Name: {patient.name}
 Age: {patient.age}
 Condition: {patient.condition}
-Recorded Risk Level: {patient.risk_level}
-Last Checkup: {patient.last_checkup}
+Risk Level: {patient.risk_level}
 
-RECENT VITALS
-{vitals_text or "No vitals available."}
+VITALS
+{vitals_text or "No vitals."}
 
-MEDICATION ADHERENCE
-{medications_text or "No medication records available."}
+MEDICATIONS
+{meds_text or "No medications."}
 
-TIMELINE EVENTS
-{events_text or "No timeline events available."}
-
-REVIEW CASES
-{review_cases_text or "No review cases available."}
+EVENTS
+{events_text or "No events."}
 """.strip()
 
+# =========================
+# GROQ AI
+# =========================
 
-def call_gemini(patient_context: str, question: str):
-    if not GEMINI_API_KEY:
-        return (
-            "Gemini API key is missing. Add GEMINI_API_KEY to backend/.env "
-            "and restart the FastAPI server."
-        )
+def ask_groq(prompt: str):
 
-    prompt = f"""
-You are an AI clinical decision-support assistant inside a university healthcare software project.
+    last_error = None
 
-Important rules:
-- Use only the provided patient data.
-- Do not invent facts.
-- Do not diagnose.
-- Do not prescribe medication.
-- Give practical clinical workflow support.
-- Explain risk factors clearly.
-- Include suggested checks or escalation steps where appropriate.
-- Always include a short safety note that this does not replace clinician judgement.
+    for model in GROQ_MODELS:
 
-Patient data:
-{patient_context}
+        try:
 
-User question:
-{question}
+            print(f"Trying model: {model}")
 
-Answer in a clear clinician-friendly style with headings where useful.
-""".strip()
+            response = client.chat.completions.create(
+                model=model,
+                temperature=0.2,
+                max_tokens=400,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a professional clinical AI assistant. "
+                            "Be concise, professional, medically safe, and neutral. "
+                            "Never use jokes, slang, or casual language. "
+                            "Do not diagnose or prescribe."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            )
 
-    try:
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-        )
+            return {
+                "model": model,
+                "answer": response.choices[0].message.content
+            }
 
-        return response.text
+        except Exception as error:
 
-    except Exception as error:
-        return f"Gemini request failed: {str(error)}"
+            print(f"{model} failed.")
+            print(error)
 
+            last_error = str(error)
+
+            continue
+
+    return {
+        "model": "none",
+        "answer": f"All Groq models failed. Last error: {last_error}"
+    }
+
+# =========================
+# PATIENT SUMMARY
+# =========================
 
 @router.get("/patient-summary/{patient_id}")
 def patient_summary(
     patient_id: int,
     db: Session = Depends(get_db)
 ):
+
     context = build_patient_context(patient_id, db)
 
     if not context:
@@ -183,48 +190,74 @@ def patient_summary(
             "message": "Patient not found."
         }
 
-    answer = call_gemini(
-        context,
-        (
-            "Generate a concise clinician summary including patient summary, "
-            "vital trends, medication adherence, timeline events, review cases, "
-            "risk factors, and recommended next checks."
-        )
-    )
+    prompt = f"""
+Generate a clinician summary.
+
+Include:
+- Patient overview
+- Key abnormal vitals
+- Medication adherence concerns
+- Timeline observations
+- Risk explanation
+- Recommended checks
+- Safety note
+
+Patient Data:
+{context}
+"""
+
+    result = ask_groq(prompt)
 
     return {
         "patient_id": patient_id,
-        "summary": answer,
+        "model_used": result["model"],
+        "summary": result["answer"]
     }
 
+# =========================
+# ASK AI
+# =========================
 
 @router.get("/ask/{patient_id}")
 def ask_ai(
     patient_id: int,
     question: str = Query(...),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
+
     context = build_patient_context(patient_id, db)
 
     if not context:
         return {
-            "question": question,
-            "answer": "Patient not found.",
+            "answer": "Patient not found."
         }
 
-    answer = call_gemini(context, question)
+    prompt = f"""
+Patient Data:
+{context}
+
+Question:
+{question}
+"""
+
+    result = ask_groq(prompt)
 
     return {
+        "model_used": result["model"],
         "question": question,
-        "answer": answer,
+        "answer": result["answer"]
     }
 
+# =========================
+# HANDOVER
+# =========================
 
 @router.get("/handover/{patient_id}")
-def generate_handover(
+def handover(
     patient_id: int,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
+
     context = build_patient_context(patient_id, db)
 
     if not context:
@@ -232,15 +265,24 @@ def generate_handover(
             "message": "Patient not found."
         }
 
-    answer = call_gemini(
-        context,
-        (
-            "Create a structured clinician shift handover using SBAR format: "
-            "Situation, Background, Assessment, Recommendation."
-        )
-    )
+    prompt = f"""
+Generate a clinician SBAR handover.
+
+Include:
+- Situation
+- Background
+- Assessment
+- Recommendation
+- Safety note
+
+Patient Data:
+{context}
+"""
+
+    result = ask_groq(prompt)
 
     return {
         "patient_id": patient_id,
-        "handover": answer,
+        "model_used": result["model"],
+        "handover": result["answer"]
     }

@@ -5,9 +5,10 @@ import type { Patient } from "../../types/patient";
 import type { HealthData } from "../data/healthData";
 
 import {
+  getAIPatientSummary,
   getMedications,
-  getPatientEvents,
   getMLPrediction,
+  getPatientEvents,
 } from "../services/api";
 
 import { generateClinicianPdfReport } from "../utils/clinicianPdfReport";
@@ -24,26 +25,26 @@ export default function ClinicianPdfReportButton({ patient, vitals }: Props) {
     try {
       setLoading(true);
 
-      const [medications, events, predictionResult] = await Promise.allSettled([
-        getMedications(patient.id),
-        getPatientEvents(patient.id),
-        getMLPrediction(patient.id),
-      ]);
-
-      const medicationsData =
-        medications.status === "fulfilled" ? medications.value : [];
-
-      const eventsData = events.status === "fulfilled" ? events.value : [];
-
-      const predictionData =
-        predictionResult.status === "fulfilled" ? predictionResult.value : null;
+      const [medications, events, prediction, aiSummary] =
+        await Promise.allSettled([
+          getMedications(patient.id),
+          getPatientEvents(patient.id),
+          getMLPrediction(patient.id),
+          getAIPatientSummary(patient.id),
+        ]);
 
       generateClinicianPdfReport({
         patient,
         vitals,
-        medications: medicationsData,
-        events: eventsData,
-        prediction: predictionData,
+        medications:
+          medications.status === "fulfilled" ? medications.value : [],
+        events: events.status === "fulfilled" ? events.value : [],
+        prediction:
+          prediction.status === "fulfilled" ? prediction.value : null,
+        aiSummary:
+          aiSummary.status === "fulfilled"
+            ? aiSummary.value.summary
+            : "AI summary unavailable.",
       });
     } catch (error) {
       console.error("Failed to generate clinician PDF:", error);
