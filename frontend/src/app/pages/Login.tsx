@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Activity } from "lucide-react";
 
 import { Button } from "../components/ui/button";
@@ -8,7 +8,6 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
 export default function Login() {
-  const navigate = useNavigate();
   const { login } = useAuth();
   const { showToast } = useToast();
 
@@ -28,7 +27,7 @@ export default function Login() {
         message: "Welcome back to the Health AI platform.",
       });
 
-      navigate("/");
+      // navigate("/");
     } catch {
       showToast({
         type: "error",
@@ -77,17 +76,24 @@ export default function Login() {
           </div>
 
           <Button
-            type="button"
-            onClick={handleLogin}
-            disabled={loading}
-            className="h-12 w-full rounded-2xl bg-blue-600 text-white shadow-lg hover:bg-blue-700 disabled:opacity-60"
-          >
-            {loading ? "Signing in..." : "Sign In"}
-          </Button>
+  type="button"
+  onClick={handleLogin}
+  disabled={loading}
+  className="h-12 w-full rounded-2xl bg-blue-600 text-white shadow-lg hover:bg-blue-700 disabled:opacity-60"
+>
+  {loading ? "Signing in..." : "Sign In"}
+</Button>
 
-          <div className="rounded-2xl bg-gray-50 p-4 text-center text-sm text-gray-500 dark:bg-slate-800 dark:text-slate-400">
-            Demo: doctor@example.com / Password123
-          </div>
+<Link
+  to="/register"
+  className="block text-center text-sm font-semibold text-blue-600 hover:text-blue-700"
+>
+  Request Doctor, Nurse, or Patient Access
+</Link>
+
+<div className="rounded-2xl bg-gray-50 p-4 text-center text-sm text-gray-500 dark:bg-slate-800 dark:text-slate-400">
+  Demo: doctor@example.com / Password123
+</div>
         </div>
       </Card>
     </div>

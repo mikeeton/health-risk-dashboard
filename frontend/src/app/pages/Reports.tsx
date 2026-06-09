@@ -8,6 +8,8 @@ import {
   UserRound,
 } from "lucide-react";
 
+import AITextBox from "../components/AITextBox";
+
 import { useHealthData } from "../context/HealthDataContext";
 import ClinicianPdfReportButton from "../components/ClinicianPdfReportButton";
 import { getAIPatientSummary, getMLPrediction } from "../services/api";
@@ -204,9 +206,11 @@ export default function Reports() {
               <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
             </div>
           ) : (
-            <div className="max-h-[420px] overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-7 text-slate-700 dark:text-slate-300">
-              {aiSummary || "No AI summary available."}
-            </div>
+            <AITextBox
+  title="AI Risk Analysis"
+  text={aiSummary || "No AI summary available."}
+  modelUsed="llama-3.1-8b-instant"
+/>
           )}
         </div>
       </section>

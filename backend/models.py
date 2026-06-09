@@ -98,3 +98,14 @@ class Notification(Base):
     type = Column(String, default="info")
     is_read = Column(String, default="false")
     created_at = Column(String, nullable=False)
+
+class RegistrationRequest(Base):
+    __tablename__ = "registration_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, nullable=False)
+    full_name = Column(String, nullable=False)
+    role = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
+    status = Column(String, default="pending")
+    created_at = Column(String, nullable=False)

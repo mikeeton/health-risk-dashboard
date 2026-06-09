@@ -355,3 +355,64 @@ export async function askHealthAI(patientId: number, question: string) {
 
   return response.json();
 }
+
+export async function createRegistrationRequest(payload: {
+  email: string;
+  full_name: string;
+  role: string;
+  password: string;
+}) {
+  const response = await fetch(`${API_BASE_URL}/registration-requests/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to submit registration request");
+  }
+
+  return response.json();
+}
+
+export async function getRegistrationRequests() {
+  const response = await fetch(`${API_BASE_URL}/registration-requests/`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch registration requests");
+  }
+
+  return response.json();
+}
+
+export async function approveRegistrationRequest(requestId: number) {
+  const response = await fetch(
+    `${API_BASE_URL}/registration-requests/${requestId}/approve`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to approve request");
+  }
+
+  return response.json();
+}
+
+export async function rejectRegistrationRequest(requestId: number) {
+  const response = await fetch(
+    `${API_BASE_URL}/registration-requests/${requestId}/reject`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to reject request");
+  }
+
+  return response.json();
+}

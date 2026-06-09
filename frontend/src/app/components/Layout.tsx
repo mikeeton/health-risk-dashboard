@@ -1,28 +1,25 @@
 import { useState } from "react";
 import { Outlet, NavLink } from "react-router";
 import {
-  Stethoscope,
-  UserCog,
-  UserRound,
-  HeartHandshake,
-} from "lucide-react";
-
-import {
   Activity,
   BarChart3,
-  Upload,
-  FileText,
+  Bot,
   ClipboardList,
+  FileText,
+  HeartHandshake,
+  LineChart,
   LogOut,
-  User,
-  ShieldCheck,
+  Menu,
   PanelLeftClose,
   PanelLeftOpen,
-  Menu,
-  X,
-  LineChart,
   Shield,
-  Bot,
+  ShieldCheck,
+  Stethoscope,
+  Upload,
+  User,
+  UserCog,
+  UserRound,
+  X,
 } from "lucide-react";
 
 import { motion, AnimatePresence } from "framer-motion";
@@ -35,7 +32,12 @@ import { useHealthData } from "../context/HealthDataContext";
 import { generateAlerts } from "../utils/alertEngine";
 
 export default function Layout() {
-  const { user, logout, isDoctor, isAdmin } = useAuth();
+  const { user, logout } = useAuth();
+
+  const isAdmin = user?.role === "admin";
+  const isDoctor = user?.role === "doctor";
+  const isNurse = user?.role === "nurse";
+  const isPatient = user?.role === "patient";
 
   const { healthData, selectedPatient } = useHealthData();
 
@@ -48,66 +50,84 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
-    { label: "Dashboard", path: "/", icon: BarChart3, show: true },
     {
-      label: "Analytics",
-      path: "/analytics",
-      icon: LineChart,
-      show: isDoctor || isAdmin,
+      label: "Admin",
+      path: "/admin",
+      icon: UserCog,
+      show: isAdmin,
     },
     {
-      label: "Upload Data",
-      path: "/upload",
-      icon: Upload,
-      show: isDoctor || isAdmin,
+      label: "User Management",
+      path: "/admin/users",
+      icon: UserCog,
+      show: isAdmin,
     },
     {
-      label: "Review Cases",
-      path: "/review-cases",
-      icon: ClipboardList,
-      show: isDoctor || isAdmin,
-    },
-    {
-  label: "Admin",
-  path: "/admin",
-  icon: UserCog,
-  show: isAdmin,
-},
-{
-  label: "Doctor",
-  path: "/doctor",
-  icon: Stethoscope,
-  show: isDoctor || isAdmin,
-},
-{
-  label: "AI Assistant",
-  path: "/ai-assistant",
-  icon: Bot,
-  show: isDoctor || isAdmin,
-},
-{
-  label: "Nurse",
-  path: "/nurse",
-  icon: HeartHandshake,
-  show: isAdmin,
-},
-{
-  label: "Patient",
-  path: "/patient",
-  icon: UserRound,
-  show: true,
-},
-    {
-      label: "Reports",
-      path: "/reports",
-      icon: FileText,
-      show: isDoctor || isAdmin,
+      label: "Approvals",
+      path: "/admin/approvals",
+      icon: ShieldCheck,
+      show: isAdmin,
     },
     {
       label: "Audit Logs",
       path: "/audit-logs",
       icon: Shield,
-      show: isDoctor || isAdmin,
+      show: isAdmin,
+    },
+    {
+      label: "Analytics",
+      path: "/analytics",
+      icon: LineChart,
+      show: isAdmin || isDoctor,
+    },
+    {
+      label: "Reports",
+      path: "/reports",
+      icon: FileText,
+      show: isAdmin || isDoctor,
+    },
+
+    {
+      label: "Dashboard",
+      path: "/",
+      icon: BarChart3,
+      show: isDoctor || isNurse || isPatient,
+    },
+    {
+      label: "Upload Data",
+      path: "/upload",
+      icon: Upload,
+      show: isDoctor || isNurse,
+    },
+    {
+      label: "Review Cases",
+      path: "/review-cases",
+      icon: ClipboardList,
+      show: isDoctor || isNurse,
+    },
+    {
+      label: "Doctor",
+      path: "/doctor",
+      icon: Stethoscope,
+      show: isDoctor,
+    },
+    {
+      label: "Nurse",
+      path: "/nurse",
+      icon: HeartHandshake,
+      show: isNurse,
+    },
+    {
+      label: "Patient",
+      path: "/patient",
+      icon: UserRound,
+      show: isPatient,
+    },
+    {
+      label: "AI Assistant",
+      path: "/ai-assistant",
+      icon: Bot,
+      show: isDoctor || isNurse,
     },
   ];
 
@@ -118,9 +138,7 @@ export default function Layout() {
           whileTap={{ scale: 0.92 }}
           whileHover={{ scale: 1.05 }}
           onClick={() =>
-            mobile
-              ? setMobileOpen(false)
-              : setSidebarOpen((value) => !value)
+            mobile ? setMobileOpen(false) : setSidebarOpen((value) => !value)
           }
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/25"
         >

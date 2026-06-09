@@ -255,3 +255,25 @@ class NotificationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# =========================
+# Registration and Login
+# =========================
+
+class RegistrationRequestCreate(BaseModel):
+    email: EmailStr
+    full_name: str
+    role: str
+    password: str
+
+
+class RegistrationRequestResponse(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: str
+    role: str
+    status: str
+    created_at: str
+
+    class Config:
+        from_attributes = True

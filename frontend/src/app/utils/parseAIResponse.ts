@@ -13,16 +13,26 @@ function cleanAIText(text: string) {
     .replace(/##/g, "")
     .replace(/#/g, "")
     .replace(/\r/g, "")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function normaliseRisk(value?: string) {
+  const risk = value?.toLowerCase();
+
+  if (risk === "high") return "High";
+  if (risk === "medium" || risk === "moderate") return "Medium";
+  if (risk === "low") return "Low";
+
+  return "Unknown";
 }
 
 export function parseAIResponse(text: string): ParsedAIResponse {
   const clean = cleanAIText(text);
 
   const riskMatch =
-    clean.match(/Risk Level:\s*(Low|Medium|High)/i) ||
-    clean.match(/\b(Low|Medium|High)\s*Risk\b/i) ||
-    clean.match(/\b(Low|Medium|High)\b/i);
+    clean.match(/Risk Level:\s*(Low|Medium|Moderate|High)/i) ||
+    clean.match(/\b(Low|Medium|Moderate|High)\s*Risk\b/i);
 
   const summaryMatch = clean.match(
     /Summary:\s*([\s\S]*?)(?=Concerns:|Concern:|Recommendation:|Recommended:|Safety Note:|$)/i
@@ -40,14 +50,19 @@ export function parseAIResponse(text: string): ParsedAIResponse {
     concernsMatch?.[1]
       ?.split("\n")
       .map((line) => line.replace(/^[-•]\s*/, "").trim())
-      .filter(Boolean) ?? [];
+      .filter(Boolean)
+      .slice(0, 4) ?? [];
 
-  const fallbackSummary =
-    clean.length > 600 ? `${clean.slice(0, 600).trim()}...` : clean;
+  const summary =
+    summaryMatch?.[1]?.trim() ||
+    clean
+      .replace(/Risk Level:\s*(Low|Medium|Moderate|High)/i, "")
+      .slice(0, 420)
+      .trim();
 
   return {
-    riskLevel: (riskMatch?.[1] as ParsedAIResponse["riskLevel"]) ?? "Unknown",
-    summary: summaryMatch?.[1]?.trim() || fallbackSummary,
+    riskLevel: normaliseRisk(riskMatch?.[1]),
+    summary,
     concerns,
     recommendation:
       recommendationMatch?.[1]?.trim() ||

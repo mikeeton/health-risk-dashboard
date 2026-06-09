@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from routes import analytics, assistant
+from routes import registration_requests
 import asyncio
 import random
 from datetime import datetime
@@ -32,6 +33,7 @@ app.include_router(medications.router)
 app.include_router(events.router)
 app.include_router(ml.router)
 app.include_router(notifications.router)
+app.include_router(registration_requests.router)
 
 @app.get("/")
 def root():

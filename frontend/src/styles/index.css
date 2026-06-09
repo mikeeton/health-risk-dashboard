@@ -1,7 +1,9 @@
+@custom-variant dark (&:where(.dark, .dark *));
+
 @import "tailwindcss";
 @import "./fonts.css";
 
-@custom-variant dark (&:where(.dark, .dark *));
+
 
 * {
   box-sizing: border-box;
