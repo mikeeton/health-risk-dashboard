@@ -115,7 +115,6 @@ def approve_registration_request(
         full_name=request.full_name,
         role=request.role,
         password_hash=request.password_hash,
-        hospital_id=None,
     )
 
     request.status = "approved"
