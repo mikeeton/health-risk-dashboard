@@ -455,5 +455,6 @@ export default function Dashboard() {
         onClose={() => setPatientModalOpen(false)}
       />
     </>
+    
   );
 }
