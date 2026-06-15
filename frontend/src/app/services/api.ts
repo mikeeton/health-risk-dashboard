@@ -416,3 +416,120 @@ export async function rejectRegistrationRequest(requestId: number) {
 
   return response.json();
 }
+
+// doctor clinician API functions for role-based actions
+
+export async function doctorAddClinicalNote(
+  patientId: number,
+  title: string,
+  description: string
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/role-actions/doctor/clinical-note?patient_id=${patientId}&title=${encodeURIComponent(
+      title
+    )}&description=${encodeURIComponent(description)}`,
+    { method: "POST" }
+  );
+
+  if (!response.ok) throw new Error("Failed to add clinical note");
+  return response.json();
+}
+
+export async function doctorEscalatePatient(patientId: number, note: string) {
+  const response = await fetch(
+    `${API_BASE_URL}/role-actions/doctor/escalate?patient_id=${patientId}&note=${encodeURIComponent(
+      note
+    )}`,
+    { method: "POST" }
+  );
+
+  if (!response.ok) throw new Error("Failed to escalate patient");
+  return response.json();
+}
+
+export async function getDoctorPatientHistory(patientId: number) {
+  const response = await fetch(
+    `${API_BASE_URL}/role-actions/doctor/patient-history/${patientId}`
+  );
+
+  if (!response.ok) throw new Error("Failed to fetch history");
+  return response.json();
+}
+
+export async function nurseRecordVitals(payload: any) {
+  const response = await fetch(`${API_BASE_URL}/role-actions/nurse/record-vitals`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) throw new Error("Failed to record vitals");
+  return response.json();
+}
+
+export async function nurseMarkMedicationGiven(medicationId: number) {
+  const response = await fetch(
+    `${API_BASE_URL}/role-actions/nurse/mark-medication-given/${medicationId}`,
+    { method: "POST" }
+  );
+
+  if (!response.ok) throw new Error("Failed to mark medication");
+  return response.json();
+}
+
+export async function nurseAddNursingNote(
+  patientId: number,
+  title: string,
+  description: string
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/role-actions/nurse/nursing-note?patient_id=${patientId}&title=${encodeURIComponent(
+      title
+    )}&description=${encodeURIComponent(description)}`,
+    { method: "POST" }
+  );
+
+  if (!response.ok) throw new Error("Failed to add nursing note");
+  return response.json();
+}
+
+export async function nurseRaiseAlert(patientId: number, note: string) {
+  const response = await fetch(
+    `${API_BASE_URL}/role-actions/nurse/raise-alert?patient_id=${patientId}&note=${encodeURIComponent(
+      note
+    )}`,
+    { method: "POST" }
+  );
+
+  if (!response.ok) throw new Error("Failed to raise alert");
+  return response.json();
+}
+
+export async function getPatientOwnRecords(patientId: number) {
+  const response = await fetch(
+    `${API_BASE_URL}/role-actions/patient/my-records/${patientId}`
+  );
+
+  if (!response.ok) throw new Error("Failed to fetch patient records");
+  return response.json();
+}
+
+export async function suspendAdminUser(userId: number) {
+  const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/suspend`, {
+    method: "PATCH",
+  });
+
+  if (!response.ok) throw new Error("Failed to suspend user");
+  return response.json();
+}
+
+export async function activateAdminUser(userId: number) {
+  const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/activate`, {
+    method: "PATCH",
+  });
+
+  if (!response.ok) throw new Error("Failed to activate user");
+  return response.json();
+}

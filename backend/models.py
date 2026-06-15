@@ -7,11 +7,14 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    public_id = Column(String, unique=True, nullable=True)
+
     email = Column(String, unique=True, index=True, nullable=False)
     full_name = Column(String, nullable=False)
     role = Column(String, nullable=False)
     password_hash = Column(String, nullable=False)
 
+    status = Column(String, default="active")
 
 class Patient(Base):
     __tablename__ = "patients"

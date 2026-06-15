@@ -6,6 +6,7 @@ import asyncio
 import random
 from datetime import datetime
 from routes import medications, events, ml
+from routes import role_actions
 import models
 from database import engine
 from routes import patients, vitals, auth, reviews, audit
@@ -25,6 +26,7 @@ app.add_middleware(
 app.include_router(analytics.router)
 app.include_router(assistant.router)
 app.include_router(auth.router)
+app.include_router(role_actions.router)
 app.include_router(patients.router)
 app.include_router(vitals.router)
 app.include_router(reviews.router)

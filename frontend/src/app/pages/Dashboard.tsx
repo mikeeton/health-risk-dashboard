@@ -143,9 +143,7 @@ export default function Dashboard() {
     setLatestSocketRecord(record);
 
     setHealthData((previousData) => {
-      const alreadyExists = previousData.some(
-        (item) => item.id === record.id
-      );
+      const alreadyExists = previousData.some((item) => item.id === record.id);
 
       if (alreadyExists) return previousData;
 
@@ -228,7 +226,7 @@ export default function Dashboard() {
   return (
     <>
       <div ref={reportRef} className="dashboard-shell space-y-8">
-        <section className="glass-card fade-up rounded-3xl p-5">
+        <section id="dashboard-controls" className="glass-card fade-up rounded-3xl p-5 scroll-mt-28">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-4">
               <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
@@ -278,31 +276,31 @@ export default function Dashboard() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-  <NotificationDropdown alerts={alerts} />
+              <NotificationDropdown alerts={alerts} />
 
-  <button
-    onClick={toggleLiveMonitoring}
-    className={`relative rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] ${
-      liveMonitoring
-        ? "bg-red-600 shadow-red-500/25 hover:bg-red-700"
-        : "bg-green-600 shadow-green-500/25 hover:bg-green-700"
-    } ${liveMonitoring ? "live-pulse" : ""}`}
-  >
-    {liveMonitoring ? "Stop WebSocket Stream" : "Start WebSocket Stream"}
-  </button>
+              <button
+                onClick={toggleLiveMonitoring}
+                className={`relative rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] ${
+                  liveMonitoring
+                    ? "bg-red-600 shadow-red-500/25 hover:bg-red-700"
+                    : "bg-green-600 shadow-green-500/25 hover:bg-green-700"
+                } ${liveMonitoring ? "live-pulse" : ""}`}
+              >
+                {liveMonitoring ? "Stop WebSocket Stream" : "Start WebSocket Stream"}
+              </button>
 
-  <ClinicianPdfReportButton
-    patient={selectedPatient}
-    vitals={patientData}
-  />
+              <ClinicianPdfReportButton
+                patient={selectedPatient}
+                vitals={patientData}
+              />
 
-  <button
-    onClick={exportPDF}
-    className="rounded-xl border border-slate-200 bg-white/80 px-5 py-3 text-sm font-bold shadow-sm transition hover:scale-[1.02] hover:bg-white dark:border-slate-700 dark:bg-slate-900/80"
-  >
-    Export Dashboard PDF
-  </button>
-</div>
+              <button
+                onClick={exportPDF}
+                className="rounded-xl border border-slate-200 bg-white/80 px-5 py-3 text-sm font-bold shadow-sm transition hover:scale-[1.02] hover:bg-white dark:border-slate-700 dark:bg-slate-900/80"
+              >
+                Export Dashboard PDF
+              </button>
+            </div>
           </div>
 
           <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
@@ -321,39 +319,56 @@ export default function Dashboard() {
           )}
         </section>
 
-        <WebSocketLivePanel
-          connected={socketConnected}
-          latestRecord={latestSocketRecord}
-        />
+        <section id="live-monitoring" className="scroll-mt-28">
+          <WebSocketLivePanel
+            connected={socketConnected}
+            latestRecord={latestSocketRecord}
+          />
+        </section>
 
-        <DatabaseActivityFeed />
+        <section id="activity-feed" className="scroll-mt-28">
+          <DatabaseActivityFeed />
+        </section>
 
+        <section id="ai-assistant" className="scroll-mt-28">
+          <HealthAIAssistant patientId={selectedPatient.id} />
+        </section>
 
-        <HealthAIAssistant patientId={selectedPatient.id} />
-
-        <div className="grid gap-6 xl:grid-cols-2">
+        <section id="prediction" className="grid gap-6 xl:grid-cols-2 scroll-mt-28">
           <MLPredictionPanel patientId={selectedPatient.id} />
           <LinearRegressionPanel patientId={selectedPatient.id} />
           <MedicationAdherenceDatabase patientId={selectedPatient.id} />
-        </div>
+        </section>
 
-        <PatientTimelineDatabase patientId={selectedPatient.id} />
+        <section id="medication-adherence" className="scroll-mt-28">
+          <MedicationAdherenceDatabase patientId={selectedPatient.id} />
+        </section>
 
-        <ClinicianActivityFeed
-          alertsCount={alerts.length}
-          queueCount={clinicianQueue.length}
-        />
+        <section id="patient-timeline" className="scroll-mt-28">
+          <PatientTimelineDatabase patientId={selectedPatient.id} />
+        </section>
 
-        <AIInsightPanel insight={insight} onGenerate={generateInsight} />
+        <section id="clinician-activity" className="scroll-mt-28">
+          <ClinicianActivityFeed
+            alertsCount={alerts.length}
+            queueCount={clinicianQueue.length}
+          />
+        </section>
 
-        <div className="grid gap-6 xl:grid-cols-2">
+        <section id="ai-insights" className="scroll-mt-28">
+          <AIInsightPanel insight={insight} onGenerate={generateInsight} />
+        </section>
+
+        <section id="predictive-risk" className="grid gap-6 xl:grid-cols-2 scroll-mt-28">
           <PredictiveRiskPanel prediction={prediction} />
           <MedicationPanel patientId={selectedPatient.id} />
-        </div>
+        </section>
 
-        <AIClinicianReport report={clinicianReport} />
+        <section id="reports" className="scroll-mt-28">
+          <AIClinicianReport report={clinicianReport} />
+        </section>
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5">
+        <section id="stats" className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5 scroll-mt-28">
           <StatCard
             title="Average Risk Score"
             value={`${stats.avgRisk}/10`}
@@ -422,22 +437,34 @@ export default function Dashboard() {
           />
         </section>
 
-        <AlertPanel alerts={alerts} />
+        <section id="alerts" className="scroll-mt-28">
+          <AlertPanel alerts={alerts} />
+        </section>
 
-        <NotificationCenter alerts={alerts} />
+        <section id="notifications" className="scroll-mt-28">
+          <NotificationCenter alerts={alerts} />
+        </section>
 
-        <ClinicianQueue queue={clinicianQueue} />
+        <section id="review-queue" className="scroll-mt-28">
+          <ClinicianQueue queue={clinicianQueue} />
+        </section>
 
-        <AIExplanationPanel
-          reasons={aiAnalysis.reasons}
-          riskLevel={aiAnalysis.riskLevel}
-        />
+        <section id="ai-explanation" className="scroll-mt-28">
+          <AIExplanationPanel
+            reasons={aiAnalysis.reasons}
+            riskLevel={aiAnalysis.riskLevel}
+          />
+        </section>
 
-        <TrendAnalysisPanel trends={trends} />
+        <section id="trend-analysis" className="scroll-mt-28">
+          <TrendAnalysisPanel trends={trends} />
+        </section>
 
-        <PatientTimeline records={patientData} />
+        <section id="patient-timeline-local" className="scroll-mt-28">
+          <PatientTimeline records={patientData} />
+        </section>
 
-        <section className="dashboard-grid">
+        <section id="vitals" className="dashboard-grid scroll-mt-28">
           <div className="col-span-12 xl:col-span-4">
             <HealthScoreGauge score={healthScore} />
           </div>
@@ -445,7 +472,9 @@ export default function Dashboard() {
           <HealthCharts data={filteredData} metric={metric} />
         </section>
 
-        <DataTable data={filteredData} />
+        <section id="data-table" className="scroll-mt-28">
+          <DataTable data={filteredData} />
+        </section>
       </div>
 
       <PatientDetailModal
@@ -455,6 +484,5 @@ export default function Dashboard() {
         onClose={() => setPatientModalOpen(false)}
       />
     </>
-    
   );
 }
