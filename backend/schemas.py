@@ -277,3 +277,76 @@ class RegistrationRequestResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+
+# =========================
+# wearable connection
+# =========================
+
+class WearableVitalCreate(BaseModel):
+    patient_id: int
+
+    device_name: str
+
+    heart_rate: int
+    spo2: float
+
+    steps: int
+
+    sleep_hours: float
+
+    timestamp: str
+
+
+class WearableDeviceResponse(BaseModel):
+    id: int
+
+    patient_id: int
+
+    device_name: str
+
+    manufacturer: str
+
+    device_type: str
+
+    last_sync: str | None
+
+    is_connected: str
+
+    class Config:
+        from_attributes = True
+
+# =========================
+# registration requests
+# =========================
+
+class RegistrationRequestCreate(BaseModel):
+    email: EmailStr
+    full_name: str
+    role: str
+    password: str
+
+    age: int | None = None
+    gender: str | None = None
+    conditions: str | None = None
+    medication_notes: str | None = None
+    lifestyle_notes: str | None = None
+
+
+class RegistrationRequestResponse(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: str
+    role: str
+    status: str
+    created_at: str
+
+    age: int | None = None
+    gender: str | None = None
+    conditions: str | None = None
+    medication_notes: str | None = None
+    lifestyle_notes: str | None = None
+
+    class Config:
+        from_attributes = True

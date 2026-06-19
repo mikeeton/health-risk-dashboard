@@ -30,6 +30,19 @@ def create_registration_request(
             detail="You can only request doctor, nurse, or patient access.",
         )
 
+    if role == "patient":
+        if request.age is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Patients must provide age.",
+            )
+
+        if not request.conditions:
+            raise HTTPException(
+                status_code=400,
+                detail="Patients must provide at least one condition or ailment.",
+            )
+
     existing_user = (
         db.query(models.User)
         .filter(models.User.email == request.email.lower())
@@ -58,6 +71,11 @@ def create_registration_request(
         password_hash=hash_password(request.password),
         status="pending",
         created_at=datetime.now().isoformat(timespec="seconds"),
+        age=request.age,
+        gender=request.gender,
+        conditions=request.conditions,
+        medication_notes=request.medication_notes,
+        lifestyle_notes=request.lifestyle_notes,
     )
 
     db.add(new_request)
@@ -115,11 +133,45 @@ def approve_registration_request(
         full_name=request.full_name,
         role=request.role,
         password_hash=request.password_hash,
+        status="active",
     )
+
+    db.add(new_user)
+    db.flush()
+
+    created_patient_id = None
+
+    if request.role == "patient":
+        patient = models.Patient(
+            name=request.full_name,
+            age=request.age or 18,
+            condition=request.conditions or "General Monitoring",
+            risk_level="Low",
+            last_checkup=datetime.now().date().isoformat(),
+        )
+
+        db.add(patient)
+        db.flush()
+
+        created_patient_id = patient.id
+
+        event = models.PatientEvent(
+            patient_id=patient.id,
+            event_type="Registration",
+            title="Patient profile created",
+            description=(
+                f"Patient registered with conditions: "
+                f"{request.conditions or 'General Monitoring'}. "
+                f"Medication notes: {request.medication_notes or 'None'}. "
+                f"Lifestyle notes: {request.lifestyle_notes or 'None'}."
+            ),
+            timestamp=datetime.now().isoformat(timespec="seconds"),
+        )
+
+        db.add(event)
 
     request.status = "approved"
 
-    db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
@@ -134,6 +186,7 @@ def approve_registration_request(
     return {
         "message": "Registration request approved and user created",
         "user_id": new_user.id,
+        "patient_id": created_patient_id,
     }
 
 

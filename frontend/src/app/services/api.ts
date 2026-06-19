@@ -361,6 +361,11 @@ export async function createRegistrationRequest(payload: {
   full_name: string;
   role: string;
   password: string;
+  age?: number | null;
+  gender?: string | null;
+  conditions?: string | null;
+  medication_notes?: string | null;
+  lifestyle_notes?: string | null;
 }) {
   const response = await fetch(`${API_BASE_URL}/registration-requests/`, {
     method: "POST",
@@ -372,6 +377,21 @@ export async function createRegistrationRequest(payload: {
 
   if (!response.ok) {
     throw new Error("Failed to submit registration request");
+  }
+
+  return response.json();
+}
+
+export async function generateLiveSimulatorVital(patientId: number) {
+  const response = await fetch(
+    `${API_BASE_URL}/live-simulator/generate/${patientId}`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to generate live simulator vital");
   }
 
   return response.json();

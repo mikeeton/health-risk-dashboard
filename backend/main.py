@@ -11,6 +11,7 @@ import models
 from database import engine
 from routes import patients, vitals, auth, reviews, audit
 from routes import notifications
+from routes import wearables
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -28,6 +29,7 @@ app.include_router(assistant.router)
 app.include_router(auth.router)
 app.include_router(role_actions.router)
 app.include_router(patients.router)
+app.include_router(wearables.router)
 app.include_router(vitals.router)
 app.include_router(reviews.router)
 app.include_router(audit.router)

@@ -12,17 +12,34 @@ export default function RegisterAccess() {
     email: "",
     password: "",
     role: "patient",
+    age: "",
+    gender: "",
+    conditions: "",
+    medication_notes: "",
+    lifestyle_notes: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  const isPatient = form.role === "patient";
 
   async function submitRequest() {
     try {
       setLoading(true);
       setMessage("");
 
-      await createRegistrationRequest(form);
+      await createRegistrationRequest({
+        email: form.email,
+        full_name: form.full_name,
+        password: form.password,
+        role: form.role,
+        age: form.age ? Number(form.age) : null,
+        gender: form.gender || null,
+        conditions: form.conditions || null,
+        medication_notes: form.medication_notes || null,
+        lifestyle_notes: form.lifestyle_notes || null,
+      });
 
       setMessage(
         "Registration request submitted. An admin must approve your account before you can log in."
@@ -33,9 +50,14 @@ export default function RegisterAccess() {
         email: "",
         password: "",
         role: "patient",
+        age: "",
+        gender: "",
+        conditions: "",
+        medication_notes: "",
+        lifestyle_notes: "",
       });
     } catch {
-      setMessage("Could not submit request. Email may already exist.");
+      setMessage("Could not submit request. Check the details and try again.");
     } finally {
       setLoading(false);
     }
@@ -43,7 +65,7 @@ export default function RegisterAccess() {
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-10 text-white">
-      <div className="mx-auto max-w-xl rounded-3xl border border-white/10 bg-white/10 p-8 shadow-2xl backdrop-blur">
+      <div className="mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/10 p-8 shadow-2xl backdrop-blur">
         <div className="mb-8 flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600">
             <UserPlus className="h-7 w-7" />
@@ -52,8 +74,8 @@ export default function RegisterAccess() {
           <div>
             <h1 className="text-3xl font-extrabold">Request Access</h1>
             <p className="mt-1 text-sm text-slate-300">
-              Register as a doctor, nurse, or patient. Admin approval is
-              required before login.
+              Register as a doctor, nurse, or patient. Patient condition details
+              are used by the live simulator after admin approval.
             </p>
           </div>
         </div>
@@ -107,10 +129,82 @@ export default function RegisterAccess() {
             ))}
           </select>
 
+          {isPatient && (
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <h2 className="mb-4 text-lg font-extrabold">
+                Patient Health Profile
+              </h2>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <input
+                  value={form.age}
+                  type="number"
+                  onChange={(event) =>
+                    setForm({ ...form, age: event.target.value })
+                  }
+                  placeholder="Age"
+                  className="rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
+                />
+
+                <select
+                  value={form.gender}
+                  onChange={(event) =>
+                    setForm({ ...form, gender: event.target.value })
+                  }
+                  className="rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none focus:border-blue-400"
+                >
+                  <option value="" className="text-slate-900">
+                    Select gender
+                  </option>
+                  <option value="male" className="text-slate-900">
+                    Male
+                  </option>
+                  <option value="female" className="text-slate-900">
+                    Female
+                  </option>
+                  <option value="other" className="text-slate-900">
+                    Other
+                  </option>
+                </select>
+              </div>
+
+              <textarea
+                value={form.conditions}
+                onChange={(event) =>
+                  setForm({ ...form, conditions: event.target.value })
+                }
+                placeholder="Known conditions / ailments e.g. hypertension, sleep apnea, COPD, kidney disease"
+                className="mt-4 min-h-28 w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
+              />
+
+              <textarea
+                value={form.medication_notes}
+                onChange={(event) =>
+                  setForm({ ...form, medication_notes: event.target.value })
+                }
+                placeholder="Medication notes e.g. takes inhaler, blood pressure tablets, insulin"
+                className="mt-4 min-h-24 w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
+              />
+
+              <textarea
+                value={form.lifestyle_notes}
+                onChange={(event) =>
+                  setForm({ ...form, lifestyle_notes: event.target.value })
+                }
+                placeholder="Lifestyle notes e.g. poor sleep, low activity, smoker, high stress"
+                className="mt-4 min-h-24 w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
+              />
+            </div>
+          )}
+
           <button
             onClick={submitRequest}
             disabled={
-              loading || !form.email || !form.full_name || !form.password
+              loading ||
+              !form.email ||
+              !form.full_name ||
+              !form.password ||
+              (isPatient && (!form.age || !form.conditions))
             }
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-sm font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-60"
           >
