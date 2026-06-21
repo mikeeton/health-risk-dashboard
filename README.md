@@ -205,6 +205,10 @@ npm run lint
 npm run build
 ```
 
+The production build is code-split. Route pages, charting, animation, icons,
+and PDF generation libraries are emitted as separate chunks so the initial app
+bundle stays small. The PDF libraries are loaded only when a user exports a PDF.
+
 Run backend syntax check:
 
 ```bash
@@ -277,6 +281,28 @@ The style system focuses on:
 - visible focus states
 - tabular numeric table rendering
 - no browser caching assumptions for clinical data
+
+## Frontend Performance
+
+The frontend uses two bundle-size controls:
+
+- Route-level lazy loading in `frontend/src/app/routes.tsx`
+- Manual vendor chunks in `frontend/vite.config.ts`
+
+Large libraries are split by purpose:
+
+- `react`: React, React DOM, React Router
+- `charts`: Recharts
+- `motion`: Framer Motion
+- `icons`: Lucide icons
+- `pdf-jspdf`: jsPDF
+- `pdf-canvas`: html2canvas
+- `ui`: Radix UI helpers
+- `vendor`: remaining third-party code
+
+The dashboard PDF export dynamically imports `html2canvas` and `jspdf`.
+The clinician PDF report button dynamically imports the PDF report utility.
+This keeps PDF code out of normal page navigation.
 
 ## File-by-File Guide
 
@@ -494,6 +520,12 @@ The style system focuses on:
 - Defines frontend dependencies and scripts.
 - Important scripts: `npm run dev`, `npm run lint`, `npm run build`.
 
+`frontend/vite.config.ts`
+
+- Registers React and Tailwind plugins.
+- Defines manual chunks for React, charting, motion, icons, PDF, UI, and vendor code.
+- Keeps the production build below Vite's default large-chunk warning threshold.
+
 `frontend/.env.example`
 
 - Shows `VITE_API_BASE_URL`, the backend URL used by the frontend.
@@ -511,6 +543,7 @@ The style system focuses on:
 
 - Defines all frontend routes.
 - Uses protected route wrappers to enforce role-based page access.
+- Lazy-loads page components with `React.lazy` and `Suspense` to reduce the first bundle.
 
 ### Frontend Context
 
@@ -565,6 +598,7 @@ The style system focuses on:
 
 - Main clinical dashboard.
 - Shows charts, alerts, AI panels, medication/timeline widgets, and selected-patient detail.
+- Dynamically imports PDF export libraries only when the dashboard PDF button is used.
 
 `frontend/src/app/pages/DoctorDashboard.tsx`
 
@@ -736,6 +770,7 @@ The style system focuses on:
 `frontend/src/app/components/ClinicianPdfReportButton.tsx`
 
 - Generates clinician PDF reports.
+- Dynamically imports the PDF report generator only when the button is clicked.
 
 `frontend/src/app/components/DataTable.tsx`
 

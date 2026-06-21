@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 
 import StatCard from "../components/StatCard";
 import LinearRegressionPanel from "../components/LinearRegressionPanel";
@@ -205,6 +203,11 @@ export default function Dashboard() {
 
   const exportPDF = async () => {
     if (!reportRef.current) return;
+
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
 
     const canvas = await html2canvas(reportRef.current, {
       scale: 2,

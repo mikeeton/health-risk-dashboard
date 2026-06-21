@@ -1,26 +1,38 @@
+import { lazy, Suspense, type ReactNode } from "react";
 import { createBrowserRouter } from "react-router";
 
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-import Dashboard from "./pages/Dashboard";
-import UploadData from "./pages/UploadData";
-import Reports from "./pages/Reports";
-import Login from "./pages/Login";
-import AIAssistantPage from "./pages/AIAssistantPage";
-import ReviewCases from "./pages/ReviewCases";
-import AdvancedAnalytics from "./pages/AdvancedAnalytics";
-import AuditLogs from "./pages/AuditLogs";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const UploadData = lazy(() => import("./pages/UploadData"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Login = lazy(() => import("./pages/Login"));
+const AIAssistantPage = lazy(() => import("./pages/AIAssistantPage"));
+const ReviewCases = lazy(() => import("./pages/ReviewCases"));
+const AdvancedAnalytics = lazy(() => import("./pages/AdvancedAnalytics"));
+const AuditLogs = lazy(() => import("./pages/AuditLogs"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminUsers = lazy(() => import("./pages/AdminUsers"));
+const AdminApprovals = lazy(() => import("./pages/AdminApprovals"));
+const DoctorDashboard = lazy(() => import("./pages/DoctorDashboard"));
+const NurseDashboard = lazy(() => import("./pages/NurseDashboard"));
+const PatientDashboard = lazy(() => import("./pages/PatientDashboard"));
+const RegisterAccess = lazy(() => import("./pages/RegisterAccess"));
 
-import AdminDashboard from "./pages/AdminDashboard";
-import AdminUsers from "./pages/AdminUsers";
-import AdminApprovals from "./pages/AdminApprovals";
+function PageLoader() {
+  return (
+    <div className="dashboard-shell">
+      <div className="glass-card p-6 text-sm font-semibold text-slate-600 dark:text-slate-300">
+        Loading...
+      </div>
+    </div>
+  );
+}
 
-import DoctorDashboard from "./pages/DoctorDashboard";
-import NurseDashboard from "./pages/NurseDashboard";
-import PatientDashboard from "./pages/PatientDashboard";
-
-import RegisterAccess from "./pages/RegisterAccess";
+function lazyPage(element: ReactNode) {
+  return <Suspense fallback={<PageLoader />}>{element}</Suspense>;
+}
 
 export const router = createBrowserRouter([
   {
@@ -31,26 +43,26 @@ export const router = createBrowserRouter([
         index: true,
         element: (
           <ProtectedRoute allowedRoles={["doctor", "nurse", "patient"]}>
-            <Dashboard />
+            {lazyPage(<Dashboard />)}
           </ProtectedRoute>
         ),
       },
 
       {
         path: "login",
-        Component: Login,
+        element: lazyPage(<Login />),
       },
 
       {
         path: "register",
-        element: <RegisterAccess />,
+        element: lazyPage(<RegisterAccess />),
       },
 
       {
         path: "admin",
         element: (
           <ProtectedRoute allowedRoles={["admin"]}>
-            <AdminDashboard />
+            {lazyPage(<AdminDashboard />)}
           </ProtectedRoute>
         ),
       },
@@ -59,7 +71,7 @@ export const router = createBrowserRouter([
         path: "admin/users",
         element: (
           <ProtectedRoute allowedRoles={["admin"]}>
-            <AdminUsers />
+            {lazyPage(<AdminUsers />)}
           </ProtectedRoute>
         ),
       },
@@ -68,7 +80,7 @@ export const router = createBrowserRouter([
         path: "admin/approvals",
         element: (
           <ProtectedRoute allowedRoles={["admin"]}>
-            <AdminApprovals />
+            {lazyPage(<AdminApprovals />)}
           </ProtectedRoute>
         ),
       },
@@ -77,7 +89,7 @@ export const router = createBrowserRouter([
         path: "doctor",
         element: (
           <ProtectedRoute allowedRoles={["doctor"]}>
-            <DoctorDashboard />
+            {lazyPage(<DoctorDashboard />)}
           </ProtectedRoute>
         ),
       },
@@ -86,7 +98,7 @@ export const router = createBrowserRouter([
         path: "nurse",
         element: (
           <ProtectedRoute allowedRoles={["nurse"]}>
-            <NurseDashboard />
+            {lazyPage(<NurseDashboard />)}
           </ProtectedRoute>
         ),
       },
@@ -95,7 +107,7 @@ export const router = createBrowserRouter([
         path: "patient",
         element: (
           <ProtectedRoute allowedRoles={["patient"]}>
-            <PatientDashboard />
+            {lazyPage(<PatientDashboard />)}
           </ProtectedRoute>
         ),
       },
@@ -104,7 +116,7 @@ export const router = createBrowserRouter([
         path: "analytics",
         element: (
           <ProtectedRoute allowedRoles={["admin", "doctor"]}>
-            <AdvancedAnalytics />
+            {lazyPage(<AdvancedAnalytics />)}
           </ProtectedRoute>
         ),
       },
@@ -113,7 +125,7 @@ export const router = createBrowserRouter([
         path: "upload",
         element: (
           <ProtectedRoute allowedRoles={["doctor", "nurse"]}>
-            <UploadData />
+            {lazyPage(<UploadData />)}
           </ProtectedRoute>
         ),
       },
@@ -122,7 +134,7 @@ export const router = createBrowserRouter([
         path: "review-cases",
         element: (
           <ProtectedRoute allowedRoles={["doctor", "nurse"]}>
-            <ReviewCases />
+            {lazyPage(<ReviewCases />)}
           </ProtectedRoute>
         ),
       },
@@ -131,7 +143,7 @@ export const router = createBrowserRouter([
         path: "reports",
         element: (
           <ProtectedRoute allowedRoles={["admin", "doctor"]}>
-            <Reports />
+            {lazyPage(<Reports />)}
           </ProtectedRoute>
         ),
       },
@@ -140,7 +152,7 @@ export const router = createBrowserRouter([
         path: "audit-logs",
         element: (
           <ProtectedRoute allowedRoles={["admin"]}>
-            <AuditLogs />
+            {lazyPage(<AuditLogs />)}
           </ProtectedRoute>
         ),
       },
@@ -149,7 +161,7 @@ export const router = createBrowserRouter([
         path: "ai-assistant",
         element: (
           <ProtectedRoute allowedRoles={["doctor", "nurse"]}>
-            <AIAssistantPage />
+            {lazyPage(<AIAssistantPage />)}
           </ProtectedRoute>
         ),
       },

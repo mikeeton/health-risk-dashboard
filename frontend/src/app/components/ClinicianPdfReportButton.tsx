@@ -11,8 +11,6 @@ import {
   getPatientEvents,
 } from "../services/api";
 
-import { generateClinicianPdfReport } from "../utils/clinicianPdfReport";
-
 type Props = {
   patient: Patient;
   vitals: HealthData[];
@@ -32,6 +30,10 @@ export default function ClinicianPdfReportButton({ patient, vitals }: Props) {
           getMLPrediction(patient.id),
           getAIPatientSummary(patient.id),
         ]);
+
+      const { generateClinicianPdfReport } = await import(
+        "../utils/clinicianPdfReport"
+      );
 
       generateClinicianPdfReport({
         patient,
