@@ -7,6 +7,7 @@ import schemas
 from access_control import get_accessible_patient, require_roles
 from auth_utils import get_current_user
 from database import get_db
+from notification_utils import create_notification, notify_role
 from routes.audit import write_audit_log
 
 router = APIRouter(
@@ -15,22 +16,22 @@ router = APIRouter(
 )
 
 
-@router.post("/doctor/clinical-note")
+@router.post("/doctor/clinical-note", response_model=schemas.PatientEventResponse)
 def doctor_add_clinical_note(
-    patient_id: int,
-    title: str,
-    description: str,
+    payload: schemas.DoctorClinicalNoteCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor"})
-    patient = get_accessible_patient(db, patient_id, current_user)
+    require_roles(current_user, {"doctor"})
+    get_accessible_patient(db, payload.patient_id, current_user)
 
+    # Clinical notes are stored as patient timeline events so they stay scoped
+    # by the same patient access rules used for vitals, medication, and reports.
     event = models.PatientEvent(
-        patient_id=patient_id,
-        event_type="Clinical Note",
-        title=title,
-        description=description,
+        patient_id=payload.patient_id,
+        event_type=payload.note_type,
+        title=payload.title.strip(),
+        description=payload.description.strip(),
         timestamp=datetime.now().isoformat(timespec="seconds"),
     )
 
@@ -49,19 +50,18 @@ def doctor_add_clinical_note(
     return event
 
 
-@router.post("/doctor/escalate")
+@router.post("/doctor/escalate", response_model=schemas.ReviewCaseResponse)
 def doctor_escalate_patient(
-    patient_id: int,
-    note: str,
+    payload: schemas.EscalationCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor"})
-    patient = get_accessible_patient(db, patient_id, current_user)
+    require_roles(current_user, {"doctor"})
+    patient = get_accessible_patient(db, payload.patient_id, current_user)
 
     latest_vital = (
         db.query(models.Vital)
-        .filter(models.Vital.patient_id == patient_id)
+        .filter(models.Vital.patient_id == payload.patient_id)
         .order_by(models.Vital.id.desc())
         .first()
     )
@@ -74,12 +74,22 @@ def doctor_escalate_patient(
         risk_level="High",
         risk_score=risk_score,
         status="Escalated",
-        note=note,
+        note=payload.note.strip(),
         created_at=datetime.now().isoformat(timespec="seconds"),
         updated_at=None,
     )
 
     db.add(case)
+    notify_role(
+        db,
+        role="admin",
+        title="Critical patient escalation",
+        message=f"{current_user.full_name} escalated {patient.name}.",
+        notification_type="critical",
+        link="/audit-logs",
+        related_entity="ReviewCase",
+        related_entity_id=None,
+    )
     db.commit()
     db.refresh(case)
 
@@ -100,7 +110,7 @@ def doctor_view_patient_history(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor"})
+    require_roles(current_user, {"doctor"})
     patient = get_accessible_patient(db, patient_id, current_user)
 
     vitals = (
@@ -133,13 +143,13 @@ def doctor_view_patient_history(
     }
 
 
-@router.post("/nurse/record-vitals")
+@router.post("/nurse/record-vitals", response_model=schemas.VitalResponse)
 def nurse_record_vitals(
     vital: schemas.VitalCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "nurse"})
+    require_roles(current_user, {"nurse"})
     get_accessible_patient(db, vital.patient_id, current_user)
 
     new_vital = models.Vital(
@@ -172,13 +182,16 @@ def nurse_record_vitals(
     return new_vital
 
 
-@router.post("/nurse/mark-medication-given/{medication_id}")
+@router.post(
+    "/nurse/mark-medication-given/{medication_id}",
+    response_model=schemas.MedicationResponse,
+)
 def nurse_mark_medication_given(
     medication_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "nurse"})
+    require_roles(current_user, {"nurse"})
 
     medication = (
         db.query(models.Medication)
@@ -206,22 +219,20 @@ def nurse_mark_medication_given(
     return medication
 
 
-@router.post("/nurse/nursing-note")
+@router.post("/nurse/nursing-note", response_model=schemas.PatientEventResponse)
 def nurse_add_nursing_note(
-    patient_id: int,
-    title: str,
-    description: str,
+    payload: schemas.NursingNoteCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "nurse"})
-    patient = get_accessible_patient(db, patient_id, current_user)
+    require_roles(current_user, {"nurse"})
+    get_accessible_patient(db, payload.patient_id, current_user)
 
     event = models.PatientEvent(
-        patient_id=patient_id,
+        patient_id=payload.patient_id,
         event_type="Nursing Note",
-        title=title,
-        description=description,
+        title=payload.title.strip(),
+        description=payload.description.strip(),
         timestamp=datetime.now().isoformat(timespec="seconds"),
     )
 
@@ -240,15 +251,14 @@ def nurse_add_nursing_note(
     return event
 
 
-@router.post("/nurse/raise-alert")
+@router.post("/nurse/raise-alert", response_model=schemas.ReviewCaseResponse)
 def nurse_raise_alert(
-    patient_id: int,
-    note: str,
+    payload: schemas.NurseAlertCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "nurse"})
-    patient = get_accessible_patient(db, patient_id, current_user)
+    require_roles(current_user, {"nurse"})
+    patient = get_accessible_patient(db, payload.patient_id, current_user)
 
     case = models.ReviewCase(
         patient_id=patient.id,
@@ -256,12 +266,37 @@ def nurse_raise_alert(
         risk_level="High",
         risk_score=8,
         status="Open",
-        note=note,
+        note=payload.note.strip(),
         created_at=datetime.now().isoformat(timespec="seconds"),
         updated_at=None,
     )
 
     db.add(case)
+    notify_role(
+        db,
+        role="admin",
+        title="High-risk patient alert",
+        message=f"{current_user.full_name} raised an alert for {patient.name}.",
+        notification_type="alert",
+        link="/audit-logs",
+        related_entity="ReviewCase",
+        related_entity_id=None,
+    )
+
+    if patient.primary_doctor_id:
+        doctor = db.query(models.User).filter(models.User.id == patient.primary_doctor_id).first()
+        if doctor:
+            create_notification(
+                db,
+                user_email=doctor.email,
+                title="High-risk patient alert",
+                message=f"A nursing alert was raised for {patient.name}.",
+                notification_type="alert",
+                link="/review-cases",
+                related_entity="ReviewCase",
+                related_entity_id=None,
+            )
+
     db.commit()
     db.refresh(case)
 
@@ -282,7 +317,7 @@ def patient_view_own_records(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "patient"})
+    require_roles(current_user, {"patient"})
     patient = get_accessible_patient(db, patient_id, current_user)
 
     vitals = (

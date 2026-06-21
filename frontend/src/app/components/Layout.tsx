@@ -6,6 +6,7 @@ import {
   Bot,
   ClipboardList,
   FileText,
+  GitPullRequest,
   HeartHandshake,
   LineChart,
   LogOut,
@@ -14,6 +15,7 @@ import {
   PanelLeftOpen,
   Shield,
   ShieldCheck,
+  UserPlus,
   Stethoscope,
   Upload,
   User,
@@ -41,6 +43,32 @@ export default function Layout() {
 
   const { healthData, selectedPatient } = useHealthData();
 
+  const roleLabel = user?.role
+    ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)} Workspace`
+    : "Health AI";
+
+  const roleSubtitle = isAdmin
+    ? "Users, approvals, assignments, and audit visibility"
+    : isDoctor
+      ? `Clinical overview for assigned patients${
+          selectedPatient?.name ? ` · ${selectedPatient.name}` : ""
+        }`
+      : isNurse
+        ? `Nursing workflow for assigned patients${
+            selectedPatient?.name ? ` · ${selectedPatient.name}` : ""
+          }`
+        : isPatient
+          ? "Personal health record and care timeline"
+          : "Secure health monitoring platform";
+
+  const roleBadgeClass = isAdmin
+    ? "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300"
+    : isDoctor
+      ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300"
+      : isNurse
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+        : "border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200";
+
   const alerts = generateAlerts(
     healthData.filter((record) => record.patientId === selectedPatient.id),
     selectedPatient
@@ -50,6 +78,8 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
+    // Navigation is role-aware for usability; backend access checks still remain
+    // the real security boundary.
     {
       label: "Admin",
       path: "/admin",
@@ -69,6 +99,18 @@ export default function Layout() {
       show: isAdmin,
     },
     {
+      label: "Assignments",
+      path: "/admin/assignments",
+      icon: UserPlus,
+      show: isAdmin,
+    },
+    {
+      label: "Referral Review",
+      path: "/admin/referrals",
+      icon: GitPullRequest,
+      show: isAdmin,
+    },
+    {
       label: "Audit Logs",
       path: "/audit-logs",
       icon: Shield,
@@ -78,13 +120,13 @@ export default function Layout() {
       label: "Analytics",
       path: "/analytics",
       icon: LineChart,
-      show: isAdmin || isDoctor,
+      show: isDoctor,
     },
     {
       label: "Reports",
       path: "/reports",
       icon: FileText,
-      show: isAdmin || isDoctor,
+      show: isDoctor,
     },
 
     {
@@ -103,6 +145,12 @@ export default function Layout() {
       label: "Review Cases",
       path: "/review-cases",
       icon: ClipboardList,
+      show: isDoctor || isNurse,
+    },
+    {
+      label: "Referrals",
+      path: "/referrals",
+      icon: GitPullRequest,
       show: isDoctor || isNurse,
     },
     {
@@ -280,14 +328,36 @@ export default function Layout() {
         }}
         className="min-h-screen lg:block"
       >
-        <header className="sticky top-0 z-40 border-b border-slate-200 bg-slate-50/95 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/95 sm:px-7">
-          <div className="flex items-center justify-between lg:justify-end">
-            <button
-              onClick={() => setMobileOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 lg:hidden"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
+        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:px-7">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                onClick={() => setMobileOpen(true)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 lg:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-sm font-black text-slate-950 dark:text-white sm:text-base">
+                    {roleLabel}
+                  </p>
+
+                  {user?.role && (
+                    <span
+                      className={`hidden rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-wide sm:inline-flex ${roleBadgeClass}`}
+                    >
+                      {user.role}
+                    </span>
+                  )}
+                </div>
+
+                <p className="hidden truncate text-xs font-medium text-slate-500 dark:text-slate-400 sm:block">
+                  {roleSubtitle}
+                </p>
+              </div>
+            </div>
 
             <div className="flex items-center gap-3">
               <NotificationDropdown alerts={alerts} />

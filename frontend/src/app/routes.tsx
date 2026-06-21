@@ -15,6 +15,8 @@ const AuditLogs = lazy(() => import("./pages/AuditLogs"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 const AdminApprovals = lazy(() => import("./pages/AdminApprovals"));
+const AdminAssignments = lazy(() => import("./pages/AdminAssignments"));
+const Referrals = lazy(() => import("./pages/Referrals"));
 const DoctorDashboard = lazy(() => import("./pages/DoctorDashboard"));
 const NurseDashboard = lazy(() => import("./pages/NurseDashboard"));
 const PatientDashboard = lazy(() => import("./pages/PatientDashboard"));
@@ -86,6 +88,24 @@ export const router = createBrowserRouter([
       },
 
       {
+        path: "admin/assignments",
+        element: (
+          <ProtectedRoute allowedRoles={["admin"]}>
+            {lazyPage(<AdminAssignments />)}
+          </ProtectedRoute>
+        ),
+      },
+
+      {
+        path: "admin/referrals",
+        element: (
+          <ProtectedRoute allowedRoles={["admin"]}>
+            {lazyPage(<Referrals />)}
+          </ProtectedRoute>
+        ),
+      },
+
+      {
         path: "doctor",
         element: (
           <ProtectedRoute allowedRoles={["doctor"]}>
@@ -115,7 +135,7 @@ export const router = createBrowserRouter([
       {
         path: "analytics",
         element: (
-          <ProtectedRoute allowedRoles={["admin", "doctor"]}>
+          <ProtectedRoute allowedRoles={["doctor"]}>
             {lazyPage(<AdvancedAnalytics />)}
           </ProtectedRoute>
         ),
@@ -140,9 +160,18 @@ export const router = createBrowserRouter([
       },
 
       {
+        path: "referrals",
+        element: (
+          <ProtectedRoute allowedRoles={["doctor", "nurse"]}>
+            {lazyPage(<Referrals />)}
+          </ProtectedRoute>
+        ),
+      },
+
+      {
         path: "reports",
         element: (
-          <ProtectedRoute allowedRoles={["admin", "doctor"]}>
+          <ProtectedRoute allowedRoles={["doctor"]}>
             {lazyPage(<Reports />)}
           </ProtectedRoute>
         ),

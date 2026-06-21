@@ -8,6 +8,8 @@ export function getAuthToken() {
 }
 
 async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  // Centralize Bearer-token attachment so pages/components do not duplicate
+  // authentication code or accidentally call protected endpoints anonymously.
   const headers = new Headers(init.headers);
   const token = getAuthToken();
 
@@ -281,9 +283,39 @@ export async function getMLPrediction(patientId: number) {
   return response.json();
 }
 
-// New API functions for notifications
-export async function getNotifications() {
-  const response = await apiFetch(`${API_BASE_URL}/notifications/`);
+export type NotificationStatusFilter = "all" | "read" | "unread";
+
+export type AppNotification = {
+  id: number;
+  user_email?: string | null;
+  target_role?: string | null;
+  title: string;
+  message: string;
+  type: string;
+  is_read: string;
+  link?: string | null;
+  related_entity?: string | null;
+  related_entity_id?: string | null;
+  created_at: string;
+};
+
+export async function getNotifications(options: {
+  status?: NotificationStatusFilter;
+  type?: string;
+  search?: string;
+} = {}) {
+  // Filters are encoded as query parameters so the backend can apply scoping,
+  // read-state filtering, and search in one database query.
+  const params = new URLSearchParams();
+
+  if (options.status) params.set("status", options.status);
+  if (options.type) params.set("notification_type", options.type);
+  if (options.search) params.set("search", options.search);
+
+  const query = params.toString();
+  const response = await apiFetch(
+    `${API_BASE_URL}/notifications/${query ? `?${query}` : ""}`
+  );
 
   if (!response.ok) {
     throw new Error("Failed to fetch notifications");
@@ -294,9 +326,13 @@ export async function getNotifications() {
 
 export async function createNotification(payload: {
   user_email?: string | null;
+  target_role?: string | null;
   title: string;
   message: string;
   type: string;
+  link?: string | null;
+  related_entity?: string | null;
+  related_entity_id?: string | null;
 }) {
   const response = await apiFetch(`${API_BASE_URL}/notifications/`, {
     method: "POST",
@@ -323,6 +359,21 @@ export async function markNotificationRead(notificationId: number) {
 
   if (!response.ok) {
     throw new Error("Failed to mark notification as read");
+  }
+
+  return response.json();
+}
+
+export async function markAllNotificationsRead() {
+  const response = await apiFetch(
+    `${API_BASE_URL}/notifications/bulk/mark-all-read`,
+    {
+      method: "PATCH",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to mark all notifications as read");
   }
 
   return response.json();
@@ -460,29 +511,42 @@ export async function rejectRegistrationRequest(requestId: number) {
 
 // doctor clinician API functions for role-based actions
 
+export type DoctorClinicalNoteType = "Clinical Note" | "Diagnosis" | "Treatment Plan";
+
 export async function doctorAddClinicalNote(
   patientId: number,
   title: string,
-  description: string
+  description: string,
+  noteType: DoctorClinicalNoteType = "Clinical Note"
 ) {
-  const response = await apiFetch(
-    `${API_BASE_URL}/role-actions/doctor/clinical-note?patient_id=${patientId}&title=${encodeURIComponent(
-      title
-    )}&description=${encodeURIComponent(description)}`,
-    { method: "POST" }
-  );
+  const response = await apiFetch(`${API_BASE_URL}/role-actions/doctor/clinical-note`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      patient_id: patientId,
+      note_type: noteType,
+      title,
+      description,
+    }),
+  });
 
   if (!response.ok) throw new Error("Failed to add clinical note");
   return response.json();
 }
 
 export async function doctorEscalatePatient(patientId: number, note: string) {
-  const response = await apiFetch(
-    `${API_BASE_URL}/role-actions/doctor/escalate?patient_id=${patientId}&note=${encodeURIComponent(
-      note
-    )}`,
-    { method: "POST" }
-  );
+  const response = await apiFetch(`${API_BASE_URL}/role-actions/doctor/escalate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      patient_id: patientId,
+      note,
+    }),
+  });
 
   if (!response.ok) throw new Error("Failed to escalate patient");
   return response.json();
@@ -543,24 +607,33 @@ export async function nurseAddNursingNote(
   title: string,
   description: string
 ) {
-  const response = await apiFetch(
-    `${API_BASE_URL}/role-actions/nurse/nursing-note?patient_id=${patientId}&title=${encodeURIComponent(
-      title
-    )}&description=${encodeURIComponent(description)}`,
-    { method: "POST" }
-  );
+  const response = await apiFetch(`${API_BASE_URL}/role-actions/nurse/nursing-note`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      patient_id: patientId,
+      title,
+      description,
+    }),
+  });
 
   if (!response.ok) throw new Error("Failed to add nursing note");
   return response.json();
 }
 
 export async function nurseRaiseAlert(patientId: number, note: string) {
-  const response = await apiFetch(
-    `${API_BASE_URL}/role-actions/nurse/raise-alert?patient_id=${patientId}&note=${encodeURIComponent(
-      note
-    )}`,
-    { method: "POST" }
-  );
+  const response = await apiFetch(`${API_BASE_URL}/role-actions/nurse/raise-alert`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      patient_id: patientId,
+      note,
+    }),
+  });
 
   if (!response.ok) throw new Error("Failed to raise alert");
   return response.json();
@@ -597,5 +670,150 @@ export async function activateAdminUser(userId: number) {
   });
 
   if (!response.ok) throw new Error("Failed to activate user");
+  return response.json();
+}
+
+export async function getAdminAssignmentPatients() {
+  const response = await apiFetch(`${API_BASE_URL}/admin/assignments/patients`);
+
+  if (!response.ok) throw new Error("Failed to fetch assignment patients");
+  return response.json();
+}
+
+export async function getAdminAssignmentStaff() {
+  const response = await apiFetch(`${API_BASE_URL}/admin/assignments/staff`);
+
+  if (!response.ok) throw new Error("Failed to fetch assignment staff");
+  return response.json();
+}
+
+export async function getAdminAssignments() {
+  const response = await apiFetch(`${API_BASE_URL}/admin/assignments/`);
+
+  if (!response.ok) throw new Error("Failed to fetch staff assignments");
+  return response.json();
+}
+
+export async function createAdminAssignment(payload: {
+  patient_id: number;
+  staff_user_id: number;
+  role: "doctor" | "nurse";
+}) {
+  const response = await apiFetch(`${API_BASE_URL}/admin/assignments/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) throw new Error("Failed to create staff assignment");
+  return response.json();
+}
+
+export async function removeAdminAssignment(assignmentId: number) {
+  const response = await apiFetch(
+    `${API_BASE_URL}/admin/assignments/${assignmentId}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) throw new Error("Failed to remove staff assignment");
+  return response.json();
+}
+
+export type ReferralPayload = {
+  patient_id: number;
+  receiving_user_id?: number | null;
+  receiving_department?: string | null;
+  reason: string;
+  urgency: "Low" | "Medium" | "High" | "Critical";
+  notes?: string | null;
+};
+
+export type ReferralReviewPayload = {
+  admin_note?: string | null;
+};
+
+export async function getReferralStaff() {
+  const response = await apiFetch(`${API_BASE_URL}/referrals/staff`);
+
+  if (!response.ok) throw new Error("Failed to fetch referral staff");
+  return response.json();
+}
+
+export async function getReferrals(status?: string) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  const response = await apiFetch(`${API_BASE_URL}/referrals/${query}`);
+
+  if (!response.ok) throw new Error("Failed to fetch referrals");
+  return response.json();
+}
+
+export async function createReferral(payload: ReferralPayload) {
+  // Creating a referral only creates a request. The backend grants patient
+  // access later, and only if an admin approves the request.
+  const response = await apiFetch(`${API_BASE_URL}/referrals/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) throw new Error("Failed to create referral");
+  return response.json();
+}
+
+export async function approveReferral(
+  referralId: number,
+  payload: ReferralReviewPayload
+) {
+  // Approval is admin-only on the backend and creates the care-team assignment.
+  const response = await apiFetch(`${API_BASE_URL}/referrals/${referralId}/approve`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) throw new Error("Failed to approve referral");
+  return response.json();
+}
+
+export async function rejectReferral(
+  referralId: number,
+  payload: ReferralReviewPayload
+) {
+  const response = await apiFetch(`${API_BASE_URL}/referrals/${referralId}/reject`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) throw new Error("Failed to reject referral");
+  return response.json();
+}
+
+export async function requestReferralMoreInfo(
+  referralId: number,
+  payload: ReferralReviewPayload
+) {
+  const response = await apiFetch(
+    `${API_BASE_URL}/referrals/${referralId}/more-info`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  if (!response.ok) throw new Error("Failed to request more information");
   return response.json();
 }

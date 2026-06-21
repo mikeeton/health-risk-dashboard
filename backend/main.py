@@ -20,7 +20,7 @@ from middleware import (
     SecurityHeadersMiddleware,
 )
 from observability import request_tracker
-from routes import analytics, assistant, admin_users
+from routes import analytics, assistant, admin_assignments, admin_users, referrals
 from routes import registration_requests
 from routes import medications, events, ml, live_simulator
 from routes import role_actions
@@ -32,6 +32,13 @@ settings = get_settings()
 
 
 def ensure_database_schema():
+    """Local recovery helper for older databases.
+
+    Alembic is the normal schema-management path. This function only runs when
+    RUN_STARTUP_SCHEMA_CHECK=true, which is useful for development recovery but
+    should stay disabled in production so migrations remain the source of truth.
+    """
+
     inspector = inspect(engine)
 
     table_names = inspector.get_table_names()
@@ -213,6 +220,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(analytics.router)
+app.include_router(admin_assignments.router)
 app.include_router(admin_users.router)
 app.include_router(assistant.router)
 app.include_router(auth.router)
@@ -227,6 +235,7 @@ app.include_router(events.router)
 app.include_router(ml.router)
 app.include_router(notifications.router)
 app.include_router(registration_requests.router)
+app.include_router(referrals.router)
 app.include_router(live_simulator.router)
 
 @app.get("/")
@@ -263,6 +272,7 @@ def readiness_check(db: Session = Depends(get_db)):
 def metrics(current_user: models.User = Depends(get_current_user)):
     require_admin(current_user)
 
+    # Metrics expose operational data and are therefore limited to admins.
     return {
         "process_id": os.getpid(),
         **request_tracker.snapshot(),

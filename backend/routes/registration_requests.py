@@ -8,6 +8,7 @@ import schemas
 from access_control import get_default_active_user_id, require_admin
 from auth_utils import get_current_user, hash_password
 from database import get_db
+from notification_utils import create_notification, notify_role
 from routes.audit import write_audit_log
 
 router = APIRouter(
@@ -25,6 +26,8 @@ def create_registration_request(
 ):
     role = request.role.lower()
 
+    # Admin accounts are not self-service. Public access requests are limited to
+    # clinical and patient roles so admin creation remains an admin-only action.
     if role not in ALLOWED_ROLES:
         raise HTTPException(
             status_code=400,
@@ -32,6 +35,8 @@ def create_registration_request(
         )
 
     if role == "patient":
+        # Patient requests need enough clinical context to seed a profile after
+        # approval, but no patient record is created until an admin approves.
         if request.age is None:
             raise HTTPException(
                 status_code=400,
@@ -80,6 +85,21 @@ def create_registration_request(
     )
 
     db.add(new_request)
+    db.flush()
+
+    # Notify each active admin with an individual row so unread/read state is
+    # tracked per admin rather than shared across the whole role.
+    notify_role(
+        db,
+        role="admin",
+        title="New registration request",
+        message=f"{new_request.full_name} requested {new_request.role} access.",
+        notification_type="registration",
+        link="/admin/approvals",
+        related_entity="RegistrationRequest",
+        related_entity_id=str(new_request.id),
+    )
+
     db.commit()
     db.refresh(new_request)
 
@@ -151,6 +171,9 @@ def approve_registration_request(
     created_patient_id = None
 
     if request.role == "patient":
+        # Approval creates both the user account and the linked patient profile.
+        # Initial assignment rows keep new patients on the same access model as
+        # migrated existing patients.
         primary_doctor_id = get_default_active_user_id(db, "doctor")
 
         if primary_doctor_id is None:
@@ -175,6 +198,29 @@ def approve_registration_request(
 
         created_patient_id = patient.id
 
+        db.add(
+            models.PatientStaffAssignment(
+                patient_id=patient.id,
+                staff_user_id=primary_doctor_id,
+                role="doctor",
+                status="active",
+                assigned_at=datetime.now().isoformat(timespec="seconds"),
+                assigned_by_user_id=current_user.id,
+            )
+        )
+
+        if patient.assigned_nurse_id is not None:
+            db.add(
+                models.PatientStaffAssignment(
+                    patient_id=patient.id,
+                    staff_user_id=patient.assigned_nurse_id,
+                    role="nurse",
+                    status="active",
+                    assigned_at=datetime.now().isoformat(timespec="seconds"),
+                    assigned_by_user_id=current_user.id,
+                )
+            )
+
         event = models.PatientEvent(
             patient_id=patient.id,
             event_type="Registration",
@@ -194,6 +240,18 @@ def approve_registration_request(
 
     db.commit()
     db.refresh(new_user)
+
+    create_notification(
+        db,
+        user_email=new_user.email,
+        title="Registration approved",
+        message="Your account has been approved. You can now use the platform.",
+        notification_type="registration",
+        link="/",
+        related_entity="RegistrationRequest",
+        related_entity_id=str(request.id),
+    )
+    db.commit()
 
     write_audit_log(
         db=db,
@@ -231,6 +289,19 @@ def reject_registration_request(
         raise HTTPException(status_code=400, detail="Request already reviewed")
 
     request.status = "rejected"
+
+    # Store a rejection notification against the request email even though no
+    # user account exists; this preserves a workflow trail for the applicant.
+    create_notification(
+        db,
+        user_email=request.email,
+        title="Registration rejected",
+        message="Your access request was rejected by an administrator.",
+        notification_type="registration",
+        link="/register",
+        related_entity="RegistrationRequest",
+        related_entity_id=str(request.id),
+    )
 
     db.commit()
 

@@ -25,7 +25,7 @@ def create_review_case(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse"})
+    require_roles(current_user, {"doctor", "nurse"})
     patient = get_accessible_patient(db, review.patient_id, current_user)
 
     existing_open_case = (
@@ -86,7 +86,7 @@ def update_review_case(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse"})
+    require_roles(current_user, {"doctor", "nurse"})
 
     review_case = (
         db.query(models.ReviewCase)
@@ -126,7 +126,7 @@ def delete_review_case(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse"})
+    require_roles(current_user, {"doctor", "nurse"})
 
     review_case = (
         db.query(models.ReviewCase)

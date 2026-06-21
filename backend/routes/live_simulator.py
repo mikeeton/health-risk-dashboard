@@ -272,7 +272,7 @@ def generate_live_vital(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse"})
+    require_roles(current_user, {"doctor", "nurse"})
     patient = get_accessible_patient(db, patient_id, current_user)
 
     generated = generate_vitals(patient)

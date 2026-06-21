@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status
-from sqlalchemy.sql import false
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import false
 
 import models
 
@@ -10,6 +10,8 @@ def role_name(user: models.User) -> str:
 
 
 def require_roles(user: models.User, allowed_roles: set[str]):
+    """Raise 403 unless the authenticated user has one of the allowed roles."""
+
     if role_name(user) not in allowed_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -22,17 +24,49 @@ def require_admin(user: models.User):
 
 
 def patient_query_for_user(db: Session, user: models.User):
+    """Return a patient query already scoped to the current user's role.
+
+    This is the central privacy boundary for clinical records. Routes compose on
+    top of this helper so patient lists, detail pages, vitals, medications, and
+    AI context all share the same access rules.
+    """
+
     query = db.query(models.Patient)
     role = role_name(user)
 
+    # Admins manage accounts and assignments, but never read clinical records.
     if role == "admin":
-        return query
+        return query.filter(false())
 
     if role == "doctor":
-        return query.filter(models.Patient.primary_doctor_id == user.id)
+        # Prefer the assignment table, while keeping legacy primary_doctor_id as
+        # a fallback for older rows and partially migrated databases.
+        assigned_patient_ids = (
+            db.query(models.PatientStaffAssignment.patient_id)
+            .filter(models.PatientStaffAssignment.staff_user_id == user.id)
+            .filter(models.PatientStaffAssignment.role == "doctor")
+            .filter(models.PatientStaffAssignment.status == "active")
+        )
+
+        return query.filter(
+            (models.Patient.id.in_(assigned_patient_ids))
+            | (models.Patient.primary_doctor_id == user.id)
+        )
 
     if role == "nurse":
-        return query.filter(models.Patient.assigned_nurse_id == user.id)
+        # Nurses follow the same assignment model as doctors, but only rows with
+        # role="nurse" grant nurse access.
+        assigned_patient_ids = (
+            db.query(models.PatientStaffAssignment.patient_id)
+            .filter(models.PatientStaffAssignment.staff_user_id == user.id)
+            .filter(models.PatientStaffAssignment.role == "nurse")
+            .filter(models.PatientStaffAssignment.status == "active")
+        )
+
+        return query.filter(
+            (models.Patient.id.in_(assigned_patient_ids))
+            | (models.Patient.assigned_nurse_id == user.id)
+        )
 
     if role == "patient":
         return query.filter(models.Patient.user_id == user.id)
@@ -49,6 +83,12 @@ def filter_to_accessible_patients(query, patient_id_column, db: Session, user: m
 
 
 def get_accessible_patient(db: Session, patient_id: int, user: models.User):
+    """Fetch one patient through the scoped query.
+
+    Inaccessible patients intentionally return 404 rather than 403 so callers do
+    not learn whether another patient's record exists.
+    """
+
     patient = (
         patient_query_for_user(db, user)
         .filter(models.Patient.id == patient_id)
@@ -89,6 +129,8 @@ def validate_user_for_role(
     role: str,
     label: str,
 ) -> int | None:
+    """Validate care-team references before writing assignment-related fields."""
+
     if user_id is None:
         return None
 

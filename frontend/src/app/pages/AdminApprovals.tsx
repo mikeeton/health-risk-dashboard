@@ -32,10 +32,13 @@ export default function AdminApprovals() {
   async function loadRequests() {
     try {
       setLoading(true);
+      setMessage("");
       const data = await getRegistrationRequests();
       setRequests(data);
     } catch {
-      setMessage("Failed to load requests.");
+      setMessage(
+        "Failed to load requests. Confirm the backend is running and PostgreSQL is reachable."
+      );
     } finally {
       setLoading(false);
     }

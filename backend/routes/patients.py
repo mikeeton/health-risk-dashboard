@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -27,7 +29,7 @@ def create_patient(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor"})
+    require_roles(current_user, {"doctor"})
 
     existing_patient = (
         db.query(models.Patient)
@@ -92,6 +94,31 @@ def create_patient(
     )
 
     db.add(new_patient)
+    db.flush()
+
+    db.add(
+        models.PatientStaffAssignment(
+            patient_id=new_patient.id,
+            staff_user_id=primary_doctor_id,
+            role="doctor",
+            status="active",
+            assigned_at=datetime.now().isoformat(timespec="seconds"),
+            assigned_by_user_id=current_user.id,
+        )
+    )
+
+    if assigned_nurse_id is not None:
+        db.add(
+            models.PatientStaffAssignment(
+                patient_id=new_patient.id,
+                staff_user_id=assigned_nurse_id,
+                role="nurse",
+                status="active",
+                assigned_at=datetime.now().isoformat(timespec="seconds"),
+                assigned_by_user_id=current_user.id,
+            )
+        )
+
     db.commit()
     db.refresh(new_patient)
 
@@ -131,58 +158,10 @@ def update_patient_care_team(
     current_user: models.User = Depends(get_current_user),
 ):
     require_roles(current_user, {"admin"})
-
-    patient = (
-        db.query(models.Patient)
-        .filter(models.Patient.id == patient_id)
-        .first()
+    raise HTTPException(
+        status_code=410,
+        detail="Use /admin/assignments to manage staff-patient access.",
     )
-
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-
-    if update.primary_doctor_id is not None:
-        patient.primary_doctor_id = validate_user_for_role(
-            db=db,
-            user_id=update.primary_doctor_id,
-            role="doctor",
-            label="Primary doctor",
-        )
-
-    if update.assigned_nurse_id is not None:
-        patient.assigned_nurse_id = validate_user_for_role(
-            db=db,
-            user_id=update.assigned_nurse_id,
-            role="nurse",
-            label="Assigned nurse",
-        )
-
-    if update.user_id is not None:
-        patient.user_id = validate_user_for_role(
-            db=db,
-            user_id=update.user_id,
-            role="patient",
-            label="Linked user",
-        )
-
-    if patient.primary_doctor_id is None:
-        raise HTTPException(
-            status_code=400,
-            detail="A patient must have one primary doctor",
-        )
-
-    db.commit()
-    db.refresh(patient)
-
-    write_audit_log(
-        db=db,
-        action="UPDATE_PATIENT_CARE_TEAM",
-        entity="Patient",
-        entity_id=str(patient.id),
-        user_email=current_user.email,
-    )
-
-    return patient
 
 
 @router.delete("/{patient_id}")
@@ -192,30 +171,7 @@ def delete_patient(
     current_user: models.User = Depends(get_current_user),
 ):
     require_roles(current_user, {"admin"})
-
-    patient = (
-        db.query(models.Patient)
-        .filter(models.Patient.id == patient_id)
-        .first()
+    raise HTTPException(
+        status_code=403,
+        detail="Admins cannot delete clinical patient records.",
     )
-
-    if not patient:
-        raise HTTPException(
-            status_code=404,
-            detail="Patient not found"
-        )
-
-    db.delete(patient)
-    db.commit()
-
-    write_audit_log(
-        db=db,
-        action="DELETE_PATIENT",
-        entity="Patient",
-        entity_id=str(patient_id),
-        user_email=current_user.email,
-    )
-
-    return {
-        "message": f"Patient {patient_id} deleted successfully"
-    }

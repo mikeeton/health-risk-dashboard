@@ -1,5 +1,7 @@
 from datetime import datetime, date
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
@@ -46,10 +48,16 @@ class TokenResponse(BaseModel):
 # =========================
 
 class PatientCreate(BaseModel):
-    name: str
-    age: int
-    condition: str
-    risk_level: str
+    """Payload for doctor-created patients.
+
+    Admins use assignment/approval flows instead of creating clinical records
+    directly, so this schema is intentionally used by clinician routes.
+    """
+
+    name: str = Field(min_length=1, max_length=120)
+    age: int = Field(ge=0, le=130)
+    condition: str = Field(min_length=1, max_length=500)
+    risk_level: str = Field(min_length=1, max_length=40)
     last_checkup: date
     user_id: int | None = None
     primary_doctor_id: int | None = None
@@ -78,27 +86,69 @@ class PatientResponse(BaseModel):
     hospital_id: int | None = None
 
 
+class AdminPatientDirectoryResponse(BaseModel):
+    id: int
+    name: str
+    linked_user_id: int | None = None
+    linked_user_email: EmailStr | None = None
+
+
+class AdminStaffResponse(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: str
+    role: str
+    status: str | None = None
+
+
+class StaffAssignmentCreate(BaseModel):
+    patient_id: int = Field(gt=0)
+    staff_user_id: int = Field(gt=0)
+    role: str
+
+
+class StaffAssignmentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    patient_id: int
+    patient_name: str
+    staff_user_id: int
+    staff_name: str
+    staff_email: EmailStr
+    role: str
+    status: str
+    assigned_at: str
+    assigned_by_user_id: int | None = None
+
+
 # =========================
 # VITALS
 # =========================
 
 class VitalCreate(BaseModel):
-    patient_id: int
-    timestamp: str
+    """Validated vital reading.
 
-    heart_rate: int
-    spo2: float
+    Bounds keep impossible values out of charts, risk scoring, and ML
+    prediction routines.
+    """
 
-    systolic_bp: int
-    diastolic_bp: int
+    patient_id: int = Field(gt=0)
+    timestamp: str = Field(min_length=1, max_length=80)
 
-    steps: int
-    sleep_hours: float
-    active_minutes: int
-    calories: int
+    heart_rate: int = Field(ge=20, le=240)
+    spo2: float = Field(ge=50, le=100)
 
-    risk_score: int
-    activity_state: str
+    systolic_bp: int = Field(ge=40, le=260)
+    diastolic_bp: int = Field(ge=20, le=180)
+
+    steps: int = Field(ge=0, le=200000)
+    sleep_hours: float = Field(ge=0, le=24)
+    active_minutes: int = Field(ge=0, le=1440)
+    calories: int = Field(ge=0, le=20000)
+
+    risk_score: int = Field(ge=0, le=10)
+    activity_state: str = Field(min_length=1, max_length=80)
 
 
 class VitalResponse(BaseModel):
@@ -229,6 +279,33 @@ class PatientEventResponse(BaseModel):
 
 
 # =========================
+# ROLE ACTIONS
+# =========================
+
+class DoctorClinicalNoteCreate(BaseModel):
+    patient_id: int = Field(gt=0)
+    note_type: Literal["Clinical Note", "Diagnosis", "Treatment Plan"] = "Clinical Note"
+    title: str = Field(min_length=3, max_length=120)
+    description: str = Field(min_length=5, max_length=4000)
+
+
+class EscalationCreate(BaseModel):
+    patient_id: int = Field(gt=0)
+    note: str = Field(min_length=5, max_length=2000)
+
+
+class NursingNoteCreate(BaseModel):
+    patient_id: int = Field(gt=0)
+    title: str = Field(min_length=3, max_length=120)
+    description: str = Field(min_length=5, max_length=3000)
+
+
+class NurseAlertCreate(BaseModel):
+    patient_id: int = Field(gt=0)
+    note: str = Field(min_length=5, max_length=2000)
+
+
+# =========================
 # ML PREDICTION
 # =========================
 
@@ -243,10 +320,16 @@ class MLPredictionResponse(BaseModel):
 # NOTIFICATIONS 
 # =========================
 class NotificationCreate(BaseModel):
+    """Admin/system notification creation payload."""
+
     user_email: str | None = None
+    target_role: str | None = None
     title: str
     message: str
     type: str = "info"
+    link: str | None = None
+    related_entity: str | None = None
+    related_entity_id: str | None = None
 
 
 class NotificationResponse(BaseModel):
@@ -254,11 +337,68 @@ class NotificationResponse(BaseModel):
 
     id: int
     user_email: str | None = None
+    target_role: str | None = None
     title: str
     message: str
     type: str
     is_read: str
+    link: str | None = None
+    related_entity: str | None = None
+    related_entity_id: str | None = None
     created_at: str
+
+
+class NotificationMarkAllResponse(BaseModel):
+    updated: int
+
+
+class ReferralCreate(BaseModel):
+    """Clinician referral request.
+
+    The request records intent only. It does not grant the receiving clinician
+    patient access until an admin approves it.
+    """
+
+    patient_id: int = Field(gt=0)
+    receiving_user_id: int | None = Field(default=None, gt=0)
+    receiving_department: str | None = Field(default=None, min_length=2, max_length=120)
+    reason: str = Field(min_length=5, max_length=500)
+    urgency: Literal["Low", "Medium", "High", "Critical"]
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class ReferralReview(BaseModel):
+    """Admin review note for approval, rejection, or more-info decisions."""
+
+    admin_note: str | None = Field(default=None, max_length=2000)
+
+
+class ReferralResponse(BaseModel):
+    """Safe referral response used by admin and clinician UIs.
+
+    Includes patient/staff names for workflow context but excludes clinical
+    vitals, diagnoses, medications, and reports.
+    """
+
+    id: int
+    patient_id: int
+    patient_name: str
+    referring_user_id: int
+    referring_name: str
+    referring_email: EmailStr
+    receiving_user_id: int | None = None
+    receiving_name: str | None = None
+    receiving_email: EmailStr | None = None
+    receiving_role: str | None = None
+    receiving_department: str | None = None
+    reason: str
+    urgency: str
+    notes: str | None = None
+    status: str
+    admin_note: str | None = None
+    requested_at: str
+    reviewed_at: str | None = None
+    reviewed_by_user_id: int | None = None
 
 # =========================
 # Registration and Login

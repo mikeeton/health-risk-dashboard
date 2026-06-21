@@ -20,7 +20,7 @@ def create_medication(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse"})
+    require_roles(current_user, {"doctor", "nurse"})
     get_accessible_patient(db, medication.patient_id, current_user)
 
     new_medication = models.Medication(**medication.model_dump())
@@ -62,7 +62,7 @@ def update_medication(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse"})
+    require_roles(current_user, {"doctor", "nurse"})
 
     medication = (
         db.query(models.Medication)
@@ -98,7 +98,7 @@ def delete_medication(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse"})
+    require_roles(current_user, {"doctor", "nurse"})
 
     medication = (
         db.query(models.Medication)

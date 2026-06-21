@@ -20,7 +20,7 @@ def create_event(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse"})
+    require_roles(current_user, {"doctor", "nurse"})
     get_accessible_patient(db, event.patient_id, current_user)
 
     new_event = models.PatientEvent(**event.model_dump())

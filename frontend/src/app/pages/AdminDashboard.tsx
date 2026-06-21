@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { ClipboardCheck, FileText, Shield, Users } from "lucide-react";
+import { ClipboardCheck, GitPullRequest, Shield, UserPlus, Users } from "lucide-react";
 
 const cards = [
   {
@@ -9,22 +9,28 @@ const cards = [
     icon: Users,
   },
   {
-    title: "Audit Logs",
-    subtitle: "Trace system activity",
-    path: "/audit-logs",
-    icon: Shield,
-  },
-  {
-    title: "Clinical Reports",
-    subtitle: "Patient risk summaries",
-    path: "/reports",
-    icon: FileText,
+    title: "Assignments",
+    subtitle: "Doctor and nurse patient access",
+    path: "/admin/assignments",
+    icon: UserPlus,
   },
   {
     title: "Approvals",
     subtitle: "Pending access requests",
     path: "/admin/approvals",
     icon: ClipboardCheck,
+  },
+  {
+    title: "Referrals",
+    subtitle: "Review care access requests",
+    path: "/admin/referrals",
+    icon: GitPullRequest,
+  },
+  {
+    title: "Audit Logs",
+    subtitle: "Trace system activity",
+    path: "/audit-logs",
+    icon: Shield,
   },
 ];
 
@@ -34,7 +40,7 @@ export default function AdminDashboard() {
       <section className="glass-card rounded-3xl p-6">
         <h1 className="text-3xl font-extrabold">Admin Dashboard</h1>
         <p className="mt-2 text-slate-500">
-          Manage access, compliance, and clinical reporting.
+          Manage accounts, approvals, assignments, and audit visibility.
         </p>
       </section>
 

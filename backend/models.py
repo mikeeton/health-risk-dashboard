@@ -1,9 +1,19 @@
+"""Database models for the health risk dashboard.
+
+The schema deliberately separates system administration from clinical access.
+For example, staff assignment and referral tables describe who may access a
+patient, while the patient-scoped clinical tables remain protected by backend
+access-control helpers.
+"""
+
 from database import Base
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
 
 
 class User(Base):
+    """Application identity record used for authentication and authorization."""
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -18,6 +28,13 @@ class User(Base):
 
 
 class Patient(Base):
+    """Clinical profile row.
+
+    The legacy doctor/nurse columns are kept as compatibility fallbacks. The
+    newer `PatientStaffAssignment` table is the main access model because it can
+    represent multiple doctors and nurses for one patient.
+    """
+
     __tablename__ = "patients"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -31,7 +48,28 @@ class Patient(Base):
     last_checkup = Column(String, nullable=True)
 
 
+class PatientStaffAssignment(Base):
+    """Many-to-many staff-to-patient access grant.
+
+    Admins manage these rows, but the rows are consumed by clinicians through
+    `access_control.patient_query_for_user()`. A removed assignment is retained
+    for history instead of being deleted immediately.
+    """
+
+    __tablename__ = "patient_staff_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    staff_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(String, nullable=False)
+    status = Column(String, default="active")
+    assigned_at = Column(String, nullable=False)
+    assigned_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+
 class Vital(Base):
+    """Patient-scoped wearable/manual vital reading."""
+
     __tablename__ = "vitals"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -51,6 +89,8 @@ class Vital(Base):
 
 
 class ReviewCase(Base):
+    """Clinical review/escalation case for a patient."""
+
     __tablename__ = "review_cases"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -65,6 +105,8 @@ class ReviewCase(Base):
 
 
 class AuditLog(Base):
+    """Security and accountability trail for important system actions."""
+
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -76,6 +118,8 @@ class AuditLog(Base):
 
 
 class Medication(Base):
+    """Medication item scoped to one patient record."""
+
     __tablename__ = "medications"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -88,6 +132,8 @@ class Medication(Base):
 
 
 class PatientEvent(Base):
+    """Timeline event used for diagnoses, notes, registrations, and care history."""
+
     __tablename__ = "patient_events"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -99,18 +145,30 @@ class PatientEvent(Base):
 
 
 class Notification(Base):
+    """User or role-scoped notification.
+
+    `user_email` targets a specific account, `target_role` targets a role, and
+    both being null represents a system-wide announcement.
+    """
+
     __tablename__ = "notifications"
 
     id = Column(Integer, primary_key=True, index=True)
     user_email = Column(String, nullable=True)
+    target_role = Column(String, nullable=True)
     title = Column(String, nullable=False)
     message = Column(String, nullable=False)
     type = Column(String, default="info")
     is_read = Column(String, default="false")
+    link = Column(String, nullable=True)
+    related_entity = Column(String, nullable=True)
+    related_entity_id = Column(String, nullable=True)
     created_at = Column(String, nullable=False)
 
 
 class RegistrationRequest(Base):
+    """Public access request awaiting admin approval."""
+
     __tablename__ = "registration_requests"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -131,6 +189,8 @@ class RegistrationRequest(Base):
 
 
 class WearableDevice(Base):
+    """Registered wearable device metadata for a patient."""
+
     __tablename__ = "wearable_devices"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -142,3 +202,27 @@ class WearableDevice(Base):
 
     last_sync = Column(String, nullable=True)
     is_connected = Column(String, default="false")
+
+
+class ReferralRequest(Base):
+    """Referral workflow record.
+
+    A referral does not grant access by itself. Access is expanded only when an
+    admin approves the request and the backend creates a staff assignment row.
+    """
+
+    __tablename__ = "referral_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    referring_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    receiving_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    receiving_department = Column(String, nullable=True)
+    reason = Column(String, nullable=False)
+    urgency = Column(String, nullable=False)
+    notes = Column(String, nullable=True)
+    status = Column(String, default="pending")
+    admin_note = Column(String, nullable=True)
+    requested_at = Column(String, nullable=False)
+    reviewed_at = Column(String, nullable=True)
+    reviewed_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

@@ -36,6 +36,22 @@ python scripts/reset_admin.py \
 - AI: Groq API integration when `GROQ_API_KEY` is configured
 - Tests: Pytest and FastAPI TestClient
 
+## Feature List
+
+- Role-based authentication for admin, doctor, nurse, and patient users.
+- PostgreSQL-backed patient records, vitals, medications, events, and review cases.
+- Admin user management, registration approvals, audit logs, metrics, and staff assignments.
+- Many-to-many staff assignment model for doctors/nurses and patients.
+- Patient referral workflow where clinicians request access and admin approval is required before record sharing.
+- Functional notification centre with unread badges, filtering, search, read/unread actions, history, and periodic updates.
+- Doctor workflow for assigned patients, AI summaries, ML predictions, diagnoses, treatment notes, and escalations.
+- Nurse workflow for assigned patients, vitals recording, medication updates, nursing notes, and alerts.
+- Patient workflow for viewing only the linked personal record.
+- AI-assisted clinical summaries, patient Q&A, handover text, and report generation.
+- Live vitals simulation and WebSocket updates for accessible patients.
+- Security headers, no-store clinical caching, request IDs, response-time metrics, and rate limiting.
+- Alembic database migrations and automated security tests.
+
 ## Architecture
 
 ```text
@@ -53,19 +69,35 @@ token to protected API routes. The backend decodes the token, loads the current
 user, checks account status, and then applies role-based access rules before
 returning patient data.
 
+## Request Flow
+
+```text
+React page/component
+  -> src/app/services/api.ts adds Bearer token
+  -> FastAPI route validates request with Pydantic schema
+  -> auth_utils.py resolves current user from JWT
+  -> access_control.py applies role/patient scope
+  -> SQLAlchemy reads or writes PostgreSQL
+  -> audit/notification helpers record important workflow events
+```
+
+This flow is used consistently so security checks happen on the backend even
+when the frontend hides screens that a role should not use.
+
 ## Security Model
 
 Roles:
 
-- `admin`: global access to users, approvals, audit logs, metrics, and all patients.
-- `doctor`: access only to patients where `patients.primary_doctor_id` matches the doctor user id.
-- `nurse`: access only to patients where `patients.assigned_nurse_id` matches the nurse user id.
-- `patient`: access only to the linked patient record where `patients.user_id` matches the patient user id.
+- `admin`: manages users, approvals, audit logs, metrics, and staff-patient assignments. Admin users do not read patient clinical records, vitals, medications, reports, diagnoses, or analytics.
+- `doctor`: accesses assigned patients, patient records, vitals, AI risk assessments, review cases, diagnoses, treatment notes, and escalations. Assignment is controlled through active `patient_staff_assignments` rows with role `doctor`; the older `patients.primary_doctor_id` column is still accepted as a compatibility fallback.
+- `nurse`: accesses assigned patients, records vitals, updates medication status, adds nursing notes, raises alerts, and supports care workflows. Assignment is controlled through active `patient_staff_assignments` rows with role `nurse`; the older `patients.assigned_nurse_id` column is still accepted as a compatibility fallback.
+- `patient`: accesses only the linked patient record where `patients.user_id` matches the patient user id.
 
 Important protections:
 
 - Clinical routes require authentication.
 - Admin routes require an active admin user.
+- Admin staff assignment screens return only safe directory data needed for access management.
 - Unauthorized patient access returns `404` so patient existence is not leaked.
 - Suspended users are rejected.
 - Audit logs and operational metrics are admin-only.
@@ -76,6 +108,8 @@ Important protections:
 Protected admin areas:
 
 - `/admin/users/*`
+- `/admin/assignments/*`
+- `/admin/referrals`
 - `/registration-requests/` list, approve, reject
 - `/audit/`
 - `/metrics`
@@ -128,6 +162,18 @@ Frontend URL:
 http://localhost:5173
 ```
 
+## Usage Instructions
+
+1. Start PostgreSQL and confirm `backend/.env` contains the correct `DATABASE_URL`.
+2. Run `alembic upgrade head` from `backend` to apply migrations.
+3. Start the backend with `uvicorn main:app --reload`.
+4. Start the frontend with `npm run dev` from `frontend`.
+5. Log in as admin to approve registration requests, manage users, and assign staff to patients.
+6. Log in as admin to approve or reject referral requests before additional clinicians receive access.
+7. Log in as doctor to view assigned patients, read vitals, generate reports, add diagnoses/treatment notes, submit referrals, and escalate cases.
+8. Log in as nurse to monitor assigned patients, record vitals, update medication status, submit referrals, and raise alerts.
+9. Log in as patient to view only the linked personal health record.
+
 ## Environment Variables
 
 Backend environment lives in `backend/.env`.
@@ -176,6 +222,24 @@ The baseline migration is:
 backend/alembic/versions/20260621_0001_baseline.py
 ```
 
+The staff assignment migration is:
+
+```text
+backend/alembic/versions/20260621_0002_staff_assignments.py
+```
+
+It creates `patient_staff_assignments` and backfills doctor/nurse assignments
+from the older patient ownership columns.
+
+The referral and notification migration is:
+
+```text
+backend/alembic/versions/20260621_0003_referrals_notifications.py
+```
+
+It creates `referral_requests` and adds richer notification metadata for role,
+links, and related entities.
+
 `RUN_STARTUP_SCHEMA_CHECK=true` exists only as a local recovery fallback. Keep it
 `false` during normal development and production.
 
@@ -196,6 +260,11 @@ The current security tests cover:
 - Registration review is blocked for public and doctor users.
 - A doctor cannot access another doctor's patient.
 - A patient cannot access another patient's record.
+- Admin users cannot read patient details, vitals, or legacy clinical care-team endpoints.
+- Admin staff assignments grant and remove doctor/nurse patient access.
+- Clinician action routes use validated JSON payloads and block admin users.
+- Referral routes preserve patient privacy by requiring admin approval before adding a receiving clinician to the care team.
+- Notifications are scoped to the current user or role and support read/unread state.
 
 Run frontend checks:
 
@@ -279,8 +348,22 @@ The style system focuses on:
 - smaller card radius
 - readable line height
 - visible focus states
+- polished role-aware header context
 - tabular numeric table rendering
 - no browser caching assumptions for clinical data
+
+## Code Comments
+
+The codebase now includes comments and docstrings in the most important areas:
+
+- Backend access control explains why admin users are excluded from clinical queries.
+- Referral routes explain why approval is separate from patient record access.
+- Notification routes explain user/role scoping, read-state handling, and search.
+- Frontend API helpers explain the central authenticated request path.
+- Referral and notification components explain loading, filtering, polling, and role-specific behaviour.
+
+Comments are intentionally focused on project reasoning and privacy/security
+decisions, rather than repeating simple syntax.
 
 ## Frontend Performance
 
@@ -334,16 +417,19 @@ This keeps PDF code out of normal page navigation.
 - Defines SQLAlchemy database tables.
 - `User` stores auth identity, role, and status.
 - `Patient` stores clinical profile and care-team ownership fields.
+- `PatientStaffAssignment` stores many-to-many doctor/nurse access to patients.
 - `Vital`, `Medication`, `PatientEvent`, and `ReviewCase` store patient-scoped clinical records.
 - `AuditLog` records important system actions.
+- `ReferralRequest` stores clinician referral requests and admin review status.
 - `RegistrationRequest` stores pending access requests.
+- `Notification` stores user/role-scoped notifications with read state and related links.
 - `WearableDevice` stores linked wearable metadata.
 
 `backend/schemas.py`
 
 - Defines Pydantic request and response models.
 - Uses `ConfigDict(from_attributes=True)` for ORM response serialization.
-- Validates emails, password minimum length, patient registration details, and API payload shapes.
+- Validates emails, password minimum length, patient registration details, vitals, patient fields, assignment inputs, and clinician action payloads.
 
 `backend/auth_utils.py`
 
@@ -396,6 +482,20 @@ This keeps PDF code out of normal page navigation.
 - Creates tables for fresh databases.
 - Safely adds missing columns to existing databases.
 
+`backend/alembic/versions/20260621_0002_staff_assignments.py`
+
+- Creates the `patient_staff_assignments` table.
+- Adds indexes for assignment lookup.
+- Backfills active doctor and nurse rows from older patient ownership columns.
+- Provides a downgrade path that drops the assignment table and indexes.
+
+`backend/alembic/versions/20260621_0003_referrals_notifications.py`
+
+- Creates the `referral_requests` table.
+- Adds indexes for referral status and patient lookup.
+- Adds notification metadata columns for target role, links, and related entities.
+- Provides a downgrade path for the referral table and notification metadata.
+
 `backend/scripts/reset_admin.py`
 
 - Creates or resets an admin user.
@@ -407,7 +507,7 @@ This keeps PDF code out of normal page navigation.
 
 `backend/tests/test_security.py`
 
-- Automated security tests for admin-only access and patient assignment isolation.
+- Automated security tests for admin-only access, patient assignment isolation, admin clinical isolation, and assignment-based access grants.
 - Creates unique users/patients, logs in through the API, checks status codes, and cleans up data.
 
 `backend/seed_demo_data.py`
@@ -429,11 +529,11 @@ This keeps PDF code out of normal page navigation.
 
 `backend/routes/patients.py`
 
-- Creates patients with one primary doctor.
+- Lets doctors create patients and automatically creates initial staff assignment rows.
 - Lists only patients visible to the current user.
 - Reads a single patient only if accessible.
-- Lets admins update care-team assignments.
-- Lets admins delete patients.
+- Keeps the old admin care-team route as a `410 Gone` response that points callers to `/admin/assignments`.
+- Blocks admin deletion of clinical patient records.
 
 `backend/routes/vitals.py`
 
@@ -474,10 +574,28 @@ This keeps PDF code out of normal page navigation.
 
 `backend/routes/role_actions.py`
 
-- Doctor actions: clinical notes, escalation, patient history.
+- Doctor actions: diagnoses, treatment plans, clinical notes, escalation, patient history.
 - Nurse actions: record vitals, mark medication given, nursing notes, alerts.
 - Patient action: view own records.
 - Each action checks role and patient ownership.
+- Clinical text is accepted through validated JSON request bodies rather than query strings.
+
+`backend/routes/referrals.py`
+
+- Lets doctors and nurses create referral requests for accessible patients.
+- Lets admins list, approve, reject, or request more information on referrals.
+- On approval, adds the receiving clinician to the patient care team.
+- Writes audit entries and notifications for referral lifecycle events.
+- Uses safe patient/staff fields so admin review does not expose clinical records.
+
+`backend/routes/admin_assignments.py`
+
+- Admin-only staff-patient assignment management.
+- Lists safe patient directory data without exposing diagnoses, vitals, risk scores, or reports.
+- Lists active doctor and nurse users who can be assigned.
+- Creates active doctor/nurse assignments for a patient.
+- Marks assignments as removed and updates legacy fallback ownership when needed.
+- Writes audit events for assignment create/remove actions.
 
 `backend/routes/admin_users.py`
 
@@ -488,7 +606,7 @@ This keeps PDF code out of normal page navigation.
 
 - Public endpoint for access requests.
 - Admin-only endpoints to list, approve, or reject requests.
-- Approval creates a user and, for patient requests, a linked patient profile.
+- Approval creates a user and, for patient requests, a linked patient profile plus initial staff assignments.
 
 `backend/routes/audit.py`
 
@@ -497,7 +615,10 @@ This keeps PDF code out of normal page navigation.
 
 `backend/routes/notifications.py`
 
-- Creates, lists, and marks notifications read.
+- Admins can create announcements.
+- Users can list their scoped notifications.
+- Supports read/unread filtering, search, mark individual read, and mark all read.
+- Used by assignments, registrations, referrals, escalations, and alerts.
 
 `backend/routes/live_simulator.py`
 
@@ -570,7 +691,9 @@ This keeps PDF code out of normal page navigation.
 - Central API client.
 - Reads `VITE_API_BASE_URL`.
 - Adds the Bearer token to protected requests.
-- Exposes typed helper functions for patients, vitals, auth, reviews, medications, events, ML, analytics, assistant, registrations, role actions, and admin users.
+- Exposes typed helper functions for patients, vitals, auth, reviews, medications, events, ML, analytics, assistant, registrations, role actions, admin users, and admin assignments.
+- Sends clinical notes, diagnosis, treatment, escalation, nursing-note, and alert payloads as JSON.
+- Provides notification search/filter/read helpers and referral create/review helpers.
 
 `frontend/src/app/services/liveSocket.ts`
 
@@ -604,6 +727,7 @@ This keeps PDF code out of normal page navigation.
 
 - Doctor-focused overview.
 - Shows scoped patients, review cases, selected patient risk, ML prediction, and AI summary.
+- Provides forms for diagnoses, treatment plans, clinical notes, and patient escalation.
 
 `frontend/src/app/pages/NurseDashboard.tsx`
 
@@ -615,7 +739,7 @@ This keeps PDF code out of normal page navigation.
 
 `frontend/src/app/pages/AdminDashboard.tsx`
 
-- Admin overview and navigation into admin tasks.
+- Admin overview and navigation into users, approvals, assignments, and audit logs.
 
 `frontend/src/app/pages/AdminUsers.tsx`
 
@@ -626,6 +750,21 @@ This keeps PDF code out of normal page navigation.
 
 - Admin-only registration approval queue.
 - Calls registration review/approve/reject endpoints.
+
+`frontend/src/app/pages/AdminAssignments.tsx`
+
+- Admin-only staff assignment page.
+- Loads safe patient directory rows, doctor/nurse users, and current assignments.
+- Lets admins assign multiple doctors or nurses to the same patient.
+- Lets admins remove active staff assignments.
+- Avoids patient clinical fields so admin users cannot browse reports through this page.
+
+`frontend/src/app/pages/Referrals.tsx`
+
+- Doctor/nurse referral request form and referral history.
+- Admin referral approval queue.
+- Lets admins approve, reject, or request more information.
+- Shows referral status without exposing patient clinical records to admin users.
 
 `frontend/src/app/pages/AuditLogs.tsx`
 
@@ -658,6 +797,8 @@ This keeps PDF code out of normal page navigation.
 - Main application shell.
 - Builds role-aware navigation.
 - Handles desktop/sidebar/mobile navigation.
+- Displays a polished role-aware header with workspace context and current selected patient where relevant.
+- Includes notification bell with unread badge and dropdown access.
 
 `frontend/src/app/components/ProtectedRoute.tsx`
 
@@ -753,11 +894,14 @@ This keeps PDF code out of normal page navigation.
 
 `frontend/src/app/components/NotificationCenter.tsx`
 
-- Notification management UI.
+- Full notification history UI.
+- Supports search, read/unread filtering, unread count, mark one read, and mark all read.
 
 `frontend/src/app/components/NotificationDropdown.tsx`
 
 - Header notification dropdown.
+- Polls periodically for updates and merges backend notifications with live clinical alerts.
+- Includes animated unread badge, loading/empty/error states, search, filter, and mark-read actions.
 
 `frontend/src/app/components/ThemeToggle.tsx`
 
@@ -866,11 +1010,19 @@ If login fails:
 4. Run `curl http://127.0.0.1:8000/health/ready`.
 5. Reset admin if needed with `scripts/reset_admin.py`.
 
+If admin approvals show "Failed to load requests":
+
+1. Confirm PostgreSQL is running on the host/port in `DATABASE_URL`.
+2. Run `curl http://127.0.0.1:8000/health/ready`.
+3. Restart the backend after PostgreSQL is available.
+4. Open the browser console/network tab and confirm `/registration-requests/` returns `200`.
+
 If patient data is missing:
 
 1. Confirm the logged-in doctor/nurse is assigned to that patient.
-2. Check `patients.primary_doctor_id`, `patients.assigned_nurse_id`, and `patients.user_id`.
-3. Remember inaccessible patients intentionally return `404`.
+2. Check `patient_staff_assignments` for active doctor/nurse rows.
+3. Check legacy fallback fields `patients.primary_doctor_id`, `patients.assigned_nurse_id`, and `patients.user_id`.
+4. Remember inaccessible patients intentionally return `404`.
 
 If migrations fail:
 
@@ -899,3 +1051,13 @@ Before real deployment:
 - Add password reset/change flows.
 - Add structured logging and centralized log storage.
 - Consider moving AI calls into background jobs if latency becomes an issue.
+
+## Future Improvements
+
+- Add password reset and password change screens.
+- Add refresh-token rotation and token revocation for stronger session control.
+- Replace the local in-memory rate limiter with Redis for multi-instance production deployments.
+- Add role-specific notification rules for assignment changes and escalated cases.
+- Add appointment scheduling and direct secure messaging.
+- Add more detailed database constraints for assignment/referral uniqueness and historical audit reporting.
+- Add end-to-end browser tests for login, registration approval, assignment management, and clinician workflows.

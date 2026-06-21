@@ -41,6 +41,9 @@ def cleanup(db):
     }
 
     if patient_ids:
+        db.query(models.PatientStaffAssignment).filter(
+            models.PatientStaffAssignment.patient_id.in_(patient_ids)
+        ).delete(synchronize_session=False)
         db.query(models.Vital).filter(models.Vital.patient_id.in_(patient_ids)).delete(
             synchronize_session=False
         )
@@ -63,6 +66,18 @@ def cleanup(db):
         ).delete(synchronize_session=False)
 
     if emails:
+        user_ids = [
+            user_id
+            for (user_id,) in db.query(models.User.id)
+            .filter(models.User.email.in_(emails))
+            .all()
+        ]
+
+        if user_ids:
+            db.query(models.PatientStaffAssignment).filter(
+                models.PatientStaffAssignment.staff_user_id.in_(user_ids)
+            ).delete(synchronize_session=False)
+
         db.query(models.AuditLog).filter(
             models.AuditLog.user_email.in_(emails)
         ).delete(synchronize_session=False)
@@ -148,6 +163,7 @@ def test_admin_only_routes_reject_doctor_and_allow_admin(client, db, cleanup):
 
     protected_paths = [
         "/admin/users/",
+        "/admin/assignments/",
         "/registration-requests/",
         "/audit/",
         "/metrics",
@@ -259,3 +275,190 @@ def test_patient_assignment_blocks_other_doctors_and_patients(client, db, cleanu
 
     assert patient_own_response.status_code == 200
     assert patient_other_response.status_code == 404
+
+
+def test_admin_cannot_read_or_delete_clinical_patient_records(client, db, cleanup):
+    admin = create_user(db, cleanup, "admin")
+    doctor = create_user(db, cleanup, "doctor")
+    nurse = create_user(db, cleanup, "nurse")
+    patient_user = create_user(db, cleanup, "patient")
+    patient = create_patient(
+        db,
+        cleanup,
+        name="Admin Hidden Patient",
+        doctor_id=doctor.id,
+        nurse_id=nurse.id,
+        user_id=patient_user.id,
+    )
+
+    admin_token = login_token(client, admin.email)
+
+    patient_list_response = client.get(
+        "/patients/",
+        headers=auth_header(admin_token),
+    )
+    patient_detail_response = client.get(
+        f"/patients/{patient.id}",
+        headers=auth_header(admin_token),
+    )
+    vitals_response = client.get(
+        f"/vitals/{patient.id}",
+        headers=auth_header(admin_token),
+    )
+    legacy_care_team_response = client.patch(
+        f"/patients/{patient.id}/care-team",
+        json={"primary_doctor_id": doctor.id},
+        headers=auth_header(admin_token),
+    )
+    delete_response = client.delete(
+        f"/patients/{patient.id}",
+        headers=auth_header(admin_token),
+    )
+
+    assert patient_list_response.status_code == 200
+    assert patient_list_response.json() == []
+    assert patient_detail_response.status_code == 404
+    assert vitals_response.status_code == 404
+    assert legacy_care_team_response.status_code == 410
+    assert delete_response.status_code == 403
+
+
+def test_admin_staff_assignment_grants_and_removes_patient_access(client, db, cleanup):
+    admin = create_user(db, cleanup, "admin")
+    doctor_one = create_user(db, cleanup, "doctor")
+    doctor_two = create_user(db, cleanup, "doctor")
+    nurse = create_user(db, cleanup, "nurse")
+    patient = create_patient(
+        db,
+        cleanup,
+        name="Shared Care Patient",
+        doctor_id=doctor_one.id,
+        nurse_id=nurse.id,
+    )
+
+    admin_token = login_token(client, admin.email)
+    doctor_two_token = login_token(client, doctor_two.email)
+
+    denied_before_assignment = client.get(
+        f"/patients/{patient.id}",
+        headers=auth_header(doctor_two_token),
+    )
+
+    directory_response = client.get(
+        "/admin/assignments/patients",
+        headers=auth_header(admin_token),
+    )
+    doctor_directory_response = client.get(
+        "/admin/assignments/patients",
+        headers=auth_header(doctor_two_token),
+    )
+    assign_response = client.post(
+        "/admin/assignments/",
+        json={
+            "patient_id": patient.id,
+            "staff_user_id": doctor_two.id,
+            "role": "doctor",
+        },
+        headers=auth_header(admin_token),
+    )
+    allowed_after_assignment = client.get(
+        f"/patients/{patient.id}",
+        headers=auth_header(doctor_two_token),
+    )
+
+    assert denied_before_assignment.status_code == 404
+    assert directory_response.status_code == 200
+    matching_patient = next(
+        item for item in directory_response.json() if item["id"] == patient.id
+    )
+    assert set(matching_patient.keys()) == {
+        "id",
+        "name",
+        "linked_user_id",
+        "linked_user_email",
+    }
+    assert doctor_directory_response.status_code == 403
+    assert assign_response.status_code == 200
+    assert assign_response.json()["staff_user_id"] == doctor_two.id
+    assert allowed_after_assignment.status_code == 200
+
+    remove_response = client.delete(
+        f"/admin/assignments/{assign_response.json()['id']}",
+        headers=auth_header(admin_token),
+    )
+    denied_after_removal = client.get(
+        f"/patients/{patient.id}",
+        headers=auth_header(doctor_two_token),
+    )
+
+    assert remove_response.status_code == 200
+    assert remove_response.json()["status"] == "removed"
+    assert denied_after_removal.status_code == 404
+
+
+def test_clinician_actions_use_validated_payloads_and_block_admin(
+    client,
+    db,
+    cleanup,
+):
+    admin = create_user(db, cleanup, "admin")
+    doctor = create_user(db, cleanup, "doctor")
+    nurse = create_user(db, cleanup, "nurse")
+    patient_user = create_user(db, cleanup, "patient")
+    patient = create_patient(
+        db,
+        cleanup,
+        name="Clinical Action Patient",
+        doctor_id=doctor.id,
+        nurse_id=nurse.id,
+        user_id=patient_user.id,
+    )
+
+    admin_token = login_token(client, admin.email)
+    doctor_token = login_token(client, doctor.email)
+
+    admin_note_response = client.post(
+        "/role-actions/doctor/clinical-note",
+        json={
+            "patient_id": patient.id,
+            "note_type": "Diagnosis",
+            "title": "Admin diagnosis attempt",
+            "description": "Admins should not be able to create clinical notes.",
+        },
+        headers=auth_header(admin_token),
+    )
+    invalid_note_response = client.post(
+        "/role-actions/doctor/clinical-note",
+        json={
+            "patient_id": patient.id,
+            "note_type": "Diagnosis",
+            "title": "No",
+            "description": "Bad",
+        },
+        headers=auth_header(doctor_token),
+    )
+    valid_note_response = client.post(
+        "/role-actions/doctor/clinical-note",
+        json={
+            "patient_id": patient.id,
+            "note_type": "Diagnosis",
+            "title": "Hypertension review",
+            "description": "Patient remains under observation with elevated blood pressure.",
+        },
+        headers=auth_header(doctor_token),
+    )
+    admin_history_response = client.get(
+        f"/role-actions/doctor/patient-history/{patient.id}",
+        headers=auth_header(admin_token),
+    )
+    admin_patient_records_response = client.get(
+        f"/role-actions/patient/my-records/{patient.id}",
+        headers=auth_header(admin_token),
+    )
+
+    assert admin_note_response.status_code == 403
+    assert invalid_note_response.status_code == 422
+    assert valid_note_response.status_code == 200
+    assert valid_note_response.json()["event_type"] == "Diagnosis"
+    assert admin_history_response.status_code == 403
+    assert admin_patient_records_response.status_code == 403

@@ -26,7 +26,7 @@ def receive_watch_data(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse", "patient"})
+    require_roles(current_user, {"doctor", "nurse", "patient"})
     get_accessible_patient(db, payload.patient_id, current_user)
 
     vital = models.Vital(

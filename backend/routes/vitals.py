@@ -21,7 +21,7 @@ def create_vital(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse"})
+    require_roles(current_user, {"doctor", "nurse"})
     get_accessible_patient(db, vital.patient_id, current_user)
 
     existing_vital = (
@@ -76,7 +76,7 @@ def delete_vital(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    require_roles(current_user, {"admin", "doctor", "nurse"})
+    require_roles(current_user, {"doctor", "nurse"})
 
     vital = (
         db.query(models.Vital)

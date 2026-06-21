@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
   BrainCircuit,
   ClipboardList,
   FileText,
+  FilePlus2,
   HeartPulse,
+  Send,
   ShieldAlert,
   Users,
 } from "lucide-react";
@@ -14,6 +16,9 @@ import AITextBox from "../components/AITextBox";
 
 import { useHealthData } from "../context/HealthDataContext";
 import {
+  doctorAddClinicalNote,
+  doctorEscalatePatient,
+  type DoctorClinicalNoteType,
   getAIPatientSummary,
   getMLPrediction,
   getReviewCases,
@@ -42,6 +47,12 @@ export default function DoctorDashboard() {
   const [reviewCases, setReviewCases] = useState<ReviewCase[]>([]);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [aiSummary, setAiSummary] = useState("");
+  const [noteType, setNoteType] = useState<DoctorClinicalNoteType>("Diagnosis");
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteDescription, setNoteDescription] = useState("");
+  const [escalationNote, setEscalationNote] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [submittingAction, setSubmittingAction] = useState(false);
 
   const selectedVitals = useMemo(() => {
     return healthData.filter((record) => record.patientId === selectedPatient.id);
@@ -79,6 +90,46 @@ export default function DoctorDashboard() {
   }, [selectedPatient.id]);
 
   const openCases = reviewCases.filter((item) => item.status !== "Resolved");
+
+  async function handleClinicalNoteSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmittingAction(true);
+    setActionMessage("");
+
+    try {
+      await doctorAddClinicalNote(
+        selectedPatient.id,
+        noteTitle.trim(),
+        noteDescription.trim(),
+        noteType
+      );
+      setNoteTitle("");
+      setNoteDescription("");
+      setActionMessage(`${noteType} saved for ${selectedPatient.name}.`);
+      await loadDashboard();
+    } catch {
+      setActionMessage("Unable to save the clinical note. Check the fields and try again.");
+    } finally {
+      setSubmittingAction(false);
+    }
+  }
+
+  async function handleEscalationSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmittingAction(true);
+    setActionMessage("");
+
+    try {
+      await doctorEscalatePatient(selectedPatient.id, escalationNote.trim());
+      setEscalationNote("");
+      setActionMessage(`${selectedPatient.name} has been escalated for review.`);
+      await loadDashboard();
+    } catch {
+      setActionMessage("Unable to escalate this patient right now.");
+    } finally {
+      setSubmittingAction(false);
+    }
+  }
 
   return (
     <div className="dashboard-shell space-y-8">
@@ -206,6 +257,118 @@ export default function DoctorDashboard() {
       <section className="grid gap-6 xl:grid-cols-2">
         <div className="glass-card rounded-3xl p-6">
           <div className="mb-5 flex items-center gap-3">
+            <FilePlus2 className="h-6 w-6 text-blue-600" />
+            <div>
+              <h2 className="text-xl font-extrabold">Diagnosis and Treatment Notes</h2>
+              <p className="text-sm text-slate-500">
+                Add structured clinical context for the selected patient.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleClinicalNoteSubmit} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+                Note Type
+                <select
+                  value={noteType}
+                  onChange={(event) =>
+                    setNoteType(event.target.value as DoctorClinicalNoteType)
+                  }
+                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950"
+                >
+                  <option value="Diagnosis">Diagnosis</option>
+                  <option value="Treatment Plan">Treatment Plan</option>
+                  <option value="Clinical Note">Clinical Note</option>
+                </select>
+              </label>
+
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+                Title
+                <input
+                  value={noteTitle}
+                  onChange={(event) => setNoteTitle(event.target.value)}
+                  minLength={3}
+                  maxLength={120}
+                  required
+                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950"
+                  placeholder="e.g. Hypertension review"
+                />
+              </label>
+            </div>
+
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+              Clinical Details
+              <textarea
+                value={noteDescription}
+                onChange={(event) => setNoteDescription(event.target.value)}
+                minLength={5}
+                maxLength={4000}
+                required
+                rows={5}
+                className="mt-2 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-6 dark:border-slate-800 dark:bg-slate-950"
+                placeholder="Record diagnosis reasoning, care decision, or treatment instruction."
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={submittingAction}
+              className="flex w-fit items-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              <Send className="h-4 w-4" />
+              Save Note
+            </button>
+          </form>
+        </div>
+
+        <div className="glass-card rounded-3xl p-6">
+          <div className="mb-5 flex items-center gap-3">
+            <ShieldAlert className="h-6 w-6 text-red-600" />
+            <div>
+              <h2 className="text-xl font-extrabold">Escalate Case</h2>
+              <p className="text-sm text-slate-500">
+                Create a high-priority review case for this patient.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleEscalationSubmit} className="space-y-4">
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+              Escalation Note
+              <textarea
+                value={escalationNote}
+                onChange={(event) => setEscalationNote(event.target.value)}
+                minLength={5}
+                maxLength={2000}
+                required
+                rows={5}
+                className="mt-2 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-6 dark:border-slate-800 dark:bg-slate-950"
+                placeholder="Explain why this case needs urgent review."
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={submittingAction}
+              className="flex w-fit items-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              Escalate Patient
+            </button>
+          </form>
+
+          {actionMessage && (
+            <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+              {actionMessage}
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <div className="glass-card rounded-3xl p-6">
+          <div className="mb-5 flex items-center gap-3">
             <FileText className="h-6 w-6 text-blue-600" />
             <div>
               <h2 className="text-xl font-extrabold">Latest AI Summary</h2>
@@ -214,10 +377,10 @@ export default function DoctorDashboard() {
           </div>
 
           <AITextBox
-  title="Latest AI Summary"
-  text={aiSummary || "No AI summary available."}
-  modelUsed="llama-3.1-8b-instant"
-/>
+            title="Latest AI Summary"
+            text={aiSummary || "No AI summary available."}
+            modelUsed="llama-3.1-8b-instant"
+          />
         </div>
 
         <div className="glass-card rounded-3xl p-6">
