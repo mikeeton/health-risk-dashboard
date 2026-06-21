@@ -15,7 +15,6 @@ import AITextBox from "../components/AITextBox";
 import { useHealthData } from "../context/HealthDataContext";
 import {
   getAIPatientSummary,
-  getAuditLogs,
   getMLPrediction,
   getReviewCases,
 } from "../services/api";
@@ -30,15 +29,6 @@ type ReviewCase = {
   note: string;
 };
 
-type AuditLog = {
-  id: number;
-  user_email: string | null;
-  action: string;
-  entity: string;
-  entity_id: string | null;
-  timestamp: string;
-};
-
 type Prediction = {
   prediction_score: number;
   prediction_level: string;
@@ -50,7 +40,6 @@ export default function DoctorDashboard() {
   const { patients, selectedPatient, healthData } = useHealthData();
 
   const [reviewCases, setReviewCases] = useState<ReviewCase[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [aiSummary, setAiSummary] = useState("");
 
@@ -65,20 +54,15 @@ export default function DoctorDashboard() {
   );
 
   async function loadDashboard() {
-    const [casesResult, auditResult, predictionResult, aiResult] =
+    const [casesResult, predictionResult, aiResult] =
       await Promise.allSettled([
         getReviewCases(),
-        getAuditLogs(),
         getMLPrediction(selectedPatient.id),
         getAIPatientSummary(selectedPatient.id),
       ]);
 
     if (casesResult.status === "fulfilled") {
       setReviewCases(casesResult.value);
-    }
-
-    if (auditResult.status === "fulfilled") {
-      setAuditLogs(auditResult.value);
     }
 
     if (predictionResult.status === "fulfilled") {
@@ -241,25 +225,24 @@ export default function DoctorDashboard() {
             <Activity className="h-6 w-6 text-blue-600" />
             <div>
               <h2 className="text-xl font-extrabold">Recent Activity</h2>
-              <p className="text-sm text-slate-500">Latest audit activity</p>
+              <p className="text-sm text-slate-500">Latest assigned review cases</p>
             </div>
           </div>
 
           <div className="space-y-3">
-            {auditLogs.slice(0, 6).map((log) => (
+            {reviewCases.slice(0, 6).map((item) => (
               <div
-                key={log.id}
+                key={item.id}
                 className="rounded-2xl bg-slate-50 p-4 text-sm dark:bg-slate-900"
               >
-                <p className="font-bold">{log.action}</p>
+                <p className="font-bold">{item.status}</p>
                 <p className="text-slate-500">
-                  {log.entity} #{log.entity_id ?? "—"} ·{" "}
-                  {new Date(log.timestamp).toLocaleString()}
+                  {item.patient_name} · Risk {item.risk_score}/10
                 </p>
               </div>
             ))}
 
-            {!auditLogs.length && (
+            {!reviewCases.length && (
               <p className="text-sm text-slate-500">No recent activity.</p>
             )}
           </div>

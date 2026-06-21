@@ -1,16 +1,25 @@
 import asyncio
+import os
 import random
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
 
 import models
-from access_control import can_access_patient
+from access_control import can_access_patient, require_admin
+from auth_utils import get_current_user
 from auth_utils import get_user_from_token
 from config import get_settings
-from database import SessionLocal, engine
+from database import SessionLocal, engine, get_db
+from middleware import (
+    RateLimitMiddleware,
+    RequestMetricsMiddleware,
+    SecurityHeadersMiddleware,
+)
+from observability import request_tracker
 from routes import analytics, assistant, admin_users
 from routes import registration_requests
 from routes import medications, events, ml, live_simulator
@@ -20,8 +29,6 @@ from routes import notifications
 from routes import wearables
 
 settings = get_settings()
-
-models.Base.metadata.create_all(bind=engine)
 
 
 def ensure_database_schema():
@@ -185,12 +192,18 @@ def ensure_database_schema():
         )
 
 
-ensure_database_schema()
+if settings.run_startup_schema_check:
+    models.Base.metadata.create_all(bind=engine)
+    ensure_database_schema()
 
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
 )
+
+app.add_middleware(RequestMetricsMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -221,12 +234,39 @@ def root():
     return {
         "message": "AI Health Risk Monitoring API is running",
         "version": settings.app_version,
+        "process_id": os.getpid(),
     }
 
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "process_id": os.getpid()}
+
+
+@app.get("/health/live")
+def liveness_check():
+    return {"status": "alive", "process_id": os.getpid()}
+
+
+@app.get("/health/ready")
+def readiness_check(db: Session = Depends(get_db)):
+    db.execute(text("SELECT 1"))
+
+    return {
+        "status": "ready",
+        "database": "ok",
+        "process_id": os.getpid(),
+    }
+
+
+@app.get("/metrics")
+def metrics(current_user: models.User = Depends(get_current_user)):
+    require_admin(current_user)
+
+    return {
+        "process_id": os.getpid(),
+        **request_tracker.snapshot(),
+    }
 
 
 @app.websocket("/ws/live/{patient_id}")

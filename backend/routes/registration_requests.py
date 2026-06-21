@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
-from access_control import get_default_active_user_id
-from auth_utils import hash_password
+from access_control import get_default_active_user_id, require_admin
+from auth_utils import get_current_user, hash_password
 from database import get_db
 from routes.audit import write_audit_log
 
@@ -95,7 +95,12 @@ def create_registration_request(
 
 
 @router.get("/", response_model=list[schemas.RegistrationRequestResponse])
-def get_registration_requests(db: Session = Depends(get_db)):
+def get_registration_requests(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    require_admin(current_user)
+
     return (
         db.query(models.RegistrationRequest)
         .order_by(models.RegistrationRequest.id.desc())
@@ -107,7 +112,10 @@ def get_registration_requests(db: Session = Depends(get_db)):
 def approve_registration_request(
     request_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_admin(current_user)
+
     request = (
         db.query(models.RegistrationRequest)
         .filter(models.RegistrationRequest.id == request_id)
@@ -192,7 +200,7 @@ def approve_registration_request(
         action="APPROVE_REGISTRATION_REQUEST",
         entity="User",
         entity_id=str(new_user.id),
-        user_email=new_user.email,
+        user_email=current_user.email,
     )
 
     return {
@@ -206,7 +214,10 @@ def approve_registration_request(
 def reject_registration_request(
     request_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_admin(current_user)
+
     request = (
         db.query(models.RegistrationRequest)
         .filter(models.RegistrationRequest.id == request_id)
@@ -228,7 +239,7 @@ def reject_registration_request(
         action="REJECT_REGISTRATION_REQUEST",
         entity="RegistrationRequest",
         entity_id=str(request.id),
-        user_email=request.email,
+        user_email=current_user.email,
     )
 
     return {"message": "Registration request rejected"}

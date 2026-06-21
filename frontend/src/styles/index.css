@@ -1,7 +1,26 @@
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --font-sans: "Inter", Arial, sans-serif;
+  --page-bg: #f6f8fb;
+  --page-text: #111827;
+  --panel-bg: #ffffff;
+  --panel-border: #dbe3ef;
+  --panel-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.dark {
+  --page-bg: #020617;
+  --page-text: #f8fafc;
+  --panel-bg: #0f172a;
+  --panel-border: #1f2a3d;
+  --panel-shadow: none;
+  --focus-ring: 0 0 0 3px rgba(96, 165, 250, 0.24);
+}
 
 * {
   box-sizing: border-box;
@@ -9,18 +28,23 @@
 
 html {
   scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   margin: 0;
-  font-family: "Poppins", Arial, sans-serif;
-  background: #f8fafc;
-  color: #0f172a;
+  font-family: var(--font-sans);
+  background: var(--page-bg);
+  color: var(--page-text);
+  font-synthesis: none;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .dark body {
-  background: #020617;
-  color: #f8fafc;
+  background: var(--page-bg);
+  color: var(--page-text);
 }
 
 button,
@@ -28,6 +52,25 @@ select,
 input,
 textarea {
   font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+
+p {
+  line-height: 1.55;
 }
 
 a {
@@ -41,23 +84,37 @@ textarea {
   outline: none;
 }
 
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.18);
+}
+
 .glass-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px !important;
+  box-shadow: var(--panel-shadow);
 }
 
 .dark .glass-card {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  box-shadow: none;
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
+  box-shadow: var(--panel-shadow);
 }
 
 .dashboard-shell {
   width: 100%;
   max-width: 1550px;
   margin: 0 auto;
-  padding: 20px 20px 32px;
+  padding: 18px 20px 32px;
 }
 
 .dashboard-grid {
@@ -71,12 +128,13 @@ textarea {
 }
 
 .card-hover {
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .card-hover:hover {
   border-color: #bfdbfe;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
 }
 
 .live-pulse {
@@ -130,7 +188,7 @@ textarea {
 }
 
 .recharts-wrapper {
-  font-family: "Poppins", Arial, sans-serif;
+  font-family: var(--font-sans);
 }
 
 .recharts-cartesian-axis-tick text {
@@ -152,6 +210,18 @@ textarea {
 
 .dark .recharts-tooltip-wrapper {
   color: #0f172a;
+}
+
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+.clinical-muted {
+  color: #64748b;
+}
+
+.dark .clinical-muted {
+  color: #94a3b8;
 }
 
 ::-webkit-scrollbar {

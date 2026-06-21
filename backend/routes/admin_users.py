@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from access_control import require_admin
+from auth_utils import get_current_user
 from auth_utils import hash_password
 from database import get_db
 from routes.audit import write_audit_log
@@ -33,7 +35,12 @@ def serialize_user(user: models.User):
 
 
 @router.get("/")
-def get_users(db: Session = Depends(get_db)):
+def get_users(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    require_admin(current_user)
+
     users = db.query(models.User).order_by(models.User.id.asc()).all()
 
     for user in users:
@@ -55,7 +62,10 @@ def create_user(
     role: str,
     password: str,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_admin(current_user)
+
     role = role.lower()
 
     if role not in ALLOWED_ROLES:
@@ -84,7 +94,7 @@ def create_user(
         action="ADMIN_CREATE_USER",
         entity="User",
         entity_id=str(user.id),
-        user_email=user.email,
+        user_email=current_user.email,
     )
 
     return serialize_user(user)
@@ -96,7 +106,10 @@ def update_user(
     full_name: str | None = None,
     role: str | None = None,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_admin(current_user)
+
     user = db.query(models.User).filter(models.User.id == user_id).first()
 
     if not user:
@@ -121,7 +134,7 @@ def update_user(
         action="ADMIN_UPDATE_USER",
         entity="User",
         entity_id=str(user.id),
-        user_email=user.email,
+        user_email=current_user.email,
     )
 
     return serialize_user(user)
@@ -131,7 +144,10 @@ def update_user(
 def suspend_user(
     user_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_admin(current_user)
+
     user = db.query(models.User).filter(models.User.id == user_id).first()
 
     if not user:
@@ -146,7 +162,7 @@ def suspend_user(
         action="ADMIN_SUSPEND_USER",
         entity="User",
         entity_id=str(user.id),
-        user_email=user.email,
+        user_email=current_user.email,
     )
 
     return serialize_user(user)
@@ -156,7 +172,10 @@ def suspend_user(
 def activate_user(
     user_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_admin(current_user)
+
     user = db.query(models.User).filter(models.User.id == user_id).first()
 
     if not user:
@@ -171,7 +190,7 @@ def activate_user(
         action="ADMIN_ACTIVATE_USER",
         entity="User",
         entity_id=str(user.id),
-        user_email=user.email,
+        user_email=current_user.email,
     )
 
     return serialize_user(user)
@@ -181,7 +200,10 @@ def activate_user(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_admin(current_user)
+
     user = db.query(models.User).filter(models.User.id == user_id).first()
 
     if not user:
@@ -201,7 +223,7 @@ def delete_user(
         action="ADMIN_DELETE_USER",
         entity="User",
         entity_id=str(user_id),
-        user_email=user.email,
+        user_email=current_user.email,
     )
 
     return {"message": "User deleted"}

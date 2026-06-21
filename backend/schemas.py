@@ -1,6 +1,6 @@
 from datetime import datetime, date
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # =========================
@@ -25,14 +25,13 @@ class RefreshTokenRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: EmailStr
     full_name: str
     role: str
     hospital_id: int | None = None
-
-    class Config:
-        from_attributes = True
 
 
 class TokenResponse(BaseModel):
@@ -65,6 +64,8 @@ class PatientCareTeamUpdate(BaseModel):
 
 
 class PatientResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int | None = None
     primary_doctor_id: int | None = None
@@ -75,9 +76,6 @@ class PatientResponse(BaseModel):
     risk_level: str
     last_checkup: date
     hospital_id: int | None = None
-
-    class Config:
-        from_attributes = True
 
 
 # =========================
@@ -104,6 +102,8 @@ class VitalCreate(BaseModel):
 
 
 class VitalResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
 
     patient_id: int
@@ -123,9 +123,6 @@ class VitalResponse(BaseModel):
     risk_score: int
     activity_state: str
 
-    class Config:
-        from_attributes = True
-
 # =========================
 # REVIEW CASES
 # =========================
@@ -144,6 +141,8 @@ class ReviewCaseUpdate(BaseModel):
 
 
 class ReviewCaseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
 
     patient_id: int
@@ -158,15 +157,14 @@ class ReviewCaseResponse(BaseModel):
     created_at: str
     updated_at: str | None = None
 
-    class Config:
-        from_attributes = True
-
 
 # =========================
 # AUDIT LOGS
 # =========================
 
 class AuditLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
 
     user_email: str | None = None
@@ -176,9 +174,6 @@ class AuditLogResponse(BaseModel):
     entity_id: str | None = None
 
     timestamp: datetime
-
-    class Config:
-        from_attributes = True
 
 # =========================
 # MEDICATIONS
@@ -199,6 +194,8 @@ class MedicationUpdate(BaseModel):
 
 
 class MedicationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     patient_id: int
     name: str
@@ -206,9 +203,6 @@ class MedicationResponse(BaseModel):
     schedule_time: str
     status: str
     notes: str | None = None
-
-    class Config:
-        from_attributes = True
 
 
 # =========================
@@ -224,15 +218,14 @@ class PatientEventCreate(BaseModel):
 
 
 class PatientEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     patient_id: int
     event_type: str
     title: str
     description: str | None = None
     timestamp: str
-
-    class Config:
-        from_attributes = True
 
 
 # =========================
@@ -257,6 +250,8 @@ class NotificationCreate(BaseModel):
 
 
 class NotificationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_email: str | None = None
     title: str
@@ -264,9 +259,6 @@ class NotificationResponse(BaseModel):
     type: str
     is_read: str
     created_at: str
-
-    class Config:
-        from_attributes = True
 
 # =========================
 # Registration and Login
@@ -292,6 +284,8 @@ class WearableVitalCreate(BaseModel):
 
 
 class WearableDeviceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
 
     patient_id: int
@@ -305,9 +299,6 @@ class WearableDeviceResponse(BaseModel):
     last_sync: str | None
 
     is_connected: str
-
-    class Config:
-        from_attributes = True
 
 # =========================
 # registration requests
@@ -327,6 +318,8 @@ class RegistrationRequestCreate(BaseModel):
 
 
 class RegistrationRequestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: EmailStr
     full_name: str
@@ -339,6 +332,3 @@ class RegistrationRequestResponse(BaseModel):
     conditions: str | None = None
     medication_notes: str | None = None
     lifestyle_notes: str | None = None
-
-    class Config:
-        from_attributes = True

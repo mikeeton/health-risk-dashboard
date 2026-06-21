@@ -40,10 +40,10 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-[80vh] items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-6 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950">
-      <Card className="w-full max-w-md border-blue-100 p-8 shadow-2xl dark:border-slate-800">
+    <div className="flex min-h-[80vh] items-center justify-center bg-slate-50 p-6 dark:bg-slate-950">
+      <Card className="w-full max-w-md border-slate-200 p-8 shadow-sm dark:border-slate-800">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-600 text-white">
             <Activity className="h-7 w-7" />
           </div>
 
@@ -61,7 +61,7 @@ export default function Login() {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-blue-950"
+              className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-blue-950"
             />
           </div>
 
@@ -71,29 +71,30 @@ export default function Login() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-blue-950"
+              className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-blue-950"
             />
           </div>
 
           <Button
-  type="button"
-  onClick={handleLogin}
-  disabled={loading}
-  className="h-12 w-full rounded-2xl bg-blue-600 text-white shadow-lg hover:bg-blue-700 disabled:opacity-60"
->
-  {loading ? "Signing in..." : "Sign In"}
-</Button>
+            type="button"
+            onClick={handleLogin}
+            disabled={loading}
+            className="h-12 w-full rounded-lg bg-blue-600 text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </Button>
 
-<Link
-  to="/register"
-  className="block text-center text-sm font-semibold text-blue-600 hover:text-blue-700"
->
-  Request Doctor, Nurse, or Patient Access
-</Link>
+          <Link
+            to="/register"
+            className="block text-center text-sm font-semibold text-blue-600 hover:text-blue-700"
+          >
+            Request Doctor, Nurse, or Patient Access
+          </Link>
 
-<div className="rounded-2xl bg-gray-50 p-4 text-center text-sm text-gray-500 dark:bg-slate-800 dark:text-slate-400">
-  Demo: doctor3@example.com / Password123
-</div>
+          <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-600 dark:bg-slate-900 dark:text-slate-400">
+            <p>Doctor: doctor3@example.com / Password123</p>
+            <p>Admin: admin@example.com / AdminPassword123!</p>
+          </div>
         </div>
       </Card>
     </div>

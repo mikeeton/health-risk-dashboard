@@ -1,7 +1,7 @@
 import random
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 import models
@@ -308,7 +308,9 @@ def generate_live_vital(
 
 
 @router.get("/profiles")
-def get_supported_profiles():
+def get_supported_profiles(response: Response):
+    response.headers["Cache-Control"] = "public, max-age=300"
+
     return {
         "supported_conditions": list(DISEASE_PROFILES.keys())
     }

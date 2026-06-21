@@ -37,6 +37,19 @@ class Settings:
 
     websocket_interval_seconds = int(os.getenv("WEBSOCKET_INTERVAL_SECONDS", "5"))
 
+    rate_limit_enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+    rate_limit_requests = int(os.getenv("RATE_LIMIT_REQUESTS", "120"))
+    rate_limit_window_seconds = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+    auth_rate_limit_requests = int(os.getenv("AUTH_RATE_LIMIT_REQUESTS", "20"))
+    auth_rate_limit_window_seconds = int(
+        os.getenv("AUTH_RATE_LIMIT_WINDOW_SECONDS", "60")
+    )
+
+    trusted_proxy_count = int(os.getenv("TRUSTED_PROXY_COUNT", "0"))
+    run_startup_schema_check = (
+        os.getenv("RUN_STARTUP_SCHEMA_CHECK", "false").lower() == "true"
+    )
+
     def validate(self):
         if not self.database_url:
             raise RuntimeError(

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Activity, ShieldCheck } from "lucide-react";
 import { getAuditLogs } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 type AuditLog = {
   id: number;
@@ -12,9 +13,12 @@ type AuditLog = {
 };
 
 export default function DatabaseActivityFeed() {
+  const { isAdmin } = useAuth();
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
   useEffect(() => {
+    if (!isAdmin) return;
+
     async function loadLogs() {
       try {
         const data = await getAuditLogs();
@@ -29,7 +33,11 @@ export default function DatabaseActivityFeed() {
     const interval = setInterval(loadLogs, 8000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isAdmin]);
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <section className="glass-card rounded-3xl p-6">

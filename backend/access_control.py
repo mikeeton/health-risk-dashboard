@@ -17,6 +17,10 @@ def require_roles(user: models.User, allowed_roles: set[str]):
         )
 
 
+def require_admin(user: models.User):
+    require_roles(user, {"admin"})
+
+
 def patient_query_for_user(db: Session, user: models.User):
     query = db.query(models.Patient)
     role = role_name(user)
