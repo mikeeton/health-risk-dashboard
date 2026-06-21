@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BrainCircuit,
-  Download,
   FileText,
   Loader2,
   ShieldCheck,
@@ -79,8 +78,7 @@ export default function Reports() {
                 Clinical Reports
               </h1>
               <p className="mt-1 text-slate-500 dark:text-slate-400">
-                Generate AI-assisted clinician reports using vitals,
-                medication records, timeline events, and ML prediction.
+                Review the current risk picture and export a clinician-ready PDF.
               </p>
             </div>
           </div>
@@ -96,7 +94,7 @@ export default function Reports() {
               ) : (
                 <BrainCircuit className="h-4 w-4" />
               )}
-              Refresh AI Preview
+              Refresh Summary
             </button>
 
             <ClinicianPdfReportButton
@@ -107,7 +105,7 @@ export default function Reports() {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-4">
+      <section className="grid gap-6 xl:grid-cols-3">
         <div className="glass-card rounded-3xl p-6">
           <UserRound className="mb-4 h-7 w-7 text-blue-600" />
           <p className="text-sm font-bold text-slate-500">Patient</p>
@@ -115,18 +113,18 @@ export default function Reports() {
             {selectedPatient.name}
           </h2>
           <p className="mt-2 text-sm text-slate-500">
-            {selectedPatient.age} years old · {selectedPatient.condition}
+            {selectedPatient.age} years old
           </p>
         </div>
 
         <div className="glass-card rounded-3xl p-6">
           <ShieldCheck className="mb-4 h-7 w-7 text-blue-600" />
-          <p className="text-sm font-bold text-slate-500">Recorded Risk</p>
+          <p className="text-sm font-bold text-slate-500">Clinical Risk</p>
           <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
             {selectedPatient.riskLevel}
           </h2>
           <p className="mt-2 text-sm text-slate-500">
-            Last checkup: {selectedPatient.lastCheckup}
+            {selectedPatient.condition}
           </p>
         </div>
 
@@ -145,59 +143,20 @@ export default function Reports() {
           </p>
         </div>
 
-        <div className="glass-card rounded-3xl p-6">
-          <Download className="mb-4 h-7 w-7 text-blue-600" />
-          <p className="text-sm font-bold text-slate-500">Latest Reading</p>
-          <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
-            {latest ? `Risk ${latest.riskScore}/10` : "No Data"}
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">
-            {latest
-              ? `HR ${latest.heartRate} · SpO₂ ${latest.spo2}%`
-              : "No recent vitals"}
-          </p>
-        </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <div className="glass-card rounded-3xl p-6">
+      <section className="glass-card rounded-3xl p-6">
+        <div className="mb-5 flex flex-col gap-3 border-b border-slate-200 pb-5 dark:border-slate-800 md:flex-row md:items-center md:justify-between">
           <h2 className="mb-4 text-xl font-extrabold text-slate-950 dark:text-white">
-            Report Preview
+            Clinician Summary
           </h2>
 
-          <div className="space-y-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
-            <p>
-              <span className="font-bold">Patient:</span>{" "}
-              {selectedPatient.name}
-            </p>
-
-            <p>
-              <span className="font-bold">Condition:</span>{" "}
-              {selectedPatient.condition}
-            </p>
-
-            <p>
-              <span className="font-bold">Latest Vitals:</span>{" "}
-              {latest
-                ? `Heart rate ${latest.heartRate} bpm, SpO₂ ${latest.spo2}%, BP ${latest.systolicBP}/${latest.diastolicBP}, sleep ${latest.sleepHours}h, risk score ${latest.riskScore}/10.`
-                : "No latest vital reading available."}
-            </p>
-
-            <p>
-              <span className="font-bold">Prediction:</span>{" "}
-              {prediction
-                ? `${prediction.prediction_level} risk with ${Math.round(
-                    prediction.confidence * 100
-                  )}% confidence.`
-                : "Prediction currently unavailable."}
-            </p>
-          </div>
+          <p className="text-sm text-slate-500">
+            {latest
+              ? `Latest: HR ${latest.heartRate} bpm, SpO2 ${latest.spo2}%, BP ${latest.systolicBP}/${latest.diastolicBP}, risk ${latest.riskScore}/10`
+              : "No recent vitals available"}
+          </p>
         </div>
-
-        <div className="glass-card rounded-3xl p-6">
-          <h2 className="mb-4 text-xl font-extrabold text-slate-950 dark:text-white">
-            AI Risk Analysis
-          </h2>
 
           {loading ? (
             <div className="space-y-3">
@@ -212,7 +171,6 @@ export default function Reports() {
   modelUsed="llama-3.1-8b-instant"
 />
           )}
-        </div>
       </section>
     </div>
   );

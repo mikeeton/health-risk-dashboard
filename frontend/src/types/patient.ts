@@ -1,7 +1,10 @@
-export type RiskLevel = "Low" | "Moderate" | "High";
+export type RiskLevel = "Low" | "Moderate" | "High" | "Critical";
 
 export type Patient = {
   id: number;
+  userId?: number | null;
+  primaryDoctorId?: number | null;
+  assignedNurseId?: number | null;
   name: string;
   age: number;
   gender?: string;

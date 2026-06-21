@@ -1,6 +1,6 @@
 from datetime import datetime, date
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 # =========================
@@ -9,9 +9,9 @@ from pydantic import BaseModel, EmailStr
 
 class UserCreate(BaseModel):
     email: EmailStr
-    full_name: str
+    full_name: str = Field(min_length=1)
     role: str
-    password: str
+    password: str = Field(min_length=8)
     hospital_id: int | None = None
 
 
@@ -52,11 +52,23 @@ class PatientCreate(BaseModel):
     condition: str
     risk_level: str
     last_checkup: date
+    user_id: int | None = None
+    primary_doctor_id: int | None = None
+    assigned_nurse_id: int | None = None
     hospital_id: int | None = None
+
+
+class PatientCareTeamUpdate(BaseModel):
+    user_id: int | None = None
+    primary_doctor_id: int | None = None
+    assigned_nurse_id: int | None = None
 
 
 class PatientResponse(BaseModel):
     id: int
+    user_id: int | None = None
+    primary_doctor_id: int | None = None
+    assigned_nurse_id: int | None = None
     name: str
     age: int
     condition: str
@@ -260,26 +272,6 @@ class NotificationResponse(BaseModel):
 # Registration and Login
 # =========================
 
-class RegistrationRequestCreate(BaseModel):
-    email: EmailStr
-    full_name: str
-    role: str
-    password: str
-
-
-class RegistrationRequestResponse(BaseModel):
-    id: int
-    email: EmailStr
-    full_name: str
-    role: str
-    status: str
-    created_at: str
-
-    class Config:
-        from_attributes = True
-
-
-
 # =========================
 # wearable connection
 # =========================
@@ -323,11 +315,11 @@ class WearableDeviceResponse(BaseModel):
 
 class RegistrationRequestCreate(BaseModel):
     email: EmailStr
-    full_name: str
+    full_name: str = Field(min_length=1)
     role: str
-    password: str
+    password: str = Field(min_length=8)
 
-    age: int | None = None
+    age: int | None = Field(default=None, ge=0, le=130)
     gender: str | None = None
     conditions: str | None = None
     medication_notes: str | None = None

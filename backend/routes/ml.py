@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 import models
+from access_control import get_accessible_patient
+from auth_utils import get_current_user
 from database import get_db
 
 router = APIRouter(
@@ -53,8 +55,11 @@ def calculate_prediction_from_latest(vital):
 @router.get("/predict/{patient_id}")
 def predict_deterioration(
     patient_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    get_accessible_patient(db, patient_id, current_user)
+
     vitals = (
         db.query(models.Vital)
         .filter(models.Vital.patient_id == patient_id)

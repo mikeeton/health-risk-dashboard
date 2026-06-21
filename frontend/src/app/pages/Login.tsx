@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { Activity } from "lucide-react";
 
 import { Button } from "../components/ui/button";
@@ -11,7 +11,7 @@ export default function Login() {
   const { login } = useAuth();
   const { showToast } = useToast();
 
-  const [email, setEmail] = useState("doctor@example.com");
+  const [email, setEmail] = useState("doctor3@example.com");
   const [password, setPassword] = useState("Password123");
   const [loading, setLoading] = useState(false);
 
@@ -92,7 +92,7 @@ export default function Login() {
 </Link>
 
 <div className="rounded-2xl bg-gray-50 p-4 text-center text-sm text-gray-500 dark:bg-slate-800 dark:text-slate-400">
-  Demo: doctor@example.com / Password123
+  Demo: doctor3@example.com / Password123
 </div>
         </div>
       </Card>

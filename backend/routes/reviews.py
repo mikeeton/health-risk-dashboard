@@ -4,6 +4,12 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from access_control import (
+    filter_to_accessible_patients,
+    get_accessible_patient,
+    require_roles,
+)
+from auth_utils import get_current_user
 from database import get_db
 from routes.audit import write_audit_log
 
@@ -16,8 +22,12 @@ router = APIRouter(
 @router.post("/", response_model=schemas.ReviewCaseResponse)
 def create_review_case(
     review: schemas.ReviewCaseCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_roles(current_user, {"admin", "doctor", "nurse"})
+    patient = get_accessible_patient(db, review.patient_id, current_user)
+
     existing_open_case = (
         db.query(models.ReviewCase)
         .filter(models.ReviewCase.patient_id == review.patient_id)
@@ -30,7 +40,7 @@ def create_review_case(
 
     new_case = models.ReviewCase(
         patient_id=review.patient_id,
-        patient_name=review.patient_name,
+        patient_name=patient.name,
         risk_level=review.risk_level,
         risk_score=review.risk_score,
         status="Open",
@@ -47,22 +57,37 @@ def create_review_case(
         action="CREATE_REVIEW_CASE",
         entity="ReviewCase",
         entity_id=str(new_case.id),
+        user_email=current_user.email,
     )
 
     return new_case
 
 
 @router.get("/", response_model=list[schemas.ReviewCaseResponse])
-def get_review_cases(db: Session = Depends(get_db)):
-    return db.query(models.ReviewCase).all()
+def get_review_cases(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    query = db.query(models.ReviewCase)
+    query = filter_to_accessible_patients(
+        query,
+        models.ReviewCase.patient_id,
+        db,
+        current_user,
+    )
+
+    return query.order_by(models.ReviewCase.id.desc()).all()
 
 
 @router.patch("/{case_id}", response_model=schemas.ReviewCaseResponse)
 def update_review_case(
     case_id: int,
     review_update: schemas.ReviewCaseUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_roles(current_user, {"admin", "doctor", "nurse"})
+
     review_case = (
         db.query(models.ReviewCase)
         .filter(models.ReviewCase.id == case_id)
@@ -74,6 +99,8 @@ def update_review_case(
             status_code=404,
             detail="Review case not found"
         )
+
+    get_accessible_patient(db, review_case.patient_id, current_user)
 
     review_case.status = review_update.status
     review_case.note = review_update.note
@@ -87,6 +114,7 @@ def update_review_case(
         action=f"UPDATE_REVIEW_CASE_{review_case.status.upper().replace(' ', '_')}",
         entity="ReviewCase",
         entity_id=str(review_case.id),
+        user_email=current_user.email,
     )
 
     return review_case
@@ -95,8 +123,11 @@ def update_review_case(
 @router.delete("/{case_id}")
 def delete_review_case(
     case_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_roles(current_user, {"admin", "doctor", "nurse"})
+
     review_case = (
         db.query(models.ReviewCase)
         .filter(models.ReviewCase.id == case_id)
@@ -109,6 +140,8 @@ def delete_review_case(
             detail="Review case not found"
         )
 
+    get_accessible_patient(db, review_case.patient_id, current_user)
+
     db.delete(review_case)
     db.commit()
 
@@ -117,6 +150,7 @@ def delete_review_case(
         action="DELETE_REVIEW_CASE",
         entity="ReviewCase",
         entity_id=str(case_id),
+        user_email=current_user.email,
     )
 
     return {

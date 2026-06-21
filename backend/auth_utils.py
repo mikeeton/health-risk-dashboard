@@ -1,28 +1,28 @@
-import os
 import hashlib
 import secrets
 
 from datetime import datetime, timedelta, timezone
 
-from dotenv import load_dotenv
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt, JWTError
+from sqlalchemy.orm import Session
 
-load_dotenv()
+from config import get_settings
+from database import get_db
+import models
 
-SECRET_KEY = os.getenv(
-    "SECRET_KEY",
-    "dev-secret"
-)
+settings = get_settings()
 
-ALGORITHM = "HS256"
+SECRET_KEY = settings.secret_key
 
-ACCESS_TOKEN_EXPIRE_MINUTES = int(
-    os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
-)
+ALGORITHM = settings.jwt_algorithm
 
-REFRESH_TOKEN_EXPIRE_DAYS = int(
-    os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7")
-)
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
+
+REFRESH_TOKEN_EXPIRE_DAYS = settings.refresh_token_expire_days
+
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str):
@@ -112,3 +112,55 @@ def decode_access_token(token: str):
 
     except JWTError:
         return None
+
+
+def get_user_from_token(token: str | None, db: Session):
+    if not token:
+        return None
+
+    payload = decode_access_token(token)
+
+    if not payload or payload.get("token_type") == "refresh":
+        return None
+
+    user_id = payload.get("user_id")
+    email = payload.get("sub")
+
+    query = db.query(models.User)
+
+    if user_id is not None:
+        user = query.filter(models.User.id == user_id).first()
+    elif email:
+        user = query.filter(models.User.email == email.lower()).first()
+    else:
+        user = None
+
+    if not user:
+        return None
+
+    if getattr(user, "status", None) and user.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is not active",
+        )
+
+    return user
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+):
+    user = get_user_from_token(
+        credentials.credentials if credentials else None,
+        db,
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user

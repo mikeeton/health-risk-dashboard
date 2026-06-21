@@ -20,19 +20,18 @@ export function generateLiveHealthRecord(
   const safeSleep = baseline.avgSleepHours || 7;
   const safeSteps = baseline.avgSteps || 7000;
 
-  let activityState: HealthData["activityState"] = "resting";
-
   const states = ["resting", "walking", "running", "sleeping"] as const;
-  activityState = states[Math.floor(Math.random() * states.length)];
+  let activityState: HealthData["activityState"] =
+    states[Math.floor(Math.random() * states.length)];
 
   let heartRate = Math.round(safeHR + randomBetween(-6, 6));
   let spo2 = Number((safeSpo2 + randomBetween(-1.2, 1.2)).toFixed(1));
   let systolicBP = Math.round(safeSys + randomBetween(-8, 8));
-  let diastolicBP = Math.round(safeDia + randomBetween(-5, 5));
-  let sleepHours = Number((safeSleep + randomBetween(-0.8, 0.8)).toFixed(1));
+  const diastolicBP = Math.round(safeDia + randomBetween(-5, 5));
+  const sleepHours = Number((safeSleep + randomBetween(-0.8, 0.8)).toFixed(1));
   let steps = Math.round(safeSteps + randomBetween(-1200, 1200));
   let activeMinutes = Math.round(randomBetween(15, 80));
-  let calories = Math.round(randomBetween(1700, 2600));
+  const calories = Math.round(randomBetween(1700, 2600));
 
   if (activityState === "sleeping") {
     heartRate -= 10;

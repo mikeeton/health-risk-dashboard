@@ -20,6 +20,8 @@ type RegistrationRequest = {
   role: string;
   status: string;
   created_at: string;
+  age?: number | null;
+  conditions?: string | null;
 };
 
 export default function AdminApprovals() {
@@ -64,6 +66,7 @@ export default function AdminApprovals() {
   }, []);
 
   const pending = requests.filter((request) => request.status === "pending");
+  const reviewedCount = requests.length - pending.length;
 
   return (
     <div className="dashboard-shell space-y-8">
@@ -78,8 +81,8 @@ export default function AdminApprovals() {
               <h1 className="text-3xl font-extrabold text-slate-950 dark:text-white">
                 Registration Approvals
               </h1>
-              <p className="mt-1 text-slate-500 dark:text-slate-400">
-                Approve or reject new doctor, nurse, and patient accounts.
+          <p className="mt-1 text-slate-500 dark:text-slate-400">
+                Review only pending account requests.
               </p>
             </div>
           </div>
@@ -111,25 +114,24 @@ export default function AdminApprovals() {
             Pending Requests
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            {pending.length} waiting for approval.
+            {pending.length} pending. {reviewedCount} reviewed.
           </p>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-sm">
+          <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-slate-50 dark:bg-slate-900">
               <tr>
                 <th className="px-6 py-4 text-left">Applicant</th>
                 <th className="px-6 py-4 text-left">Email</th>
                 <th className="px-6 py-4 text-left">Requested Role</th>
-                <th className="px-6 py-4 text-left">Status</th>
-                <th className="px-6 py-4 text-left">Created</th>
+                <th className="px-6 py-4 text-left">Clinical Context</th>
                 <th className="px-6 py-4 text-right">Action</th>
               </tr>
             </thead>
 
             <tbody>
-              {requests.map((request) => (
+              {pending.map((request) => (
                 <tr
                   key={request.id}
                   className="border-t border-slate-100 dark:border-slate-800"
@@ -141,45 +143,42 @@ export default function AdminApprovals() {
                       {request.role}
                     </span>
                   </td>
-                  <td className="px-6 py-4">{request.status}</td>
                   <td className="px-6 py-4 text-slate-500">
-                    {new Date(request.created_at).toLocaleString()}
+                    {request.role === "patient"
+                      ? `${request.age ?? "Age not set"} · ${
+                          request.conditions ?? "No conditions listed"
+                        }`
+                      : "Staff account"}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    {request.status === "pending" ? (
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => approve(request.id)}
-                          className="inline-flex items-center gap-2 rounded-xl bg-green-50 px-4 py-2 text-xs font-bold text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-300"
-                        >
-                          <CheckCircle2 className="h-4 w-4" />
-                          Approve
-                        </button>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => approve(request.id)}
+                        className="inline-flex items-center gap-2 rounded-xl bg-green-50 px-4 py-2 text-xs font-bold text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-300"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Approve
+                      </button>
 
-                        <button
-                          onClick={() => reject(request.id)}
-                          className="inline-flex items-center gap-2 rounded-xl bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-300"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          Reject
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-xs font-bold text-slate-400">
-                        Reviewed
-                      </span>
-                    )}
+                      <button
+                        onClick={() => reject(request.id)}
+                        className="inline-flex items-center gap-2 rounded-xl bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-300"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Reject
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
 
-              {!requests.length && (
+              {!pending.length && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="px-6 py-10 text-center text-slate-500"
                   >
-                    No registration requests yet.
+                    No pending registration requests.
                   </td>
                 </tr>
               )}

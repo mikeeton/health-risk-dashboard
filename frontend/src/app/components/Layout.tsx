@@ -136,11 +136,10 @@ export default function Layout() {
       <div className="mb-8 flex items-center justify-between gap-3">
         <motion.button
           whileTap={{ scale: 0.92 }}
-          whileHover={{ scale: 1.05 }}
           onClick={() =>
             mobile ? setMobileOpen(false) : setSidebarOpen((value) => !value)
           }
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/25"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white"
         >
           <Activity className="h-5 w-5" />
         </motion.button>
@@ -192,7 +191,7 @@ export default function Layout() {
         )}
       </div>
 
-      <nav className="flex-1 space-y-2 overflow-hidden">
+      <nav className="flex-1 space-y-1 overflow-hidden">
         {navItems
           .filter((item) => item.show)
           .map((item) => {
@@ -211,14 +210,12 @@ export default function Layout() {
                       : "justify-center px-0 py-3"
                   } ${
                     isActive
-                      ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-500/20"
-                      : "text-slate-700 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                      ? "bg-blue-600 text-white"
+                      : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                   }`
                 }
               >
-                <motion.div whileHover={{ scale: 1.08 }}>
-                  <Icon className="h-5 w-5 shrink-0" />
-                </motion.div>
+                <Icon className="h-5 w-5 shrink-0" />
 
                 <AnimatePresence>
                   {(sidebarOpen || mobile) && (
@@ -236,37 +233,11 @@ export default function Layout() {
           })}
       </nav>
 
-      <motion.div
-        whileHover={{ y: -2 }}
-        className={`rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-xl shadow-blue-500/20 transition-all ${
-          sidebarOpen || mobile
-            ? "p-4"
-            : "flex items-center justify-center p-3"
-        }`}
-      >
-        {sidebarOpen || mobile ? (
-          <>
-            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
-              <ShieldCheck className="h-4 w-4" />
-            </div>
-
-            <h3 className="text-sm font-bold">AI Monitoring Active</h3>
-
-            <p className="mt-2 text-xs leading-relaxed text-blue-50">
-              Baseline learning, predictive scoring, medication adherence,
-              clinician escalation, audit logging, and real-time monitoring are
-              active.
-            </p>
-          </>
-        ) : (
-          <ShieldCheck className="h-5 w-5" />
-        )}
-      </motion.div>
     </>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 text-slate-900 dark:from-[#020617] dark:via-[#020617] dark:to-[#0f172a] dark:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white">
       <motion.aside
         animate={{
           width: sidebarOpen ? 260 : 88,
@@ -274,7 +245,7 @@ export default function Layout() {
         transition={{
           duration: 0.24,
         }}
-        className="glass-card fixed left-0 top-0 z-50 hidden h-screen flex-col border-r border-white/10 px-5 py-6 lg:flex"
+        className="fixed left-0 top-0 z-50 hidden h-screen flex-col border-r border-slate-200 bg-white px-5 py-6 dark:border-slate-800 dark:bg-slate-950 lg:flex"
       >
         <SidebarContent />
       </motion.aside>
@@ -285,14 +256,14 @@ export default function Layout() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-[80] bg-black/40 lg:hidden"
           >
             <motion.aside
               initial={{ x: -300 }}
               animate={{ x: 0 }}
               exit={{ x: -300 }}
               transition={{ duration: 0.25 }}
-              className="glass-card h-full w-[285px] p-5"
+              className="h-full w-[285px] border-r border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950"
             >
               <SidebarContent mobile />
             </motion.aside>
@@ -309,11 +280,11 @@ export default function Layout() {
         }}
         className="min-h-screen lg:block"
       >
-        <header className="sticky top-0 z-40 px-4 py-4 sm:px-7">
+        <header className="sticky top-0 z-40 border-b border-slate-200 bg-slate-50/95 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/95 sm:px-7">
           <div className="flex items-center justify-between lg:justify-end">
             <button
               onClick={() => setMobileOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/75 shadow-md backdrop-blur transition hover:scale-105 dark:bg-slate-900/80 lg:hidden"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 lg:hidden"
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -328,7 +299,7 @@ export default function Layout() {
                   whileHover={{ y: -1 }}
                   className="flex items-center gap-3"
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg shadow-blue-500/25">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
                     <User className="h-5 w-5" />
                   </div>
 
@@ -344,14 +315,14 @@ export default function Layout() {
 
                   <button
                     onClick={logout}
-                    className="flex h-10 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-lg shadow-red-500/25 transition hover:scale-[1.02] hover:bg-red-700"
+                    className="flex h-10 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-bold text-white transition hover:bg-red-700"
                   >
                     <LogOut className="h-4 w-4" />
                     Logout
                   </button>
                 </motion.div>
               ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
                   <User className="h-5 w-5" />
                 </div>
               )}

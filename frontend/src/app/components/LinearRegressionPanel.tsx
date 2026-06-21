@@ -7,11 +7,13 @@ type Props = {
 };
 
 type Forecast = {
-  next_heart_rate: number;
-  next_spo2: number;
-  next_systolic_bp: number;
-  next_diastolic_bp: number;
-  next_risk_score: number;
+  status: "ready" | "insufficient_data";
+  record_count: number;
+  next_heart_rate: number | null;
+  next_spo2: number | null;
+  next_systolic_bp: number | null;
+  next_diastolic_bp: number | null;
+  next_risk_score: number | null;
   message: string;
 };
 
@@ -50,6 +52,10 @@ export default function LinearRegressionPanel({ patientId }: Props) {
       {error ? (
         <p className="rounded-2xl bg-yellow-50 p-4 text-sm text-yellow-700">
           {error}
+        </p>
+      ) : forecast?.status === "insufficient_data" ? (
+        <p className="rounded-2xl bg-yellow-50 p-4 text-sm text-yellow-700">
+          {forecast.message} Current records: {forecast.record_count}.
         </p>
       ) : forecast ? (
         <div className="grid gap-4 md:grid-cols-5">

@@ -5,6 +5,8 @@ import os
 from dotenv import load_dotenv
 
 import models
+from access_control import get_accessible_patient
+from auth_utils import get_current_user
 from database import get_db
 
 load_dotenv()
@@ -180,8 +182,10 @@ def ask_groq(prompt: str):
 @router.get("/patient-summary/{patient_id}")
 def patient_summary(
     patient_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    get_accessible_patient(db, patient_id, current_user)
 
     context = build_patient_context(patient_id, db)
 
@@ -222,8 +226,10 @@ Patient Data:
 def ask_ai(
     patient_id: int,
     question: str = Query(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    get_accessible_patient(db, patient_id, current_user)
 
     context = build_patient_context(patient_id, db)
 
@@ -255,8 +261,10 @@ Question:
 @router.get("/handover/{patient_id}")
 def handover(
     patient_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    get_accessible_patient(db, patient_id, current_user)
 
     context = build_patient_context(patient_id, db)
 

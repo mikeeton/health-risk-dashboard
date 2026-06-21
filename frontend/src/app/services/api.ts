@@ -1,7 +1,28 @@
-const API_BASE_URL = "http://127.0.0.1:8000";
+const configuredApiBaseUrl =
+  import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+
+export const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, "");
+
+export function getAuthToken() {
+  return localStorage.getItem("health-auth-token");
+}
+
+async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  const token = getAuthToken();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  return window.fetch(input, {
+    ...init,
+    headers,
+  });
+}
 
 export async function getPatients() {
-  const response = await fetch(`${API_BASE_URL}/patients`);
+  const response = await apiFetch(`${API_BASE_URL}/patients`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch patients");
@@ -11,7 +32,7 @@ export async function getPatients() {
 }
 
 export async function createPatient(patient: unknown) {
-  const response = await fetch(`${API_BASE_URL}/patients`, {
+  const response = await apiFetch(`${API_BASE_URL}/patients`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -27,7 +48,7 @@ export async function createPatient(patient: unknown) {
 }
 
 export async function deletePatient(patientId: number) {
-  const response = await fetch(`${API_BASE_URL}/patients/${patientId}`, {
+  const response = await apiFetch(`${API_BASE_URL}/patients/${patientId}`, {
     method: "DELETE",
   });
 
@@ -39,7 +60,7 @@ export async function deletePatient(patientId: number) {
 }
 
 export async function getVitals(patientId: number) {
-  const response = await fetch(`${API_BASE_URL}/vitals/${patientId}`);
+  const response = await apiFetch(`${API_BASE_URL}/vitals/${patientId}`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch vitals");
@@ -49,7 +70,7 @@ export async function getVitals(patientId: number) {
 }
 
 export async function createVital(vital: unknown) {
-  const response = await fetch(`${API_BASE_URL}/vitals`, {
+  const response = await apiFetch(`${API_BASE_URL}/vitals`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -65,7 +86,7 @@ export async function createVital(vital: unknown) {
 }
 
 export async function deleteVital(vitalId: string | number) {
-  const response = await fetch(`${API_BASE_URL}/vitals/${vitalId}`, {
+  const response = await apiFetch(`${API_BASE_URL}/vitals/${vitalId}`, {
     method: "DELETE",
   });
 
@@ -77,7 +98,7 @@ export async function deleteVital(vitalId: string | number) {
 }
 
 export async function registerUser(user: unknown) {
-  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+  const response = await apiFetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -93,7 +114,7 @@ export async function registerUser(user: unknown) {
 }
 
 export async function loginUser(credentials: unknown) {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const response = await apiFetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -109,7 +130,7 @@ export async function loginUser(credentials: unknown) {
 }
 
 export async function createReviewCase(review: unknown) {
-  const response = await fetch(`${API_BASE_URL}/reviews`, {
+  const response = await apiFetch(`${API_BASE_URL}/reviews`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -125,7 +146,7 @@ export async function createReviewCase(review: unknown) {
 }
 
 export async function getReviewCases() {
-  const response = await fetch(`${API_BASE_URL}/reviews`);
+  const response = await apiFetch(`${API_BASE_URL}/reviews`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch review cases");
@@ -138,7 +159,7 @@ export async function updateReviewCase(
   caseId: number,
   update: unknown
 ) {
-  const response = await fetch(`${API_BASE_URL}/reviews/${caseId}`, {
+  const response = await apiFetch(`${API_BASE_URL}/reviews/${caseId}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -154,7 +175,7 @@ export async function updateReviewCase(
 }
 
 export async function getAuditLogs() {
-  const response = await fetch(`${API_BASE_URL}/audit/`);
+  const response = await apiFetch(`${API_BASE_URL}/audit/`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch audit logs");
@@ -164,7 +185,7 @@ export async function getAuditLogs() {
 }
 
 export async function getMedications(patientId: number) {
-  const response = await fetch(`${API_BASE_URL}/medications/${patientId}`);
+  const response = await apiFetch(`${API_BASE_URL}/medications/${patientId}`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch medications");
@@ -181,7 +202,7 @@ export async function createMedication(payload: {
   status: string;
   notes?: string;
 }) {
-  const response = await fetch(`${API_BASE_URL}/medications/`, {
+  const response = await apiFetch(`${API_BASE_URL}/medications/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -203,7 +224,7 @@ export async function updateMedication(
     notes?: string;
   }
 ) {
-  const response = await fetch(`${API_BASE_URL}/medications/${medicationId}`, {
+  const response = await apiFetch(`${API_BASE_URL}/medications/${medicationId}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -219,7 +240,7 @@ export async function updateMedication(
 }
 
 export async function getPatientEvents(patientId: number) {
-  const response = await fetch(`${API_BASE_URL}/events/${patientId}`);
+  const response = await apiFetch(`${API_BASE_URL}/events/${patientId}`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch patient events");
@@ -235,7 +256,7 @@ export async function createPatientEvent(payload: {
   description?: string;
   timestamp: string;
 }) {
-  const response = await fetch(`${API_BASE_URL}/events/`, {
+  const response = await apiFetch(`${API_BASE_URL}/events/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -251,7 +272,7 @@ export async function createPatientEvent(payload: {
 }
 
 export async function getMLPrediction(patientId: number) {
-  const response = await fetch(`${API_BASE_URL}/ml/predict/${patientId}`);
+  const response = await apiFetch(`${API_BASE_URL}/ml/predict/${patientId}`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch ML prediction");
@@ -262,7 +283,7 @@ export async function getMLPrediction(patientId: number) {
 
 // New API functions for notifications
 export async function getNotifications() {
-  const response = await fetch(`${API_BASE_URL}/notifications/`);
+  const response = await apiFetch(`${API_BASE_URL}/notifications/`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch notifications");
@@ -277,7 +298,7 @@ export async function createNotification(payload: {
   message: string;
   type: string;
 }) {
-  const response = await fetch(`${API_BASE_URL}/notifications/`, {
+  const response = await apiFetch(`${API_BASE_URL}/notifications/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -293,7 +314,7 @@ export async function createNotification(payload: {
 }
 
 export async function markNotificationRead(notificationId: number) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/notifications/${notificationId}/read`,
     {
       method: "PATCH",
@@ -309,7 +330,7 @@ export async function markNotificationRead(notificationId: number) {
 
 // linear API functions for analytics
 export async function getLinearRegressionForecast(patientId: number) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/analytics/linear-regression/${patientId}`
   );
 
@@ -321,7 +342,7 @@ export async function getLinearRegressionForecast(patientId: number) {
 }
 
 export async function getSystemSummary() {
-  const response = await fetch(`${API_BASE_URL}/analytics/system-summary`);
+  const response = await apiFetch(`${API_BASE_URL}/analytics/system-summary`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch system summary");
@@ -331,7 +352,7 @@ export async function getSystemSummary() {
 }
 
 export async function getAIPatientSummary(patientId: number) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/assistant/patient-summary/${patientId}`
   );
 
@@ -343,7 +364,7 @@ export async function getAIPatientSummary(patientId: number) {
 }
 
 export async function askHealthAI(patientId: number, question: string) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/assistant/ask/${patientId}?question=${encodeURIComponent(
       question
     )}`
@@ -367,7 +388,7 @@ export async function createRegistrationRequest(payload: {
   medication_notes?: string | null;
   lifestyle_notes?: string | null;
 }) {
-  const response = await fetch(`${API_BASE_URL}/registration-requests/`, {
+  const response = await apiFetch(`${API_BASE_URL}/registration-requests/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -383,7 +404,7 @@ export async function createRegistrationRequest(payload: {
 }
 
 export async function generateLiveSimulatorVital(patientId: number) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/live-simulator/generate/${patientId}`,
     {
       method: "POST",
@@ -398,7 +419,7 @@ export async function generateLiveSimulatorVital(patientId: number) {
 }
 
 export async function getRegistrationRequests() {
-  const response = await fetch(`${API_BASE_URL}/registration-requests/`);
+  const response = await apiFetch(`${API_BASE_URL}/registration-requests/`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch registration requests");
@@ -408,7 +429,7 @@ export async function getRegistrationRequests() {
 }
 
 export async function approveRegistrationRequest(requestId: number) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/registration-requests/${requestId}/approve`,
     {
       method: "POST",
@@ -423,7 +444,7 @@ export async function approveRegistrationRequest(requestId: number) {
 }
 
 export async function rejectRegistrationRequest(requestId: number) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/registration-requests/${requestId}/reject`,
     {
       method: "POST",
@@ -444,7 +465,7 @@ export async function doctorAddClinicalNote(
   title: string,
   description: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/role-actions/doctor/clinical-note?patient_id=${patientId}&title=${encodeURIComponent(
       title
     )}&description=${encodeURIComponent(description)}`,
@@ -456,7 +477,7 @@ export async function doctorAddClinicalNote(
 }
 
 export async function doctorEscalatePatient(patientId: number, note: string) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/role-actions/doctor/escalate?patient_id=${patientId}&note=${encodeURIComponent(
       note
     )}`,
@@ -468,7 +489,7 @@ export async function doctorEscalatePatient(patientId: number, note: string) {
 }
 
 export async function getDoctorPatientHistory(patientId: number) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/role-actions/doctor/patient-history/${patientId}`
   );
 
@@ -476,21 +497,39 @@ export async function getDoctorPatientHistory(patientId: number) {
   return response.json();
 }
 
-export async function nurseRecordVitals(payload: any) {
-  const response = await fetch(`${API_BASE_URL}/role-actions/nurse/record-vitals`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+type NurseVitalsPayload = {
+  patient_id: number;
+  timestamp: string;
+  heart_rate: number;
+  spo2: number;
+  systolic_bp: number;
+  diastolic_bp: number;
+  steps: number;
+  sleep_hours: number;
+  active_minutes: number;
+  calories: number;
+  risk_score: number;
+  activity_state: string;
+};
+
+export async function nurseRecordVitals(payload: NurseVitalsPayload) {
+  const response = await apiFetch(
+    `${API_BASE_URL}/role-actions/nurse/record-vitals`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
 
   if (!response.ok) throw new Error("Failed to record vitals");
   return response.json();
 }
 
 export async function nurseMarkMedicationGiven(medicationId: number) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/role-actions/nurse/mark-medication-given/${medicationId}`,
     { method: "POST" }
   );
@@ -504,7 +543,7 @@ export async function nurseAddNursingNote(
   title: string,
   description: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/role-actions/nurse/nursing-note?patient_id=${patientId}&title=${encodeURIComponent(
       title
     )}&description=${encodeURIComponent(description)}`,
@@ -516,7 +555,7 @@ export async function nurseAddNursingNote(
 }
 
 export async function nurseRaiseAlert(patientId: number, note: string) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/role-actions/nurse/raise-alert?patient_id=${patientId}&note=${encodeURIComponent(
       note
     )}`,
@@ -528,7 +567,7 @@ export async function nurseRaiseAlert(patientId: number, note: string) {
 }
 
 export async function getPatientOwnRecords(patientId: number) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/role-actions/patient/my-records/${patientId}`
   );
 
@@ -536,8 +575,15 @@ export async function getPatientOwnRecords(patientId: number) {
   return response.json();
 }
 
+export async function getAdminUsers() {
+  const response = await apiFetch(`${API_BASE_URL}/admin/users/`);
+
+  if (!response.ok) throw new Error("Failed to fetch users");
+  return response.json();
+}
+
 export async function suspendAdminUser(userId: number) {
-  const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/suspend`, {
+  const response = await apiFetch(`${API_BASE_URL}/admin/users/${userId}/suspend`, {
     method: "PATCH",
   });
 
@@ -546,7 +592,7 @@ export async function suspendAdminUser(userId: number) {
 }
 
 export async function activateAdminUser(userId: number) {
-  const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/activate`, {
+  const response = await apiFetch(`${API_BASE_URL}/admin/users/${userId}/activate`, {
     method: "PATCH",
   });
 

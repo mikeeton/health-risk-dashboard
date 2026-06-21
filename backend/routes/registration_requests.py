@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from access_control import get_default_active_user_id
 from auth_utils import hash_password
 from database import get_db
 from routes.audit import write_audit_log
@@ -142,7 +143,18 @@ def approve_registration_request(
     created_patient_id = None
 
     if request.role == "patient":
+        primary_doctor_id = get_default_active_user_id(db, "doctor")
+
+        if primary_doctor_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Add an active doctor before approving patient access.",
+            )
+
         patient = models.Patient(
+            user_id=new_user.id,
+            primary_doctor_id=primary_doctor_id,
+            assigned_nurse_id=get_default_active_user_id(db, "nurse"),
             name=request.full_name,
             age=request.age or 18,
             condition=request.conditions or "General Monitoring",

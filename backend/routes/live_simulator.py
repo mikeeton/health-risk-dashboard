@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 import models
+from access_control import get_accessible_patient, require_roles
+from auth_utils import get_current_user
 from database import get_db
 from routes.audit import write_audit_log
 
@@ -268,11 +270,10 @@ def generate_vitals(patient: models.Patient):
 def generate_live_vital(
     patient_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
-
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    require_roles(current_user, {"admin", "doctor", "nurse"})
+    patient = get_accessible_patient(db, patient_id, current_user)
 
     generated = generate_vitals(patient)
 
@@ -294,7 +295,7 @@ def generate_live_vital(
         action="CONDITION_BASED_SIMULATOR_GENERATE_VITAL",
         entity="Vital",
         entity_id=str(vital.id),
-        user_email=None,
+        user_email=current_user.email,
     )
 
     return {

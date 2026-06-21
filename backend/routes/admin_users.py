@@ -21,6 +21,17 @@ def make_public_id():
     return f"USR-{uuid.uuid4().hex[:8].upper()}"
 
 
+def serialize_user(user: models.User):
+    return {
+        "id": user.id,
+        "public_id": user.public_id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "status": user.status,
+    }
+
+
 @router.get("/")
 def get_users(db: Session = Depends(get_db)):
     users = db.query(models.User).order_by(models.User.id.asc()).all()
@@ -34,7 +45,7 @@ def get_users(db: Session = Depends(get_db)):
 
     db.commit()
 
-    return users
+    return [serialize_user(user) for user in users]
 
 
 @router.post("/")
@@ -76,7 +87,7 @@ def create_user(
         user_email=user.email,
     )
 
-    return user
+    return serialize_user(user)
 
 
 @router.patch("/{user_id}")
@@ -113,7 +124,7 @@ def update_user(
         user_email=user.email,
     )
 
-    return user
+    return serialize_user(user)
 
 
 @router.patch("/{user_id}/suspend")
@@ -138,7 +149,7 @@ def suspend_user(
         user_email=user.email,
     )
 
-    return user
+    return serialize_user(user)
 
 
 @router.patch("/{user_id}/activate")
@@ -163,7 +174,7 @@ def activate_user(
         user_email=user.email,
     )
 
-    return user
+    return serialize_user(user)
 
 
 @router.delete("/{user_id}")

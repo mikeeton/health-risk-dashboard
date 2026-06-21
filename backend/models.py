@@ -21,6 +21,9 @@ class Patient(Base):
     __tablename__ = "patients"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    primary_doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    assigned_nurse_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     name = Column(String, nullable=False)
     age = Column(Integer, nullable=False)
     condition = Column(String, nullable=False)

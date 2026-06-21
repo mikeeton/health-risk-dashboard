@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from access_control import get_accessible_patient, require_roles
+from auth_utils import get_current_user
 from database import get_db
 from routes.audit import write_audit_log
 
@@ -15,16 +17,11 @@ router = APIRouter(
 @router.post("/", response_model=schemas.MedicationResponse)
 def create_medication(
     medication: schemas.MedicationCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    patient = (
-        db.query(models.Patient)
-        .filter(models.Patient.id == medication.patient_id)
-        .first()
-    )
-
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    require_roles(current_user, {"admin", "doctor", "nurse"})
+    get_accessible_patient(db, medication.patient_id, current_user)
 
     new_medication = models.Medication(**medication.model_dump())
 
@@ -37,6 +34,7 @@ def create_medication(
         action="CREATE_MEDICATION",
         entity="Medication",
         entity_id=str(new_medication.id),
+        user_email=current_user.email,
     )
 
     return new_medication
@@ -45,8 +43,11 @@ def create_medication(
 @router.get("/{patient_id}", response_model=list[schemas.MedicationResponse])
 def get_patient_medications(
     patient_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    get_accessible_patient(db, patient_id, current_user)
+
     return (
         db.query(models.Medication)
         .filter(models.Medication.patient_id == patient_id)
@@ -58,8 +59,11 @@ def get_patient_medications(
 def update_medication(
     medication_id: int,
     update: schemas.MedicationUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_roles(current_user, {"admin", "doctor", "nurse"})
+
     medication = (
         db.query(models.Medication)
         .filter(models.Medication.id == medication_id)
@@ -68,6 +72,8 @@ def update_medication(
 
     if not medication:
         raise HTTPException(status_code=404, detail="Medication not found")
+
+    get_accessible_patient(db, medication.patient_id, current_user)
 
     medication.status = update.status
     medication.notes = update.notes
@@ -80,6 +86,7 @@ def update_medication(
         action=f"UPDATE_MEDICATION_{medication.status.upper()}",
         entity="Medication",
         entity_id=str(medication.id),
+        user_email=current_user.email,
     )
 
     return medication
@@ -88,8 +95,11 @@ def update_medication(
 @router.delete("/{medication_id}")
 def delete_medication(
     medication_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_roles(current_user, {"admin", "doctor", "nurse"})
+
     medication = (
         db.query(models.Medication)
         .filter(models.Medication.id == medication_id)
@@ -99,6 +109,8 @@ def delete_medication(
     if not medication:
         raise HTTPException(status_code=404, detail="Medication not found")
 
+    get_accessible_patient(db, medication.patient_id, current_user)
+
     db.delete(medication)
     db.commit()
 
@@ -107,6 +119,7 @@ def delete_medication(
         action="DELETE_MEDICATION",
         entity="Medication",
         entity_id=str(medication_id),
+        user_email=current_user.email,
     )
 
     return {"message": "Medication deleted"}

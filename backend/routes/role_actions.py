@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from access_control import get_accessible_patient, require_roles
+from auth_utils import get_current_user
 from database import get_db
 from routes.audit import write_audit_log
 
@@ -19,11 +21,10 @@ def doctor_add_clinical_note(
     title: str,
     description: str,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
-
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    require_roles(current_user, {"admin", "doctor"})
+    patient = get_accessible_patient(db, patient_id, current_user)
 
     event = models.PatientEvent(
         patient_id=patient_id,
@@ -42,7 +43,7 @@ def doctor_add_clinical_note(
         action="DOCTOR_ADD_CLINICAL_NOTE",
         entity="PatientEvent",
         entity_id=str(event.id),
-        user_email=None,
+        user_email=current_user.email,
     )
 
     return event
@@ -53,11 +54,10 @@ def doctor_escalate_patient(
     patient_id: int,
     note: str,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
-
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    require_roles(current_user, {"admin", "doctor"})
+    patient = get_accessible_patient(db, patient_id, current_user)
 
     latest_vital = (
         db.query(models.Vital)
@@ -88,7 +88,7 @@ def doctor_escalate_patient(
         action="DOCTOR_ESCALATE_PATIENT",
         entity="ReviewCase",
         entity_id=str(case.id),
-        user_email=None,
+        user_email=current_user.email,
     )
 
     return case
@@ -98,11 +98,10 @@ def doctor_escalate_patient(
 def doctor_view_patient_history(
     patient_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
-
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    require_roles(current_user, {"admin", "doctor"})
+    patient = get_accessible_patient(db, patient_id, current_user)
 
     vitals = (
         db.query(models.Vital)
@@ -138,15 +137,14 @@ def doctor_view_patient_history(
 def nurse_record_vitals(
     vital: schemas.VitalCreate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    patient = db.query(models.Patient).filter(models.Patient.id == vital.patient_id).first()
-
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    require_roles(current_user, {"admin", "nurse"})
+    get_accessible_patient(db, vital.patient_id, current_user)
 
     new_vital = models.Vital(
         patient_id=vital.patient_id,
-        timestamp=vital.timestamp.isoformat(timespec="seconds"),
+        timestamp=vital.timestamp,
         heart_rate=vital.heart_rate,
         spo2=vital.spo2,
         systolic_bp=vital.systolic_bp,
@@ -168,7 +166,7 @@ def nurse_record_vitals(
         action="NURSE_RECORD_VITALS",
         entity="Vital",
         entity_id=str(new_vital.id),
-        user_email=None,
+        user_email=current_user.email,
     )
 
     return new_vital
@@ -178,7 +176,10 @@ def nurse_record_vitals(
 def nurse_mark_medication_given(
     medication_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    require_roles(current_user, {"admin", "nurse"})
+
     medication = (
         db.query(models.Medication)
         .filter(models.Medication.id == medication_id)
@@ -187,6 +188,8 @@ def nurse_mark_medication_given(
 
     if not medication:
         raise HTTPException(status_code=404, detail="Medication not found")
+
+    get_accessible_patient(db, medication.patient_id, current_user)
 
     medication.status = "Taken"
     db.commit()
@@ -197,7 +200,7 @@ def nurse_mark_medication_given(
         action="NURSE_MARK_MEDICATION_GIVEN",
         entity="Medication",
         entity_id=str(medication.id),
-        user_email=None,
+        user_email=current_user.email,
     )
 
     return medication
@@ -209,11 +212,10 @@ def nurse_add_nursing_note(
     title: str,
     description: str,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
-
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    require_roles(current_user, {"admin", "nurse"})
+    patient = get_accessible_patient(db, patient_id, current_user)
 
     event = models.PatientEvent(
         patient_id=patient_id,
@@ -232,7 +234,7 @@ def nurse_add_nursing_note(
         action="NURSE_ADD_NURSING_NOTE",
         entity="PatientEvent",
         entity_id=str(event.id),
-        user_email=None,
+        user_email=current_user.email,
     )
 
     return event
@@ -243,11 +245,10 @@ def nurse_raise_alert(
     patient_id: int,
     note: str,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
-
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    require_roles(current_user, {"admin", "nurse"})
+    patient = get_accessible_patient(db, patient_id, current_user)
 
     case = models.ReviewCase(
         patient_id=patient.id,
@@ -269,7 +270,7 @@ def nurse_raise_alert(
         action="NURSE_RAISE_ALERT",
         entity="ReviewCase",
         entity_id=str(case.id),
-        user_email=None,
+        user_email=current_user.email,
     )
 
     return case
@@ -279,11 +280,10 @@ def nurse_raise_alert(
 def patient_view_own_records(
     patient_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
-
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    require_roles(current_user, {"admin", "patient"})
+    patient = get_accessible_patient(db, patient_id, current_user)
 
     vitals = (
         db.query(models.Vital)

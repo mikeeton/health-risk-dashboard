@@ -24,12 +24,12 @@ def register_user(
     user: schemas.UserCreate,
     db: Session = Depends(get_db)
 ):
-    allowed_roles = ["admin", "doctor", "patient"]
+    allowed_roles = ["admin", "doctor", "nurse", "patient"]
 
     if user.role.lower() not in allowed_roles:
         raise HTTPException(
             status_code=400,
-            detail="Invalid role. Use admin, doctor, or patient."
+            detail="Invalid role. Use admin, doctor, nurse, or patient."
         )
 
     existing_user = (
