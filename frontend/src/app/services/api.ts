@@ -3,6 +3,21 @@ const configuredApiBaseUrl =
 
 export const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, "");
 
+export function getWebSocketUrl(path: string) {
+  const apiUrl = new URL(API_BASE_URL);
+  const [pathname, query = ""] = path.split("?");
+  const url = new URL(apiUrl.toString());
+
+  url.protocol = apiUrl.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = `${apiUrl.pathname.replace(/\/+$/, "")}/${pathname.replace(
+    /^\/+/,
+    ""
+  )}`;
+  url.search = query ? `?${query}` : "";
+
+  return url.toString();
+}
+
 export function getAuthToken() {
   return localStorage.getItem("health-auth-token");
 }
@@ -670,6 +685,25 @@ export async function activateAdminUser(userId: number) {
   });
 
   if (!response.ok) throw new Error("Failed to activate user");
+  return response.json();
+}
+
+export async function resetAdminUserPassword(
+  userId: number,
+  payload: {
+    admin_password: string;
+    new_password: string;
+  }
+) {
+  const response = await apiFetch(`${API_BASE_URL}/admin/users/${userId}/password`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) throw new Error("Failed to reset password");
   return response.json();
 }
 

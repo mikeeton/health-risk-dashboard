@@ -26,6 +26,7 @@ VITE_API_BASE_URL=http://127.0.0.1:8000
 ```bash
 npm run lint
 npm run build
+npm run test:e2e
 ```
 
 ## Structure
@@ -33,6 +34,8 @@ npm run build
 - `src/app/routes.tsx` app routes and role-protected pages
 - `src/app/services/api.ts` REST API helpers
 - `src/app/services/liveSocket.ts` live vitals WebSocket helper
+- `playwright.config.ts` browser test configuration
+- `tests/e2e` Playwright smoke tests
 - `src/app/context` auth, toast, and health data providers
 - `src/app/pages` top-level dashboard pages
 - `src/app/components` reusable UI and clinical dashboard components
@@ -48,7 +51,26 @@ npm run build
 
 The notification bell and notification centre use backend notifications plus
 live clinical alerts. They support unread badges, read/unread filters, search,
-mark one read, mark all read, loading states, and empty states.
+mark one read, mark all read, loading states, and empty states. The dropdown
+opens an authenticated notification WebSocket for production update hints and
+keeps periodic polling as a fallback.
+
+## E2E Tests
+
+Run browser smoke tests with:
+
+```bash
+npm run test:e2e
+```
+
+Authenticated admin checks are opt-in:
+
+```bash
+E2E_RUN_AUTH=1 \
+E2E_ADMIN_EMAIL=admin@example.com \
+E2E_ADMIN_PASSWORD='AdminPassword123!' \
+npm run test:e2e
+```
 
 ## Referral UX
 

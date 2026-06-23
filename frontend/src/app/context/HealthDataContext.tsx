@@ -97,7 +97,7 @@ export function HealthDataProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { token } = useAuth();
+  const { token, isAdmin } = useAuth();
 
   const [healthData, setHealthData] = useState<HealthData[]>(
     defaultHealthData
@@ -115,7 +115,7 @@ export function HealthDataProvider({
     fallbackPatient;
 
   const refreshVitals = async () => {
-    if (!token) return;
+    if (!token || isAdmin) return;
 
     try {
       const vitals = await getVitals(selectedPatient.id);
@@ -134,7 +134,10 @@ export function HealthDataProvider({
   };
 
   useEffect(() => {
-    if (!token) {
+    if (!token || isAdmin) {
+      // Admin users do not load clinical patient/vital data. This keeps the
+      // frontend aligned with the backend privacy model and avoids noisy
+      // rejected requests on admin-only screens.
       setPatients([fallbackPatient]);
       setSelectedPatientId(fallbackPatient.id);
       setHealthData(defaultHealthData);
@@ -161,13 +164,13 @@ export function HealthDataProvider({
     }
 
     loadPatients();
-  }, [token]);
+  }, [token, isAdmin]);
 
   useEffect(() => {
-    if (!token || !selectedPatient?.id) return;
+    if (!token || isAdmin || !selectedPatient?.id) return;
 
     refreshVitals();
-  }, [selectedPatient.id, token]);
+  }, [selectedPatient.id, token, isAdmin]);
 
   return (
     <HealthDataContext.Provider

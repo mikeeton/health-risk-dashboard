@@ -34,7 +34,7 @@ python scripts/reset_admin.py \
 - Backend: FastAPI, SQLAlchemy, Pydantic, PostgreSQL, Alembic, JWT auth
 - Frontend: React, TypeScript, Vite, React Router, Tailwind CSS, Recharts
 - AI: Groq API integration when `GROQ_API_KEY` is configured
-- Tests: Pytest and FastAPI TestClient
+- Tests: Pytest, FastAPI TestClient, and Playwright browser tests
 
 ## Feature List
 
@@ -43,14 +43,15 @@ python scripts/reset_admin.py \
 - Admin user management, registration approvals, audit logs, metrics, and staff assignments.
 - Many-to-many staff assignment model for doctors/nurses and patients.
 - Patient referral workflow where clinicians request access and admin approval is required before record sharing.
-- Functional notification centre with unread badges, filtering, search, read/unread actions, history, and periodic updates.
+- Functional notification centre with unread badges, filtering, search, read/unread actions, history, polling fallback, and production WebSocket update hints.
+- Admin-verified password reset for user accounts from the admin user-management screen.
 - Doctor workflow for assigned patients, AI summaries, ML predictions, diagnoses, treatment notes, and escalations.
 - Nurse workflow for assigned patients, vitals recording, medication updates, nursing notes, and alerts.
 - Patient workflow for viewing only the linked personal record.
 - AI-assisted clinical summaries, patient Q&A, handover text, and report generation.
 - Live vitals simulation and WebSocket updates for accessible patients.
 - Security headers, no-store clinical caching, request IDs, response-time metrics, and rate limiting.
-- Alembic database migrations and automated security tests.
+- Alembic database migrations, workflow constraints, automated security tests, and E2E browser tests.
 
 ## Architecture
 
@@ -174,6 +175,11 @@ http://localhost:5173
 8. Log in as nurse to monitor assigned patients, record vitals, update medication status, submit referrals, and raise alerts.
 9. Log in as patient to view only the linked personal health record.
 
+## Deployment Guide
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for production setup, PostgreSQL migration,
+reverse proxy, WebSocket, CORS, admin reset, and release-check instructions.
+
 ## Environment Variables
 
 Backend environment lives in `backend/.env`.
@@ -240,6 +246,16 @@ backend/alembic/versions/20260621_0003_referrals_notifications.py
 It creates `referral_requests` and adds richer notification metadata for role,
 links, and related entities.
 
+The workflow constraints migration is:
+
+```text
+backend/alembic/versions/20260623_0004_constraints.py
+```
+
+It adds check constraints for user, referral, and assignment status values. It
+also adds uniqueness protection for active staff assignments and pending
+referral requests after safely superseding duplicate pending/active rows.
+
 `RUN_STARTUP_SCHEMA_CHECK=true` exists only as a local recovery fallback. Keep it
 `false` during normal development and production.
 
@@ -272,6 +288,24 @@ Run frontend checks:
 cd frontend
 npm run lint
 npm run build
+```
+
+Run E2E browser tests:
+
+```bash
+cd frontend
+npm run test:e2e
+```
+
+The default Playwright suite checks the login/access-request UI and invalid
+login feedback. Authenticated admin E2E checks are opt-in so CI can run without
+a seeded backend:
+
+```bash
+E2E_RUN_AUTH=1 \
+E2E_ADMIN_EMAIL=admin@example.com \
+E2E_ADMIN_PASSWORD='AdminPassword123!' \
+npm run test:e2e
 ```
 
 The production build is code-split. Route pages, charting, animation, icons,
@@ -496,6 +530,13 @@ This keeps PDF code out of normal page navigation.
 - Adds notification metadata columns for target role, links, and related entities.
 - Provides a downgrade path for the referral table and notification metadata.
 
+`backend/alembic/versions/20260623_0004_constraints.py`
+
+- Adds check constraints for user roles/statuses, referral statuses, and assignment statuses.
+- Removes duplicate active assignment rows by marking extras as removed.
+- Removes duplicate pending referral rows by marking extras as superseded.
+- Adds partial unique indexes to prevent duplicate active assignments and duplicate pending referral requests.
+
 `backend/scripts/reset_admin.py`
 
 - Creates or resets an admin user.
@@ -601,6 +642,7 @@ This keeps PDF code out of normal page navigation.
 
 - Admin-only user management.
 - Lists users, creates users, updates roles/names, suspends, activates, and deletes users.
+- Lets admins reset a user's password only after re-entering the admin password for verification.
 
 `backend/routes/registration_requests.py`
 
@@ -618,6 +660,7 @@ This keeps PDF code out of normal page navigation.
 - Admins can create announcements.
 - Users can list their scoped notifications.
 - Supports read/unread filtering, search, mark individual read, and mark all read.
+- Provides an authenticated WebSocket endpoint that pushes lightweight notification update hints for production use.
 - Used by assignments, registrations, referrals, escalations, and alerts.
 
 `backend/routes/live_simulator.py`
@@ -639,7 +682,13 @@ This keeps PDF code out of normal page navigation.
 `frontend/package.json`
 
 - Defines frontend dependencies and scripts.
-- Important scripts: `npm run dev`, `npm run lint`, `npm run build`.
+- Important scripts: `npm run dev`, `npm run lint`, `npm run build`, `npm run test:e2e`.
+
+`frontend/playwright.config.ts`
+
+- Configures Playwright browser tests.
+- Starts the Vite dev server for E2E runs unless `E2E_SKIP_WEBSERVER` is set.
+- Uses Chromium desktop coverage by default.
 
 `frontend/vite.config.ts`
 
@@ -690,6 +739,7 @@ This keeps PDF code out of normal page navigation.
 
 - Central API client.
 - Reads `VITE_API_BASE_URL`.
+- Builds WebSocket URLs from the same API base URL.
 - Adds the Bearer token to protected requests.
 - Exposes typed helper functions for patients, vitals, auth, reviews, medications, events, ML, analytics, assistant, registrations, role actions, admin users, and admin assignments.
 - Sends clinical notes, diagnosis, treatment, escalation, nursing-note, and alert payloads as JSON.
@@ -711,6 +761,7 @@ This keeps PDF code out of normal page navigation.
 
 - Login screen with demo credentials.
 - Calls `login()` and shows toast feedback.
+- Uses accessible labels for E2E tests and assistive technology.
 
 `frontend/src/app/pages/RegisterAccess.tsx`
 
@@ -745,6 +796,7 @@ This keeps PDF code out of normal page navigation.
 
 - Admin-only user management UI.
 - Calls `/admin/users/`.
+- Includes admin-verified password reset controls.
 
 `frontend/src/app/pages/AdminApprovals.tsx`
 
@@ -900,8 +952,13 @@ This keeps PDF code out of normal page navigation.
 `frontend/src/app/components/NotificationDropdown.tsx`
 
 - Header notification dropdown.
-- Polls periodically for updates and merges backend notifications with live clinical alerts.
+- Opens the notification WebSocket when authenticated, keeps polling as a fallback, and merges backend notifications with live clinical alerts.
 - Includes animated unread badge, loading/empty/error states, search, filter, and mark-read actions.
+
+`frontend/tests/e2e/smoke.spec.ts`
+
+- Playwright smoke tests for login UI, invalid login feedback, and optional authenticated admin access.
+- The authenticated test runs only when `E2E_RUN_AUTH=1` is set.
 
 `frontend/src/app/components/ThemeToggle.tsx`
 
@@ -1037,6 +1094,13 @@ If tests fail:
 2. Confirm PostgreSQL is reachable.
 3. Run `pytest -q` from `backend`.
 
+If E2E tests fail:
+
+1. Confirm frontend dependencies are installed with `npm install`.
+2. Confirm Playwright browsers are installed with `npx playwright install`.
+3. Confirm the backend is running before enabling `E2E_RUN_AUTH=1`.
+4. Run `npm run test:e2e` from `frontend`.
+
 ## Production Notes
 
 Before real deployment:
@@ -1048,16 +1112,16 @@ Before real deployment:
 - Put FastAPI behind a load balancer or reverse proxy.
 - Set `TRUSTED_PROXY_COUNT` correctly.
 - Rotate the development admin password.
-- Add password reset/change flows.
+- Continue expanding password self-service for non-admin users if required.
 - Add structured logging and centralized log storage.
 - Consider moving AI calls into background jobs if latency becomes an issue.
 
 ## Future Improvements
 
-- Add password reset and password change screens.
+- Add patient/clinician self-service password change with admin verification where required by project policy.
 - Add refresh-token rotation and token revocation for stronger session control.
 - Replace the local in-memory rate limiter with Redis for multi-instance production deployments.
-- Add role-specific notification rules for assignment changes and escalated cases.
+- Move notification fanout to a dedicated pub/sub layer when running multiple backend instances.
 - Add appointment scheduling and direct secure messaging.
-- Add more detailed database constraints for assignment/referral uniqueness and historical audit reporting.
-- Add end-to-end browser tests for login, registration approval, assignment management, and clinician workflows.
+- Add more historical audit reporting and long-term retention controls.
+- Expand end-to-end browser tests for registration approval, assignment management, referrals, and clinician workflows.

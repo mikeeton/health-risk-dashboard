@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from access_control import require_admin
-from auth_utils import get_current_user
+from auth_utils import get_current_user, verify_password
 from auth_utils import hash_password
 from database import get_db
 from routes.audit import write_audit_log
@@ -194,6 +194,41 @@ def activate_user(
     )
 
     return serialize_user(user)
+
+
+@router.patch("/{user_id}/password")
+def reset_user_password(
+    user_id: int,
+    payload: schemas.AdminPasswordReset,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    require_admin(current_user)
+
+    # The acting admin must prove they still know their own password before
+    # changing another user's credential. This protects unattended admin sessions
+    # and makes password resets auditable.
+    if not verify_password(payload.admin_password, current_user.password_hash):
+        raise HTTPException(status_code=403, detail="Admin verification failed")
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    db.refresh(user)
+
+    write_audit_log(
+        db=db,
+        action="ADMIN_RESET_USER_PASSWORD",
+        entity="User",
+        entity_id=str(user.id),
+        user_email=current_user.email,
+    )
+
+    return {"message": "Password reset successfully"}
 
 
 @router.delete("/{user_id}")

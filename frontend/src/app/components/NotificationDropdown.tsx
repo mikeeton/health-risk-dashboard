@@ -11,7 +11,9 @@ import {
 } from "lucide-react";
 
 import {
+  getAuthToken,
   getNotifications,
+  getWebSocketUrl,
   markAllNotificationsRead,
   markNotificationRead,
   type AppNotification,
@@ -61,6 +63,12 @@ export default function NotificationDropdown({ alerts }: Props) {
   const [error, setError] = useState("");
 
   async function loadNotifications() {
+    if (!getAuthToken()) {
+      setNotifications([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -78,11 +86,36 @@ export default function NotificationDropdown({ alerts }: Props) {
   }
 
   useEffect(() => {
-    // Polling gives a lightweight "near real-time" experience without requiring
-    // a second WebSocket channel for notifications.
+    // Polling remains as a fallback for development servers, proxies, or
+    // browsers that temporarily block the production WebSocket connection.
     loadNotifications();
     const interval = window.setInterval(loadNotifications, 30000);
     return () => window.clearInterval(interval);
+  }, [filter]);
+
+  useEffect(() => {
+    const token = getAuthToken();
+
+    if (!token) return;
+
+    const socketUrl = getWebSocketUrl(
+      `/notifications/ws?token=${encodeURIComponent(token)}`
+    );
+    const socket = new WebSocket(socketUrl);
+
+    socket.addEventListener("message", (event) => {
+      try {
+        const payload = JSON.parse(event.data) as { type?: string };
+
+        if (payload.type === "notifications.updated") {
+          loadNotifications();
+        }
+      } catch {
+        loadNotifications();
+      }
+    });
+
+    return () => socket.close();
   }, [filter]);
 
   useEffect(() => {

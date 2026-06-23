@@ -1,14 +1,15 @@
+import asyncio
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 import models
 import schemas
 from access_control import require_admin, role_name
-from auth_utils import get_current_user
-from database import get_db
+from auth_utils import get_current_user, get_user_from_token
+from database import SessionLocal, get_db
 from notification_utils import create_notification as add_notification
 from routes.audit import write_audit_log
 
@@ -34,6 +35,74 @@ def notification_scope_filter(current_user: models.User):
             & models.Notification.target_role.is_(None)
         ),
     )
+
+
+def unread_notification_count(db: Session, current_user: models.User) -> int:
+    """Count unread visible notifications for badges and realtime updates."""
+
+    return (
+        db.query(models.Notification)
+        .filter(notification_scope_filter(current_user))
+        .filter(
+            or_(
+                models.Notification.is_read != "true",
+                models.Notification.is_read.is_(None),
+            )
+        )
+        .count()
+    )
+
+
+@router.websocket("/ws")
+async def notification_socket(websocket: WebSocket, token: str | None = None):
+    """Push notification badge metadata to authenticated users.
+
+    The REST API remains the source of truth for notification lists. This
+    socket sends lightweight change hints so the frontend can refresh quickly
+    in production while retaining polling as a fallback when a proxy or browser
+    blocks WebSockets.
+    """
+
+    db = SessionLocal()
+
+    try:
+        current_user = get_user_from_token(token, db)
+
+        if not current_user:
+            await websocket.close(code=1008)
+            return
+
+        await websocket.accept()
+
+        last_signature: tuple[int, int | None] | None = None
+
+        while True:
+            latest = (
+                db.query(models.Notification)
+                .filter(notification_scope_filter(current_user))
+                .order_by(models.Notification.id.desc())
+                .first()
+            )
+            signature = (
+                unread_notification_count(db, current_user),
+                latest.id if latest else None,
+            )
+
+            if signature != last_signature:
+                await websocket.send_json(
+                    {
+                        "type": "notifications.updated",
+                        "unread_count": signature[0],
+                        "latest_id": signature[1],
+                    }
+                )
+                last_signature = signature
+
+            await asyncio.sleep(5)
+    except (asyncio.CancelledError, WebSocketDisconnect):
+        pass
+    finally:
+        db.close()
 
 
 @router.post("/", response_model=schemas.NotificationResponse)

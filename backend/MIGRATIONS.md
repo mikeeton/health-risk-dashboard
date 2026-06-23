@@ -32,6 +32,7 @@ migration files.
 - `20260621_0001_baseline`: creates the base user, patient, clinical, audit, notification, and registration tables.
 - `20260621_0002_staff_assignments`: adds many-to-many doctor/nurse patient assignments and backfills legacy care-team columns.
 - `20260621_0003_referrals_notifications`: adds referral requests and richer notification metadata.
+- `20260623_0004_constraints`: adds status/role check constraints and uniqueness protection for active assignments and pending referrals.
 
 ## Final-Year Project Notes
 

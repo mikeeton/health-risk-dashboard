@@ -231,3 +231,22 @@ navigation, and referral page.
 Lessons Learned: Useful comments should explain intent, security boundaries, and
 workflow reasoning. They should not merely repeat what a line of code already
 says.
+
+## 16. Release Hardening
+
+Problem: The project needed stronger evidence for browser behavior, password
+administration, database integrity, realtime notifications, and deployment.
+
+Cause: Backend unit/security tests alone do not show that the React application
+loads correctly in a real browser, and application-level validation should be
+reinforced by database constraints where possible.
+
+Resolution: Playwright E2E smoke tests were added, the admin user-management
+screen now supports admin-verified password resets, Alembic adds workflow
+constraints and partial unique indexes, notification polling is backed by an
+authenticated WebSocket update channel, and `DEPLOYMENT.md` documents production
+setup.
+
+Lessons Learned: A final-year healthcare platform should demonstrate both
+feature behavior and operational readiness. Tests, constraints, realtime update
+paths, and deployment notes make the system easier to defend during review.

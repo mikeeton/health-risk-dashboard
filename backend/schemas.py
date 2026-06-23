@@ -101,6 +101,13 @@ class AdminStaffResponse(BaseModel):
     status: str | None = None
 
 
+class AdminPasswordReset(BaseModel):
+    """Admin-verified password reset for an existing account."""
+
+    admin_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class StaffAssignmentCreate(BaseModel):
     patient_id: int = Field(gt=0)
     staff_user_id: int = Field(gt=0)
