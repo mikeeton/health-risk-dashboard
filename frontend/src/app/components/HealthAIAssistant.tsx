@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { askHealthAI, getAIPatientSummary } from "../services/api";
-import { aiPromptExamples } from "../utils/aiPrompts";
+import { useAuth } from "../context/AuthContext";
 import { parseAIResponse } from "../utils/parseAIResponse";
 
 type Props = {
@@ -38,10 +38,12 @@ function AIClinicalCard({
   title,
   text,
   modelUsed,
+  subtitle,
 }: {
   title: string;
   text: string;
   modelUsed?: string;
+  subtitle: string;
 }) {
   const parsed = useMemo(() => parseAIResponse(text), [text]);
 
@@ -53,7 +55,7 @@ function AIClinicalCard({
             {title}
           </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            AI-generated clinical risk overview
+            {subtitle}
           </p>
         </div>
 
@@ -131,10 +133,71 @@ function AIClinicalCard({
   );
 }
 
+const assistantProfiles = {
+  patient: {
+    heading: "My Health AI Assistant",
+    subtitle: "Plain-language support for your own readings and care questions",
+    summaryTitle: "My Health Overview",
+    responseTitle: "AI Response",
+    cardSubtitle: "AI-generated personal risk overview",
+    defaultQuestion: "Can you explain my latest health readings simply?",
+    placeholder: "Ask about your readings, symptoms, medication, or next steps...",
+    refreshLabel: "Refresh My Overview",
+    prompts: [
+      "Explain my risk level simply.",
+      "What readings should I watch?",
+      "What looks stable today?",
+      "What should I ask my care team?",
+      "When should I seek urgent help?",
+    ],
+  },
+  doctor: {
+    heading: "Clinician AI Assistant",
+    subtitle: "Clinical risk support for diagnosis review and treatment planning",
+    summaryTitle: "Clinician Summary",
+    responseTitle: "AI Response",
+    cardSubtitle: "AI-generated clinical risk overview",
+    defaultQuestion: "Is this patient clinically deteriorating?",
+    placeholder: "Ask about abnormal vitals, risk drivers, or review priorities...",
+    refreshLabel: "Refresh Clinical Summary",
+    prompts: [
+      "Summarise this patient.",
+      "Why is this patient high risk?",
+      "What vitals are abnormal?",
+      "What should the clinician check next?",
+      "Create a clinician handover note.",
+    ],
+  },
+  nurse: {
+    heading: "Nursing AI Assistant",
+    subtitle: "Monitoring, adherence, escalation, and care-team update support",
+    summaryTitle: "Nursing Monitoring Summary",
+    responseTitle: "AI Response",
+    cardSubtitle: "AI-generated nursing risk overview",
+    defaultQuestion: "What should nursing monitor for this patient?",
+    placeholder: "Ask about monitoring, medication adherence, or escalation signs...",
+    refreshLabel: "Refresh Nursing Summary",
+    prompts: [
+      "What should I monitor next?",
+      "Are there medication adherence concerns?",
+      "What changes should be escalated?",
+      "Create a care-team update.",
+      "What patient education is needed?",
+    ],
+  },
+};
+
 export default function HealthAIAssistant({ patientId }: Props) {
+  const { user } = useAuth();
+  const profile =
+    user?.role === "patient"
+      ? assistantProfiles.patient
+      : user?.role === "nurse"
+      ? assistantProfiles.nurse
+      : assistantProfiles.doctor;
   const [summary, setSummary] = useState("");
   const [answer, setAnswer] = useState("");
-  const [question, setQuestion] = useState("Is this patient okay?");
+  const [question, setQuestion] = useState(profile.defaultQuestion);
   const [modelUsed, setModelUsed] = useState("");
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [loadingAnswer, setLoadingAnswer] = useState(false);
@@ -157,6 +220,11 @@ export default function HealthAIAssistant({ patientId }: Props) {
   useEffect(() => {
     loadSummary();
   }, [patientId]);
+
+  useEffect(() => {
+    setQuestion(profile.defaultQuestion);
+    setAnswer("");
+  }, [profile.defaultQuestion, patientId]);
 
   async function ask(customQuestion?: string) {
     const finalQuestion = customQuestion ?? question;
@@ -193,10 +261,10 @@ export default function HealthAIAssistant({ patientId }: Props) {
 
           <div>
             <h2 className="text-2xl font-extrabold text-slate-950 dark:text-white">
-              Health AI Assistant
+              {profile.heading}
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Fast Groq-powered clinical risk assistant
+              {profile.subtitle}
             </p>
           </div>
         </div>
@@ -207,7 +275,7 @@ export default function HealthAIAssistant({ patientId }: Props) {
           className="flex w-fit items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
         >
           <RefreshCw className="h-4 w-4" />
-          Refresh Summary
+          {profile.refreshLabel}
         </button>
       </div>
 
@@ -219,14 +287,15 @@ export default function HealthAIAssistant({ patientId }: Props) {
         </div>
       ) : (
         <AIClinicalCard
-          title="Clinician Summary"
+          title={profile.summaryTitle}
           text={summary}
           modelUsed={modelUsed}
+          subtitle={profile.cardSubtitle}
         />
       )}
 
       <div className="my-6 flex flex-wrap gap-2">
-        {aiPromptExamples.map((prompt) => (
+        {profile.prompts.map((prompt) => (
           <button
             key={prompt}
             onClick={() => ask(prompt)}
@@ -243,7 +312,7 @@ export default function HealthAIAssistant({ patientId }: Props) {
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           className="flex-1 rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:focus:ring-blue-950"
-          placeholder="Ask about this patient..."
+          placeholder={profile.placeholder}
         />
 
         <button
@@ -269,9 +338,10 @@ export default function HealthAIAssistant({ patientId }: Props) {
           </div>
 
           <AIClinicalCard
-            title="AI Response"
+            title={profile.responseTitle}
             text={answer}
             modelUsed={modelUsed}
+            subtitle={profile.cardSubtitle}
           />
         </div>
       )}

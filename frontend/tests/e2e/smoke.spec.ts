@@ -25,6 +25,72 @@ test("invalid login shows a useful error message", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("core pages avoid horizontal overflow on common device widths", async ({ page }) => {
+  const sizes = [
+    { width: 375, height: 812 },
+    { width: 768, height: 1024 },
+    { width: 1440, height: 900 },
+  ];
+
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    await page.goto("/login");
+    await expect(page.getByRole("heading", { name: "Welcome Back" })).toBeVisible();
+
+    let hasHorizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 1
+    );
+    expect(hasHorizontalOverflow).toBe(false);
+
+    await page.goto("/register");
+    await expect(page.getByRole("heading", { name: "Request Access" })).toBeVisible();
+
+    hasHorizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 1
+    );
+    expect(hasHorizontalOverflow).toBe(false);
+  }
+});
+
+test("authenticated app shell fits phone and tablet widths", async ({ page }) => {
+  await page.route("**/patients", async (route) => {
+    await route.fulfill({ json: [] });
+  });
+  await page.route("**/vitals/**", async (route) => {
+    await route.fulfill({ json: [] });
+  });
+  await page.route("**/notifications/**", async (route) => {
+    await route.fulfill({ json: [] });
+  });
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "health-auth-user",
+      JSON.stringify({
+        id: 1,
+        email: "patient@example.com",
+        full_name: "Responsive Patient",
+        role: "patient",
+      })
+    );
+    localStorage.setItem("health-auth-token", "responsive-test-token");
+  });
+
+  for (const size of [
+    { width: 375, height: 812 },
+    { width: 768, height: 1024 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto("/");
+    await expect(page.getByText("Patient Workspace")).toBeVisible();
+
+    const hasHorizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 1
+    );
+    expect(hasHorizontalOverflow).toBe(false);
+  }
+});
+
 test("admin can reach protected admin workspace", async ({ page }) => {
   test.skip(
     process.env.E2E_RUN_AUTH !== "1",

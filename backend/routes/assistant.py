@@ -200,6 +200,74 @@ def ask_groq(prompt: str):
         "answer": f"All Groq models failed. Last error: {last_error}"
     }
 
+
+def assistant_role_context(current_user: models.User) -> str:
+    role = (current_user.role or "").lower()
+
+    if role == "patient":
+        return (
+            "You are speaking to the patient. Use clear, reassuring, non-technical "
+            "language. Explain what the readings may mean without diagnosing, "
+            "prescribing, or replacing a clinician. Encourage contacting the care "
+            "team for urgent or worrying symptoms."
+        )
+
+    if role == "nurse":
+        return (
+            "You are speaking to a nurse. Focus on monitoring priorities, "
+            "medication adherence, escalation triggers, care-team communication, "
+            "and practical bedside or remote-care actions within nursing scope."
+        )
+
+    return (
+        "You are speaking to a doctor/clinician. Use concise clinical language, "
+        "highlight abnormal vitals, risk drivers, differential concerns, review "
+        "priorities, and safe next checks without giving definitive diagnosis."
+    )
+
+
+def summary_instruction(current_user: models.User) -> str:
+    role = (current_user.role or "").lower()
+
+    if role == "patient":
+        return """
+Generate a patient-friendly health overview.
+
+Include:
+- Simple risk level
+- What the latest readings suggest
+- What looks stable
+- What to watch for
+- Questions to ask the care team
+- Safety note
+"""
+
+    if role == "nurse":
+        return """
+Generate a nursing monitoring summary.
+
+Include:
+- Current risk level
+- Vital sign concerns
+- Medication adherence concerns
+- Monitoring priorities
+- Escalation triggers
+- Care-team update note
+"""
+
+    return """
+Generate a clinician summary.
+
+Include:
+- Patient overview
+- Key abnormal vitals
+- Medication adherence concerns
+- Timeline observations
+- Risk explanation
+- Recommended checks
+- Safety note
+"""
+
 # =========================
 # PATIENT SUMMARY
 # =========================
@@ -220,17 +288,9 @@ def patient_summary(
         }
 
     prompt = f"""
-Generate a clinician summary.
+{assistant_role_context(current_user)}
 
-Include:
-- Patient overview
-- Key abnormal vitals
-- Medication adherence concerns
-- Timeline observations
-- Risk explanation
-- Recommended checks
-- Safety note
-
+{summary_instruction(current_user)}
 Patient Data:
 {context}
 """
@@ -264,6 +324,8 @@ def ask_ai(
         }
 
     prompt = f"""
+{assistant_role_context(current_user)}
+
 Patient Data:
 {context}
 
@@ -299,6 +361,8 @@ def handover(
         }
 
     prompt = f"""
+{assistant_role_context(current_user)}
+
 Generate a clinician SBAR handover.
 
 Include:

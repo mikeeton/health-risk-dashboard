@@ -10,7 +10,6 @@ import AIExplanationPanel from "../components/AIExplanationPanel";
 import TrendAnalysisPanel from "../components/TrendAnalysisPanel";
 import AlertPanel from "../components/AlertPanel";
 import NotificationCenter from "../components/NotificationCenter";
-import NotificationDropdown from "../components/NotificationDropdown";
 import ClinicianQueue from "../components/ClinicianQueue";
 import ClinicianActivityFeed from "../components/ClinicianActivityFeed";
 import PatientDetailModal from "../components/PatientDetailModal";
@@ -28,6 +27,7 @@ import PatientTimelineDatabase from "../components/PatientTimelineDatabase";
 import MLPredictionPanel from "../components/MLPredictionPanel";
 
 import { useHealthData } from "../context/HealthDataContext";
+import { useAuth } from "../context/AuthContext";
 import {
   generateDynamicInsight,
   getDashboardStats,
@@ -52,6 +52,7 @@ export default function Dashboard() {
 
   const { healthData, setHealthData, selectedPatient, patients, refreshVitals } =
     useHealthData();
+  const { isDoctor, isNurse, isPatient } = useAuth();
 
   const [dateRange, setDateRange] = useState("7");
   const [metric, setMetric] = useState("all");
@@ -231,7 +232,7 @@ export default function Dashboard() {
       <div ref={reportRef} className="dashboard-shell space-y-8">
         <section id="dashboard-controls" className="glass-card fade-up rounded-3xl p-5 scroll-mt-28">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
               <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
                 Patient:
               </label>
@@ -240,7 +241,7 @@ export default function Dashboard() {
 
               <button
                 onClick={() => setPatientModalOpen(true)}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:scale-[1.02] hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+                className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:scale-[1.02] hover:bg-slate-800 dark:bg-white dark:text-slate-950 sm:w-auto"
               >
                 View Patient
               </button>
@@ -252,7 +253,7 @@ export default function Dashboard() {
               <select
                 value={dateRange}
                 onChange={(event) => setDateRange(event.target.value)}
-                className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80"
+                className="w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:w-auto"
               >
                 <option value="7">7 records</option>
                 <option value="14">14 records</option>
@@ -266,7 +267,7 @@ export default function Dashboard() {
               <select
                 value={metric}
                 onChange={(event) => setMetric(event.target.value)}
-                className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80"
+                className="w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:w-auto"
               >
                 <option value="all">All Metrics</option>
                 <option value="heart">Heart Rate</option>
@@ -278,28 +279,32 @@ export default function Dashboard() {
               </select>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <NotificationDropdown alerts={alerts} />
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              {(isDoctor || isNurse) && (
+                <>
+                  <button
+                    onClick={toggleLiveMonitoring}
+                    className={`relative w-full rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] sm:w-auto ${
+                      liveMonitoring
+                        ? "bg-red-600 shadow-red-500/25 hover:bg-red-700"
+                        : "bg-green-600 shadow-green-500/25 hover:bg-green-700"
+                    } ${liveMonitoring ? "live-pulse" : ""}`}
+                  >
+                    {liveMonitoring ? "Stop WebSocket Stream" : "Start WebSocket Stream"}
+                  </button>
 
-              <button
-                onClick={toggleLiveMonitoring}
-                className={`relative rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] ${
-                  liveMonitoring
-                    ? "bg-red-600 shadow-red-500/25 hover:bg-red-700"
-                    : "bg-green-600 shadow-green-500/25 hover:bg-green-700"
-                } ${liveMonitoring ? "live-pulse" : ""}`}
-              >
-                {liveMonitoring ? "Stop WebSocket Stream" : "Start WebSocket Stream"}
-              </button>
-
-              <ClinicianPdfReportButton
-                patient={selectedPatient}
-                vitals={patientData}
-              />
+                  {isDoctor && (
+                    <ClinicianPdfReportButton
+                      patient={selectedPatient}
+                      vitals={patientData}
+                    />
+                  )}
+                </>
+              )}
 
               <button
                 onClick={exportPDF}
-                className="rounded-xl border border-slate-200 bg-white/80 px-5 py-3 text-sm font-bold shadow-sm transition hover:scale-[1.02] hover:bg-white dark:border-slate-700 dark:bg-slate-900/80"
+                className="w-full rounded-xl border border-slate-200 bg-white/80 px-5 py-3 text-sm font-bold shadow-sm transition hover:scale-[1.02] hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 sm:w-auto"
               >
                 Export Dashboard PDF
               </button>
@@ -322,54 +327,82 @@ export default function Dashboard() {
           )}
         </section>
 
-        <section id="live-monitoring" className="scroll-mt-28">
-          <WebSocketLivePanel
-            connected={socketConnected}
-            latestRecord={latestSocketRecord}
-          />
-        </section>
+        {(isDoctor || isNurse) && (
+          <section id="live-monitoring" className="scroll-mt-28">
+            <WebSocketLivePanel
+              connected={socketConnected}
+              latestRecord={latestSocketRecord}
+            />
+          </section>
+        )}
 
-        <section id="activity-feed" className="scroll-mt-28">
-          <DatabaseActivityFeed />
-        </section>
+        {isDoctor && (
+          <section id="activity-feed" className="scroll-mt-28">
+            <DatabaseActivityFeed />
+          </section>
+        )}
 
         <section id="ai-assistant" className="scroll-mt-28">
           <HealthAIAssistant patientId={selectedPatient.id} />
         </section>
 
-        <section id="prediction" className="grid gap-6 xl:grid-cols-2 scroll-mt-28">
+        <section
+          id="prediction"
+          className={`grid gap-6 scroll-mt-28 ${
+            isPatient ? "xl:grid-cols-1" : "xl:grid-cols-2"
+          }`}
+        >
           <MLPredictionPanel patientId={selectedPatient.id} />
-          <LinearRegressionPanel patientId={selectedPatient.id} />
-          <MedicationAdherenceDatabase patientId={selectedPatient.id} />
+
+          {isDoctor && (
+            <LinearRegressionPanel patientId={selectedPatient.id} />
+          )}
         </section>
 
         <section id="medication-adherence" className="scroll-mt-28">
-          <MedicationAdherenceDatabase patientId={selectedPatient.id} />
-        </section>
-
-        <section id="patient-timeline" className="scroll-mt-28">
-          <PatientTimelineDatabase patientId={selectedPatient.id} />
-        </section>
-
-        <section id="clinician-activity" className="scroll-mt-28">
-          <ClinicianActivityFeed
-            alertsCount={alerts.length}
-            queueCount={clinicianQueue.length}
+          <MedicationAdherenceDatabase
+            patientId={selectedPatient.id}
+            canAddMedication={isNurse}
+            canUpdateStatus={isNurse}
           />
         </section>
 
-        <section id="ai-insights" className="scroll-mt-28">
-          <AIInsightPanel insight={insight} onGenerate={generateInsight} />
+        <section id="patient-timeline" className="scroll-mt-28">
+          <PatientTimelineDatabase
+            patientId={selectedPatient.id}
+            canAddEvent={isDoctor || isNurse}
+            defaultEventType={isNurse ? "Nursing Note" : "Clinical Note"}
+            defaultTitle={isNurse ? "Nursing note added" : "Clinical note added"}
+          />
         </section>
 
-        <section id="predictive-risk" className="grid gap-6 xl:grid-cols-2 scroll-mt-28">
-          <PredictiveRiskPanel prediction={prediction} />
-          <MedicationPanel patientId={selectedPatient.id} />
-        </section>
+        {isDoctor && (
+          <section id="clinician-activity" className="scroll-mt-28">
+            <ClinicianActivityFeed
+              alertsCount={alerts.length}
+              queueCount={clinicianQueue.length}
+            />
+          </section>
+        )}
 
-        <section id="reports" className="scroll-mt-28">
-          <AIClinicianReport report={clinicianReport} />
-        </section>
+        {isDoctor && (
+          <section id="ai-insights" className="scroll-mt-28">
+            <AIInsightPanel insight={insight} onGenerate={generateInsight} />
+          </section>
+        )}
+
+        {isDoctor && (
+          <section id="predictive-risk" className="grid gap-6 xl:grid-cols-2 scroll-mt-28">
+            <PredictiveRiskPanel prediction={prediction} />
+            <MedicationPanel patientId={selectedPatient.id} />
+          </section>
+        )}
+
+        {isDoctor && (
+          <section id="reports" className="scroll-mt-28">
+            <AIClinicianReport report={clinicianReport} />
+          </section>
+        )}
 
         <section id="stats" className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5 scroll-mt-28">
           <StatCard
@@ -444,28 +477,36 @@ export default function Dashboard() {
           <AlertPanel alerts={alerts} />
         </section>
 
-        <section id="notifications" className="scroll-mt-28">
-          <NotificationCenter alerts={alerts} />
-        </section>
+        {isDoctor && (
+          <section id="notifications" className="scroll-mt-28">
+            <NotificationCenter alerts={alerts} />
+          </section>
+        )}
 
-        <section id="review-queue" className="scroll-mt-28">
-          <ClinicianQueue queue={clinicianQueue} />
-        </section>
+        {isDoctor && (
+          <section id="review-queue" className="scroll-mt-28">
+            <ClinicianQueue queue={clinicianQueue} />
+          </section>
+        )}
 
-        <section id="ai-explanation" className="scroll-mt-28">
-          <AIExplanationPanel
-            reasons={aiAnalysis.reasons}
-            riskLevel={aiAnalysis.riskLevel}
-          />
-        </section>
+        {isDoctor && (
+          <section id="ai-explanation" className="scroll-mt-28">
+            <AIExplanationPanel
+              reasons={aiAnalysis.reasons}
+              riskLevel={aiAnalysis.riskLevel}
+            />
+          </section>
+        )}
 
         <section id="trend-analysis" className="scroll-mt-28">
           <TrendAnalysisPanel trends={trends} />
         </section>
 
-        <section id="patient-timeline-local" className="scroll-mt-28">
-          <PatientTimeline records={patientData} />
-        </section>
+        {isDoctor && (
+          <section id="patient-timeline-local" className="scroll-mt-28">
+            <PatientTimeline records={patientData} />
+          </section>
+        )}
 
         <section id="vitals" className="dashboard-grid scroll-mt-28">
           <div className="col-span-12 xl:col-span-4">

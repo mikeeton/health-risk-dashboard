@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, NavLink } from "react-router";
 import {
   Activity,
@@ -76,6 +76,25 @@ export default function Layout() {
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isDesktopShell, setIsDesktopShell] = useState(() =>
+    typeof window === "undefined"
+      ? true
+      : window.matchMedia("(min-width: 1024px)").matches
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+
+    const updateShellMode = () => {
+      setIsDesktopShell(query.matches);
+      if (query.matches) setMobileOpen(false);
+    };
+
+    updateShellMode();
+    query.addEventListener("change", updateShellMode);
+
+    return () => query.removeEventListener("change", updateShellMode);
+  }, []);
 
   const navItems = [
     // Navigation is role-aware for usability; backend access checks still remain
@@ -321,7 +340,7 @@ export default function Layout() {
 
       <motion.div
         animate={{
-          marginLeft: sidebarOpen ? 260 : 88,
+          marginLeft: isDesktopShell ? (sidebarOpen ? 260 : 88) : 0,
         }}
         transition={{
           duration: 0.24,
@@ -329,8 +348,8 @@ export default function Layout() {
         className="min-h-screen lg:block"
       >
         <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:px-7">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 onClick={() => setMobileOpen(true)}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 lg:hidden"
@@ -359,7 +378,7 @@ export default function Layout() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <NotificationDropdown alerts={alerts} />
 
               <ThemeToggle />
@@ -369,7 +388,7 @@ export default function Layout() {
                   whileHover={{ y: -1 }}
                   className="flex items-center gap-3"
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+                  <div className="hidden h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white sm:flex">
                     <User className="h-5 w-5" />
                   </div>
 
@@ -385,10 +404,11 @@ export default function Layout() {
 
                   <button
                     onClick={logout}
-                    className="flex h-10 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-bold text-white transition hover:bg-red-700"
+                    className="flex h-10 w-10 items-center justify-center gap-2 rounded-xl bg-red-600 text-sm font-bold text-white transition hover:bg-red-700 sm:w-auto sm:px-4"
+                    aria-label="Logout"
                   >
                     <LogOut className="h-4 w-4" />
-                    Logout
+                    <span className="hidden sm:inline">Logout</span>
                   </button>
                 </motion.div>
               ) : (

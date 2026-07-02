@@ -171,6 +171,7 @@ export default function NotificationDropdown({ alerts }: Props) {
         onClick={() => setOpen((value) => !value)}
         className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-blue-600 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
         aria-label="Open notifications"
+        aria-expanded={open}
       >
         <Bell className="h-5 w-5" />
 
@@ -182,7 +183,11 @@ export default function NotificationDropdown({ alerts }: Props) {
       </button>
 
       {open && (
-        <div className="glass-card absolute right-0 mt-3 w-[min(92vw,430px)] overflow-hidden rounded-2xl shadow-xl">
+        <div
+          className="glass-card absolute right-0 z-50 mt-3 w-[min(92vw,430px)] overflow-hidden rounded-2xl shadow-xl"
+          role="dialog"
+          aria-label="Notifications"
+        >
           <div className="border-b border-slate-200 p-4 dark:border-slate-800">
             <div className="flex items-start justify-between gap-3">
               <div>
