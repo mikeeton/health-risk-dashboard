@@ -144,8 +144,21 @@ python scripts/reset_admin.py \
 The backend start command in `render.yaml` runs:
 
 ```bash
-alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
+python scripts/wait_for_database.py && alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
+
+The wait step gives Render PostgreSQL time to become reachable before Alembic
+runs. Without it, first deploys can fail with a database connection timeout
+before the web server has opened a port.
+
+The Render blueprint also sets:
+
+```text
+PYTHON_VERSION=3.12.3
+```
+
+This keeps Render from silently deploying with a newer Python version than the
+one used during local development.
 
 ### Frontend on Vercel
 
@@ -186,6 +199,25 @@ CORS_ORIGINS=https://your-vercel-app.vercel.app
 
 Then redeploy the backend. Without this CORS update, login requests from Vercel
 will be blocked by the browser.
+
+### Render Troubleshooting
+
+If logs show:
+
+```text
+psycopg2.OperationalError: connection timed out
+```
+
+check the following:
+
+- The PostgreSQL database exists and is not still provisioning.
+- The backend service and database were created by the same Blueprint.
+- `DATABASE_URL` is coming from the Render database, not copied manually from another service.
+- Redeploy after the database status shows available.
+- Keep `python scripts/wait_for_database.py` in the start command so the app retries before running migrations.
+
+If logs show Python 3.14 packages while local development uses Python 3.12,
+confirm `PYTHON_VERSION=3.12.3` exists in the Render service environment.
 
 ## 6. Reverse Proxy and WebSockets
 
