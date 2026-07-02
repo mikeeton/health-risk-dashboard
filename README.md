@@ -179,6 +179,9 @@ http://localhost:5173
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for production setup, PostgreSQL migration,
 reverse proxy, WebSocket, CORS, admin reset, and release-check instructions.
+For a Vercel-style final-year deployment, host the frontend on Vercel from the
+`frontend` directory and host the FastAPI/PostgreSQL backend on Render using
+`render.yaml`.
 
 ## Environment Variables
 

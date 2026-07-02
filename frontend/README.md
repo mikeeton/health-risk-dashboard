@@ -21,6 +21,22 @@ Expected API setting:
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
+## Vercel Deployment
+
+Deploy this folder as the Vercel project root:
+
+```text
+frontend
+```
+
+Set this Vercel environment variable to the deployed backend URL:
+
+```text
+VITE_API_BASE_URL=https://your-render-api.onrender.com
+```
+
+`vercel.json` configures Vite build output and React Router route rewrites.
+
 ## Checks
 
 ```bash

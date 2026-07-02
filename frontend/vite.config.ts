@@ -4,6 +4,9 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  preview: {
+    allowedHosts: [".trycloudflare.com"],
+  },
   build: {
     rollupOptions: {
       output: {

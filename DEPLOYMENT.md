@@ -101,6 +101,85 @@ npm run build
 Serve `frontend/dist` from Nginx, Caddy, Netlify, Vercel, Cloudflare Pages, or
 the static hosting feature of your platform.
 
+## 5A. Recommended Student Deployment: Vercel + Render
+
+For this project, use:
+
+- Vercel for the React/Vite frontend.
+- Render for the FastAPI backend and managed PostgreSQL database.
+
+This split is recommended because Vercel is excellent for static frontend
+hosting, while the backend needs a long-running ASGI process, PostgreSQL,
+Alembic migrations, and WebSockets.
+
+### Backend on Render
+
+1. Push this repository to GitHub.
+2. Open Render and create a new Blueprint from the repository.
+3. Render will read `render.yaml`.
+4. Create the web service and PostgreSQL database.
+5. In the Render service environment, set:
+
+```text
+CORS_ORIGINS=https://your-vercel-app.vercel.app
+GROQ_API_KEY=your-groq-key-if-you-use-ai
+```
+
+6. After the first deployment, run the admin reset command from Render Shell:
+
+```bash
+python scripts/reset_admin.py \
+  --email admin@example.com \
+  --full-name "System Admin" \
+  --password 'replace-with-a-strong-password'
+```
+
+The backend start command in `render.yaml` runs:
+
+```bash
+alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+### Frontend on Vercel
+
+1. Import the same GitHub repository into Vercel.
+2. Set the Vercel project root directory to:
+
+```text
+frontend
+```
+
+3. Vercel will read `frontend/vercel.json`.
+4. Set the frontend environment variable:
+
+```text
+VITE_API_BASE_URL=https://your-render-api.onrender.com
+```
+
+5. Deploy.
+
+The Vercel config uses:
+
+```text
+installCommand: npm ci
+buildCommand: npm run build
+outputDirectory: dist
+```
+
+It also rewrites all frontend routes to `index.html`, so direct links such as
+`/login`, `/admin`, and `/referrals` work with React Router.
+
+### Final URL Update
+
+After Vercel gives you the final frontend URL, go back to Render and update:
+
+```text
+CORS_ORIGINS=https://your-vercel-app.vercel.app
+```
+
+Then redeploy the backend. Without this CORS update, login requests from Vercel
+will be blocked by the browser.
+
 ## 6. Reverse Proxy and WebSockets
 
 The API includes WebSockets for live vitals and production notification updates.
