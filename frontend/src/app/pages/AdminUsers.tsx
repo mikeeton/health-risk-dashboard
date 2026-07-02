@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { KeyRound, Loader2, RefreshCw, UserCog, Users } from "lucide-react";
 
+import PasswordField from "../components/PasswordField";
 import {
   activateAdminUser,
   getAdminUsers,
@@ -210,23 +211,25 @@ export default function AdminUsers() {
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-bold">
               Admin Password
-              <input
-                type="password"
-                value={adminPassword}
-                onChange={(event) => setAdminPassword(event.target.value)}
-                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950"
-              />
+              <div className="mt-2">
+                <PasswordField
+                  value={adminPassword}
+                  onChange={(event) => setAdminPassword(event.target.value)}
+                  className="px-3 py-2"
+                />
+              </div>
             </label>
 
             <label className="block text-sm font-bold">
               New User Password
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                minLength={8}
-                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950"
-              />
+              <div className="mt-2">
+                <PasswordField
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  minLength={8}
+                  className="px-3 py-2"
+                />
+              </div>
             </label>
           </div>
 

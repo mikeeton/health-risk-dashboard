@@ -250,3 +250,58 @@ setup.
 Lessons Learned: A final-year healthcare platform should demonstrate both
 feature behavior and operational readiness. Tests, constraints, realtime update
 paths, and deployment notes make the system easier to defend during review.
+
+## 17. Role-Specific Dashboard Cleanup
+
+Problem: Some patient, nurse, doctor, and admin screens still exposed panels
+that felt intended for another role.
+
+Cause: Earlier dashboard composition reused broad clinical components before
+the role model was fully tightened.
+
+Resolution: Patient dashboards now avoid clinician-only queue, report,
+forecast, and activity panels. Doctor and nurse workflows keep their own
+clinical actions, while admin pages remain system-management focused. The AI
+assistant text and prompts were adjusted so patient, doctor, and nurse use cases
+feel distinct.
+
+Lessons Learned: Role-based security is not only backend permission checks.
+The interface should also reduce confusion by showing each user only the
+workflows that make sense for their responsibilities.
+
+## 18. Responsive Layout and Theme Polish
+
+Problem: Mobile and tablet layouts could feel cramped, and the app shell kept
+desktop sidebar spacing even when the sidebar was hidden on smaller screens.
+
+Cause: The shell animation always applied desktop left margin, and some
+controls used desktop-oriented spacing or fixed minimum widths.
+
+Resolution: The app shell now switches its content margin based on the desktop
+media query. Header actions, dashboard controls, patient selection, login,
+registration, and upload pages were adjusted to stack and size correctly on
+phone, tablet, laptop, and desktop widths. Playwright tests now verify that
+core public pages and the authenticated app shell avoid horizontal overflow.
+
+Lessons Learned: Responsive design should be tested as behavior, not just
+visually inspected. A small automated overflow check catches layout regressions
+that are easy to miss on a large monitor.
+
+## 19. Password Visibility and Adaptive Theme
+
+Problem: Users could not reveal passwords while typing, and theme behavior was
+basic rather than adaptive to device preferences.
+
+Cause: Password inputs were plain `type="password"` fields, and the theme
+loader defaulted to light mode unless dark mode had already been saved.
+
+Resolution: A reusable `PasswordField` component now provides accessible
+show/hide controls for login, registration, and admin-verified password reset.
+The theme system now follows the user's device preference when no explicit
+choice is saved, stores the user's toggle choice, sets browser `color-scheme`,
+and improves form field contrast, placeholders, focus rings, and caret behavior
+in both light and dark mode.
+
+Lessons Learned: Small interaction details matter in a professional healthcare
+platform. Password visibility, theme persistence, contrast, and focus behavior
+make the app feel more complete and easier to use during demonstration.

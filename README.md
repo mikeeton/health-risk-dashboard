@@ -45,11 +45,14 @@ python scripts/reset_admin.py \
 - Patient referral workflow where clinicians request access and admin approval is required before record sharing.
 - Functional notification centre with unread badges, filtering, search, read/unread actions, history, polling fallback, and production WebSocket update hints.
 - Admin-verified password reset for user accounts from the admin user-management screen.
+- Password visibility controls on login, registration, and admin password reset fields.
 - Doctor workflow for assigned patients, AI summaries, ML predictions, diagnoses, treatment notes, and escalations.
 - Nurse workflow for assigned patients, vitals recording, medication updates, nursing notes, and alerts.
 - Patient workflow for viewing only the linked personal record.
 - AI-assisted clinical summaries, patient Q&A, handover text, and report generation.
 - Live vitals simulation and WebSocket updates for accessible patients.
+- Responsive shell and dashboard controls for phone, tablet, laptop, and desktop widths.
+- Adaptive light/dark theme with system-preference fallback, saved user choice, browser `color-scheme`, improved field contrast, and accessible focus styling.
 - Security headers, no-store clinical caching, request IDs, response-time metrics, and rate limiting.
 - Alembic database migrations, workflow constraints, automated security tests, and E2E browser tests.
 
@@ -300,9 +303,10 @@ cd frontend
 npm run test:e2e
 ```
 
-The default Playwright suite checks the login/access-request UI and invalid
-login feedback. Authenticated admin E2E checks are opt-in so CI can run without
-a seeded backend:
+The default Playwright suite checks the login/access-request UI, password
+visibility controls, invalid login feedback, public-page responsive overflow,
+and the authenticated app shell at phone/tablet widths. Authenticated admin E2E
+checks are opt-in so CI can run without a seeded backend:
 
 ```bash
 E2E_RUN_AUTH=1 \
@@ -386,6 +390,10 @@ The style system focuses on:
 - readable line height
 - visible focus states
 - polished role-aware header context
+- adaptive light/dark theme variables
+- browser `color-scheme` support
+- password fields with accessible show/hide controls
+- responsive controls that avoid horizontal overflow on common device widths
 - tabular numeric table rendering
 - no browser caching assumptions for clinical data
 
@@ -398,6 +406,7 @@ The codebase now includes comments and docstrings in the most important areas:
 - Notification routes explain user/role scoping, read-state handling, and search.
 - Frontend API helpers explain the central authenticated request path.
 - Referral and notification components explain loading, filtering, polling, and role-specific behaviour.
+- Password and theme components use clear accessible names so UI behavior is testable and screen-reader friendly.
 
 Comments are intentionally focused on project reasoning and privacy/security
 decisions, rather than repeating simple syntax.
@@ -893,7 +902,12 @@ This keeps PDF code out of normal page navigation.
 
 `frontend/src/app/components/HealthAIAssistant.tsx`
 
-- Ask-a-question UI for patient-specific AI responses.
+- Role-aware ask-a-question UI for patient, doctor, and nurse AI responses.
+
+`frontend/src/app/components/PasswordField.tsx`
+
+- Reusable password input with accessible show/hide controls.
+- Used by login, registration, and admin-verified password reset.
 
 `frontend/src/app/components/MLPredictionPanel.tsx`
 
@@ -960,12 +974,13 @@ This keeps PDF code out of normal page navigation.
 
 `frontend/tests/e2e/smoke.spec.ts`
 
-- Playwright smoke tests for login UI, invalid login feedback, and optional authenticated admin access.
+- Playwright smoke tests for login UI, password visibility, invalid login feedback, public responsive overflow, authenticated app shell sizing, and optional authenticated admin access.
 - The authenticated test runs only when `E2E_RUN_AUTH=1` is set.
 
 `frontend/src/app/components/ThemeToggle.tsx`
 
 - Dark/light mode toggle.
+- Saves the user's explicit choice and otherwise follows the device color-scheme preference.
 
 `frontend/src/app/components/WebSocketLivePanel.tsx`
 
@@ -1054,11 +1069,11 @@ This keeps PDF code out of normal page navigation.
 
 - Main global stylesheet.
 - Imports Tailwind.
-- Defines font, panel, focus, chart, scrollbar, dashboard, and risk styles.
+- Defines font, theme variables, panel, field, focus, chart, scrollbar, dashboard, reduced-motion, and risk styles.
 
-`frontend/src/styles/fonts.css`, `theme.css`, `tailwind.css`, `src/App.css`
+`frontend/src/App.css`
 
-- Legacy or optional style files. The active global app styling is in `index.css`.
+- Removed legacy starter CSS. The active global app styling is in `frontend/src/styles/index.css`.
 
 ## Debugging Checklist
 

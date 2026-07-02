@@ -45,6 +45,14 @@ npm run build
 npm run test:e2e
 ```
 
+The default Playwright suite checks:
+
+- login and access-request screens
+- password visibility controls
+- invalid-login feedback
+- responsive overflow on phone, tablet, and desktop widths
+- authenticated app-shell fit on phone and tablet widths
+
 ## Structure
 
 - `src/app/routes.tsx` app routes and role-protected pages
@@ -55,6 +63,9 @@ npm run test:e2e
 - `src/app/context` auth, toast, and health data providers
 - `src/app/pages` top-level dashboard pages
 - `src/app/components` reusable UI and clinical dashboard components
+- `src/app/components/PasswordField.tsx` shared password input with show/hide controls
+- `src/app/components/ThemeToggle.tsx` adaptive light/dark theme toggle
+- `src/styles/index.css` active global styling, theme variables, focus states, responsive grid, and reduced-motion support
 
 ## Key Workflows
 
@@ -101,3 +112,6 @@ records.
 - Use `api.ts` helpers instead of calling `fetch` directly in pages.
 - Keep clinical actions explicit and feedback-driven with disabled/loading states.
 - Keep admin pages free of clinical vitals, diagnosis, and report content.
+- Keep password inputs on the shared `PasswordField` component so accessibility and browser tests stay consistent.
+- The theme toggle saves explicit user choice; otherwise the app follows the device light/dark preference.
+- Mobile layouts should avoid fixed widths unless the content is inside an intentional horizontal scroll area such as a data table.

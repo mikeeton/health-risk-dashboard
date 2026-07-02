@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 import { Link } from "react-router";
 import { Activity } from "lucide-react";
 
+import PasswordField from "../components/PasswordField";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { useAuth } from "../context/AuthContext";
@@ -72,13 +73,13 @@ export default function Login() {
             <label htmlFor="login-password" className="text-sm font-semibold">
               Password
             </label>
-            <input
-              id="login-password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-blue-950"
-            />
+            <div className="mt-2">
+              <PasswordField
+                id="login-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
           </div>
 
           <Button

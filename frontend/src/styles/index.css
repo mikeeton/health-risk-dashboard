@@ -7,19 +7,27 @@
   --font-sans: "Inter", Arial, sans-serif;
   --page-bg: #f6f8fb;
   --page-text: #111827;
+  --muted-text: #64748b;
   --panel-bg: #ffffff;
+  --field-bg: #ffffff;
   --panel-border: #dbe3ef;
+  --field-border: #cbd5e1;
   --panel-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
   --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  color-scheme: light;
 }
 
 .dark {
   --page-bg: #020617;
   --page-text: #f8fafc;
+  --muted-text: #cbd5e1;
   --panel-bg: #0f172a;
+  --field-bg: #020617;
   --panel-border: #1f2a3d;
+  --field-border: #334155;
   --panel-shadow: none;
   --focus-ring: 0 0 0 3px rgba(96, 165, 250, 0.24);
+  color-scheme: dark;
 }
 
 * {
@@ -40,6 +48,7 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .dark body {
@@ -82,6 +91,23 @@ select,
 input,
 textarea {
   outline: none;
+  color: var(--page-text);
+  caret-color: #2563eb;
+}
+
+select {
+  background-color: var(--field-bg);
+  border-color: var(--field-border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
 }
 
 button:focus-visible,

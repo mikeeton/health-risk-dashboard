@@ -105,6 +105,11 @@ npm run build
 Serve `frontend/dist` from Nginx, Caddy, Netlify, Vercel, Cloudflare Pages, or
 the static hosting feature of your platform.
 
+The deployed frontend includes responsive layouts for phone, tablet, laptop,
+and desktop widths. Light/dark mode follows the device preference until the
+user makes an explicit choice with the theme toggle, then that choice is saved
+in browser storage.
+
 ## 5A. Recommended Student Deployment: Vercel + Render
 
 For this project, use:
@@ -277,6 +282,11 @@ npm run build
 npm run test:e2e
 ```
 
+The default browser suite checks public-page rendering, password visibility
+controls, invalid-login feedback, responsive overflow, and authenticated app
+shell sizing. Keep these checks green before deploying to Vercel or another
+static host.
+
 For authenticated browser tests, start the backend and set:
 
 ```bash
@@ -296,4 +306,5 @@ deployment would still need:
 - Automated database backups and restore drills.
 - Secret rotation procedures.
 - Background job handling for slower AI calls.
+- Production visual-regression coverage for the most important authenticated role dashboards.
 - Formal clinical safety review before use with real patient data.

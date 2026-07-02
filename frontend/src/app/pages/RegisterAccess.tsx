@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { Loader2, UserPlus } from "lucide-react";
 
+import PasswordField from "../components/PasswordField";
 import { createRegistrationRequest } from "../services/api";
 
 const roles = ["doctor", "nurse", "patient"];
@@ -105,14 +106,13 @@ export default function RegisterAccess() {
             className="w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
           />
 
-          <input
+          <PasswordField
             value={form.password}
-            type="password"
             onChange={(event) =>
               setForm({ ...form, password: event.target.value })
             }
             placeholder="Password"
-            className="w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
+            className="rounded-2xl border-white/10 bg-white/10 px-5 py-4 pr-12 text-white placeholder:text-slate-400 focus:border-blue-400 focus:ring-blue-400/20 dark:bg-white/10"
           />
 
           <select
