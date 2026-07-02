@@ -37,6 +37,10 @@ GROQ_API_KEY=
 Keep real `.env` files out of Git. Rotate any key that was ever exposed in a
 ticket, screenshot, terminal output, or repository.
 
+`GROQ_API_KEY` is optional. If it is not set, the backend still starts and the
+AI assistant endpoints return a clear "not configured" message instead of
+crashing the deployment.
+
 ## 3. Database Setup
 
 Create the PostgreSQL database and run Alembic migrations:
@@ -124,6 +128,9 @@ Alembic migrations, and WebSockets.
 CORS_ORIGINS=https://your-vercel-app.vercel.app
 GROQ_API_KEY=your-groq-key-if-you-use-ai
 ```
+
+`GROQ_API_KEY` can be left empty for the first deploy if you only want to prove
+the dashboard, authentication, referrals, notifications, and admin workflows.
 
 6. After the first deployment, run the admin reset command from Render Shell:
 

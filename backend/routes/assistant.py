@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 import os
 from dotenv import load_dotenv
+from groq import Groq
 
 import models
 from access_control import get_accessible_patient
@@ -16,14 +17,28 @@ router = APIRouter(
     tags=["AI Assistant"]
 )
 
-# =========================
-# GROQ CLIENT
-# =========================
-from groq import Groq
+_groq_client: Groq | None = None
 
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
-)
+
+def get_groq_client() -> Groq | None:
+    """Create the Groq client only when an API key is configured.
+
+    Render imports every route module while starting Uvicorn. Constructing the
+    Groq client at import time makes the whole backend fail when `GROQ_API_KEY`
+    is not set, even though the rest of the application can run without AI.
+    """
+
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
+        return None
+
+    global _groq_client
+
+    if _groq_client is None:
+        _groq_client = Groq(api_key=api_key)
+
+    return _groq_client
 
 # =========================
 # FALLBACK MODELS
@@ -126,6 +141,16 @@ EVENTS
 # =========================
 
 def ask_groq(prompt: str):
+    client = get_groq_client()
+
+    if client is None:
+        return {
+            "model": "not-configured",
+            "answer": (
+                "AI assistant is not configured. Set GROQ_API_KEY in the "
+                "backend environment to enable AI summaries and Q&A."
+            ),
+        }
 
     last_error = None
 
