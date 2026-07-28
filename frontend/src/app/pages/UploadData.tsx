@@ -130,9 +130,9 @@ export default function UploadData() {
   };
 
   return (
-    <div className="mx-auto max-w-[1200px] space-y-6 p-6">
+    <div className="mx-auto max-w-[1200px] space-y-6 px-4 py-6 sm:p-6">
       <div>
-        <h1 className="text-3xl font-semibold text-gray-900 dark:text-white">
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white sm:text-3xl">
           Upload Data
         </h1>
 
@@ -142,8 +142,8 @@ export default function UploadData() {
         </p>
       </div>
 
-      <Card className="p-8">
-        <div className="rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-10 text-center dark:border-slate-700 dark:bg-slate-800">
+      <Card className="p-4 sm:p-8">
+        <div className="rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-5 text-center dark:border-slate-700 dark:bg-slate-800 sm:p-10">
           <Upload className="mx-auto mb-4 h-12 w-12 text-blue-600" />
 
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">

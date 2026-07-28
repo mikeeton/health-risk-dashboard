@@ -3,8 +3,9 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { HealthData } from "../data/healthData";
 import { healthData as defaultHealthData } from "../data/healthData";
 
-import type { Patient } from "../../types/patient";
+import type { Patient, RiskLevel } from "../../types/patient";
 import { getPatients, getVitals } from "../services/api";
+import { useAuth } from "./AuthContext";
 
 type HealthDataContextType = {
   healthData: HealthData[];
@@ -16,6 +17,34 @@ type HealthDataContextType = {
 
   loading: boolean;
   refreshVitals: () => Promise<void>;
+};
+
+type BackendPatient = {
+  id: number;
+  user_id?: number | null;
+  primary_doctor_id?: number | null;
+  assigned_nurse_id?: number | null;
+  name: string;
+  age: number;
+  condition: string;
+  risk_level?: RiskLevel | null;
+  last_checkup?: string | null;
+};
+
+type BackendVital = {
+  id: number;
+  patient_id: number;
+  timestamp: string;
+  heart_rate: number;
+  spo2: number;
+  systolic_bp: number;
+  diastolic_bp: number;
+  steps: number;
+  sleep_hours: number;
+  active_minutes: number;
+  calories: number;
+  risk_score: number;
+  activity_state: HealthData["activityState"];
 };
 
 const fallbackPatient: Patient = {
@@ -31,9 +60,12 @@ const HealthDataContext = createContext<HealthDataContextType | undefined>(
   undefined
 );
 
-function mapBackendPatient(patient: any): Patient {
+function mapBackendPatient(patient: BackendPatient): Patient {
   return {
     id: patient.id,
+    userId: patient.user_id ?? null,
+    primaryDoctorId: patient.primary_doctor_id ?? null,
+    assignedNurseId: patient.assigned_nurse_id ?? null,
     name: patient.name,
     age: patient.age,
     condition: patient.condition,
@@ -42,7 +74,7 @@ function mapBackendPatient(patient: any): Patient {
   };
 }
 
-function mapBackendVital(vital: any): HealthData {
+function mapBackendVital(vital: BackendVital): HealthData {
   return {
     id: String(vital.id),
     patientId: vital.patient_id,
@@ -65,6 +97,8 @@ export function HealthDataProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const { token, isAdmin } = useAuth();
+
   const [healthData, setHealthData] = useState<HealthData[]>(
     defaultHealthData
   );
@@ -81,6 +115,8 @@ export function HealthDataProvider({
     fallbackPatient;
 
   const refreshVitals = async () => {
+    if (!token || isAdmin) return;
+
     try {
       const vitals = await getVitals(selectedPatient.id);
       const mappedVitals = vitals.map(mapBackendVital);
@@ -98,7 +134,20 @@ export function HealthDataProvider({
   };
 
   useEffect(() => {
+    if (!token || isAdmin) {
+      // Admin users do not load clinical patient/vital data. This keeps the
+      // frontend aligned with the backend privacy model and avoids noisy
+      // rejected requests on admin-only screens.
+      setPatients([fallbackPatient]);
+      setSelectedPatientId(fallbackPatient.id);
+      setHealthData(defaultHealthData);
+      setLoading(false);
+      return;
+    }
+
     async function loadPatients() {
+      setLoading(true);
+
       try {
         const backendPatients = await getPatients();
         const mappedPatients = backendPatients.map(mapBackendPatient);
@@ -115,13 +164,13 @@ export function HealthDataProvider({
     }
 
     loadPatients();
-  }, []);
+  }, [token, isAdmin]);
 
   useEffect(() => {
-    if (!selectedPatient?.id) return;
+    if (!token || isAdmin || !selectedPatient?.id) return;
 
     refreshVitals();
-  }, [selectedPatient.id]);
+  }, [selectedPatient.id, token, isAdmin]);
 
   return (
     <HealthDataContext.Provider

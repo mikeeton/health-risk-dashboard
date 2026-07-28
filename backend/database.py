@@ -1,25 +1,17 @@
-import os
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-load_dotenv()
+from config import get_settings
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///./health_dashboard.db"
-)
+settings = get_settings()
+DATABASE_URL = settings.database_url
 
 connect_args = {}
 
-if DATABASE_URL.startswith("sqlite"):
-    connect_args = {
-        "check_same_thread": False
-    }
-
 engine = create_engine(
     DATABASE_URL,
-    connect_args=connect_args
+    connect_args=connect_args,
+    pool_pre_ping=True,
 )
 
 SessionLocal = sessionmaker(

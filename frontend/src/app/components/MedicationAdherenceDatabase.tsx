@@ -18,9 +18,15 @@ type Medication = {
 
 type Props = {
   patientId: number;
+  canAddMedication?: boolean;
+  canUpdateStatus?: boolean;
 };
 
-export default function MedicationAdherenceDatabase({ patientId }: Props) {
+export default function MedicationAdherenceDatabase({
+  patientId,
+  canAddMedication = true,
+  canUpdateStatus = true,
+}: Props) {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [name, setName] = useState("Amlodipine");
   const [dosage, setDosage] = useState("5mg");
@@ -79,35 +85,37 @@ export default function MedicationAdherenceDatabase({ patientId }: Props) {
         </div>
       </div>
 
-      <div className="mb-5 grid gap-3 md:grid-cols-4">
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
-          placeholder="Medication name"
-        />
+      {canAddMedication && (
+        <div className="mb-5 grid gap-3 md:grid-cols-4">
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+            placeholder="Medication name"
+          />
 
-        <input
-          value={dosage}
-          onChange={(event) => setDosage(event.target.value)}
-          className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
-          placeholder="Dosage"
-        />
+          <input
+            value={dosage}
+            onChange={(event) => setDosage(event.target.value)}
+            className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+            placeholder="Dosage"
+          />
 
-        <input
-          value={scheduleTime}
-          onChange={(event) => setScheduleTime(event.target.value)}
-          className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
-          placeholder="Time"
-        />
+          <input
+            value={scheduleTime}
+            onChange={(event) => setScheduleTime(event.target.value)}
+            className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+            placeholder="Time"
+          />
 
-        <button
-          onClick={addMedication}
-          className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700"
-        >
-          Add Medication
-        </button>
-      </div>
+          <button
+            onClick={addMedication}
+            className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700"
+          >
+            Add Medication
+          </button>
+        </div>
+      )}
 
       <div className="space-y-3">
         {medications.map((medication) => {
@@ -130,31 +138,39 @@ export default function MedicationAdherenceDatabase({ patientId }: Props) {
                 {medication.status}
               </div>
 
-              <div className="flex gap-2">
-                <button
-                  onClick={() => changeStatus(medication.id, "Taken")}
-                  className="rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white"
-                >
-                  Taken
-                </button>
+              {canUpdateStatus && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => changeStatus(medication.id, "Taken")}
+                    className="rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white"
+                  >
+                    Taken
+                  </button>
 
-                <button
-                  onClick={() => changeStatus(medication.id, "Missed")}
-                  className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white"
-                >
-                  Missed
-                </button>
+                  <button
+                    onClick={() => changeStatus(medication.id, "Missed")}
+                    className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white"
+                  >
+                    Missed
+                  </button>
 
-                <button
-                  onClick={() => changeStatus(medication.id, "Due")}
-                  className="rounded-lg bg-slate-600 px-3 py-2 text-xs font-bold text-white"
-                >
-                  Due
-                </button>
-              </div>
+                  <button
+                    onClick={() => changeStatus(medication.id, "Due")}
+                    className="rounded-lg bg-slate-600 px-3 py-2 text-xs font-bold text-white"
+                  >
+                    Due
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
+
+        {!medications.length && (
+          <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-900">
+            No medication records yet.
+          </p>
+        )}
       </div>
     </section>
   );

@@ -1,9 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sklearn.linear_model import LinearRegression
 import numpy as np
 
 import models
+from access_control import (
+    accessible_patient_ids_query,
+    get_accessible_patient,
+    patient_query_for_user,
+)
+from auth_utils import get_current_user
 from database import get_db
 
 router = APIRouter(
@@ -15,8 +21,11 @@ router = APIRouter(
 @router.get("/linear-regression/{patient_id}")
 def linear_regression_forecast(
     patient_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    get_accessible_patient(db, patient_id, current_user)
+
     vitals = (
         db.query(models.Vital)
         .filter(models.Vital.patient_id == patient_id)
@@ -25,10 +34,19 @@ def linear_regression_forecast(
     )
 
     if len(vitals) < 5:
-        raise HTTPException(
-            status_code=400,
-            detail="At least 5 vital records are required for linear regression."
-        )
+        return {
+            "patient_id": patient_id,
+            "record_count": len(vitals),
+            "status": "insufficient_data",
+            "next_heart_rate": None,
+            "next_spo2": None,
+            "next_systolic_bp": None,
+            "next_diastolic_bp": None,
+            "next_risk_score": None,
+            "message": (
+                "At least 5 vital records are required for linear regression."
+            ),
+        }
 
     x = np.array(range(len(vitals))).reshape(-1, 1)
 
@@ -41,6 +59,8 @@ def linear_regression_forecast(
 
     return {
         "patient_id": patient_id,
+        "record_count": len(vitals),
+        "status": "ready",
         "next_heart_rate": predict_next([v.heart_rate for v in vitals]),
         "next_spo2": predict_next([v.spo2 for v in vitals]),
         "next_systolic_bp": predict_next([v.systolic_bp for v in vitals]),
@@ -51,16 +71,33 @@ def linear_regression_forecast(
 
 
 @router.get("/system-summary")
-def system_summary(db: Session = Depends(get_db)):
+def system_summary(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    patient_ids = accessible_patient_ids_query(db, current_user)
+
     return {
-        "patients": db.query(models.Patient).count(),
-        "vitals": db.query(models.Vital).count(),
-        "review_cases": db.query(models.ReviewCase).count(),
+        "patients": patient_query_for_user(db, current_user).count(),
+        "vitals": (
+            db.query(models.Vital)
+            .filter(models.Vital.patient_id.in_(patient_ids))
+            .count()
+        ),
+        "review_cases": (
+            db.query(models.ReviewCase)
+            .filter(models.ReviewCase.patient_id.in_(patient_ids))
+            .count()
+        ),
         "audit_logs": db.query(models.AuditLog).count(),
-        "medications": db.query(models.Medication).count()
+        "medications": db.query(models.Medication)
+        .filter(models.Medication.patient_id.in_(patient_ids))
+        .count()
         if hasattr(models, "Medication")
         else 0,
-        "timeline_events": db.query(models.PatientEvent).count()
+        "timeline_events": db.query(models.PatientEvent)
+        .filter(models.PatientEvent.patient_id.in_(patient_ids))
+        .count()
         if hasattr(models, "PatientEvent")
         else 0,
     }

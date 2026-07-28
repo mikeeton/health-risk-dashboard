@@ -1,6 +1,8 @@
 from datetime import datetime, date
 
-from pydantic import BaseModel, EmailStr
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # =========================
@@ -9,9 +11,9 @@ from pydantic import BaseModel, EmailStr
 
 class UserCreate(BaseModel):
     email: EmailStr
-    full_name: str
+    full_name: str = Field(min_length=1)
     role: str
-    password: str
+    password: str = Field(min_length=8)
     hospital_id: int | None = None
 
 
@@ -25,14 +27,13 @@ class RefreshTokenRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: EmailStr
     full_name: str
     role: str
     hospital_id: int | None = None
-
-    class Config:
-        from_attributes = True
 
 
 class TokenResponse(BaseModel):
@@ -47,16 +48,36 @@ class TokenResponse(BaseModel):
 # =========================
 
 class PatientCreate(BaseModel):
-    name: str
-    age: int
-    condition: str
-    risk_level: str
+    """Payload for doctor-created patients.
+
+    Admins use assignment/approval flows instead of creating clinical records
+    directly, so this schema is intentionally used by clinician routes.
+    """
+
+    name: str = Field(min_length=1, max_length=120)
+    age: int = Field(ge=0, le=130)
+    condition: str = Field(min_length=1, max_length=500)
+    risk_level: str = Field(min_length=1, max_length=40)
     last_checkup: date
+    user_id: int | None = None
+    primary_doctor_id: int | None = None
+    assigned_nurse_id: int | None = None
     hospital_id: int | None = None
+
+
+class PatientCareTeamUpdate(BaseModel):
+    user_id: int | None = None
+    primary_doctor_id: int | None = None
+    assigned_nurse_id: int | None = None
 
 
 class PatientResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
+    user_id: int | None = None
+    primary_doctor_id: int | None = None
+    assigned_nurse_id: int | None = None
     name: str
     age: int
     condition: str
@@ -64,8 +85,48 @@ class PatientResponse(BaseModel):
     last_checkup: date
     hospital_id: int | None = None
 
-    class Config:
-        from_attributes = True
+
+class AdminPatientDirectoryResponse(BaseModel):
+    id: int
+    name: str
+    linked_user_id: int | None = None
+    linked_user_email: EmailStr | None = None
+
+
+class AdminStaffResponse(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: str
+    role: str
+    status: str | None = None
+
+
+class AdminPasswordReset(BaseModel):
+    """Admin-verified password reset for an existing account."""
+
+    admin_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class StaffAssignmentCreate(BaseModel):
+    patient_id: int = Field(gt=0)
+    staff_user_id: int = Field(gt=0)
+    role: str
+
+
+class StaffAssignmentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    patient_id: int
+    patient_name: str
+    staff_user_id: int
+    staff_name: str
+    staff_email: EmailStr
+    role: str
+    status: str
+    assigned_at: str
+    assigned_by_user_id: int | None = None
 
 
 # =========================
@@ -73,25 +134,33 @@ class PatientResponse(BaseModel):
 # =========================
 
 class VitalCreate(BaseModel):
-    patient_id: int
-    timestamp: str
+    """Validated vital reading.
 
-    heart_rate: int
-    spo2: float
+    Bounds keep impossible values out of charts, risk scoring, and ML
+    prediction routines.
+    """
 
-    systolic_bp: int
-    diastolic_bp: int
+    patient_id: int = Field(gt=0)
+    timestamp: str = Field(min_length=1, max_length=80)
 
-    steps: int
-    sleep_hours: float
-    active_minutes: int
-    calories: int
+    heart_rate: int = Field(ge=20, le=240)
+    spo2: float = Field(ge=50, le=100)
 
-    risk_score: int
-    activity_state: str
+    systolic_bp: int = Field(ge=40, le=260)
+    diastolic_bp: int = Field(ge=20, le=180)
+
+    steps: int = Field(ge=0, le=200000)
+    sleep_hours: float = Field(ge=0, le=24)
+    active_minutes: int = Field(ge=0, le=1440)
+    calories: int = Field(ge=0, le=20000)
+
+    risk_score: int = Field(ge=0, le=10)
+    activity_state: str = Field(min_length=1, max_length=80)
 
 
 class VitalResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
 
     patient_id: int
@@ -110,9 +179,6 @@ class VitalResponse(BaseModel):
 
     risk_score: int
     activity_state: str
-
-    class Config:
-        from_attributes = True
 
 # =========================
 # REVIEW CASES
@@ -132,6 +198,8 @@ class ReviewCaseUpdate(BaseModel):
 
 
 class ReviewCaseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
 
     patient_id: int
@@ -146,15 +214,14 @@ class ReviewCaseResponse(BaseModel):
     created_at: str
     updated_at: str | None = None
 
-    class Config:
-        from_attributes = True
-
 
 # =========================
 # AUDIT LOGS
 # =========================
 
 class AuditLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
 
     user_email: str | None = None
@@ -164,9 +231,6 @@ class AuditLogResponse(BaseModel):
     entity_id: str | None = None
 
     timestamp: datetime
-
-    class Config:
-        from_attributes = True
 
 # =========================
 # MEDICATIONS
@@ -187,6 +251,8 @@ class MedicationUpdate(BaseModel):
 
 
 class MedicationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     patient_id: int
     name: str
@@ -194,9 +260,6 @@ class MedicationResponse(BaseModel):
     schedule_time: str
     status: str
     notes: str | None = None
-
-    class Config:
-        from_attributes = True
 
 
 # =========================
@@ -212,6 +275,8 @@ class PatientEventCreate(BaseModel):
 
 
 class PatientEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     patient_id: int
     event_type: str
@@ -219,8 +284,32 @@ class PatientEventResponse(BaseModel):
     description: str | None = None
     timestamp: str
 
-    class Config:
-        from_attributes = True
+
+# =========================
+# ROLE ACTIONS
+# =========================
+
+class DoctorClinicalNoteCreate(BaseModel):
+    patient_id: int = Field(gt=0)
+    note_type: Literal["Clinical Note", "Diagnosis", "Treatment Plan"] = "Clinical Note"
+    title: str = Field(min_length=3, max_length=120)
+    description: str = Field(min_length=5, max_length=4000)
+
+
+class EscalationCreate(BaseModel):
+    patient_id: int = Field(gt=0)
+    note: str = Field(min_length=5, max_length=2000)
+
+
+class NursingNoteCreate(BaseModel):
+    patient_id: int = Field(gt=0)
+    title: str = Field(min_length=3, max_length=120)
+    description: str = Field(min_length=5, max_length=3000)
+
+
+class NurseAlertCreate(BaseModel):
+    patient_id: int = Field(gt=0)
+    note: str = Field(min_length=5, max_length=2000)
 
 
 # =========================
@@ -238,20 +327,155 @@ class MLPredictionResponse(BaseModel):
 # NOTIFICATIONS 
 # =========================
 class NotificationCreate(BaseModel):
+    """Admin/system notification creation payload."""
+
     user_email: str | None = None
+    target_role: str | None = None
     title: str
     message: str
     type: str = "info"
+    link: str | None = None
+    related_entity: str | None = None
+    related_entity_id: str | None = None
 
 
 class NotificationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_email: str | None = None
+    target_role: str | None = None
     title: str
     message: str
     type: str
     is_read: str
+    link: str | None = None
+    related_entity: str | None = None
+    related_entity_id: str | None = None
     created_at: str
 
-    class Config:
-        from_attributes = True
+
+class NotificationMarkAllResponse(BaseModel):
+    updated: int
+
+
+class ReferralCreate(BaseModel):
+    """Clinician referral request.
+
+    The request records intent only. It does not grant the receiving clinician
+    patient access until an admin approves it.
+    """
+
+    patient_id: int = Field(gt=0)
+    receiving_user_id: int | None = Field(default=None, gt=0)
+    receiving_department: str | None = Field(default=None, min_length=2, max_length=120)
+    reason: str = Field(min_length=5, max_length=500)
+    urgency: Literal["Low", "Medium", "High", "Critical"]
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class ReferralReview(BaseModel):
+    """Admin review note for approval, rejection, or more-info decisions."""
+
+    admin_note: str | None = Field(default=None, max_length=2000)
+
+
+class ReferralResponse(BaseModel):
+    """Safe referral response used by admin and clinician UIs.
+
+    Includes patient/staff names for workflow context but excludes clinical
+    vitals, diagnoses, medications, and reports.
+    """
+
+    id: int
+    patient_id: int
+    patient_name: str
+    referring_user_id: int
+    referring_name: str
+    referring_email: EmailStr
+    receiving_user_id: int | None = None
+    receiving_name: str | None = None
+    receiving_email: EmailStr | None = None
+    receiving_role: str | None = None
+    receiving_department: str | None = None
+    reason: str
+    urgency: str
+    notes: str | None = None
+    status: str
+    admin_note: str | None = None
+    requested_at: str
+    reviewed_at: str | None = None
+    reviewed_by_user_id: int | None = None
+
+# =========================
+# Registration and Login
+# =========================
+
+# =========================
+# wearable connection
+# =========================
+
+class WearableVitalCreate(BaseModel):
+    patient_id: int
+
+    device_name: str
+
+    heart_rate: int
+    spo2: float
+
+    steps: int
+
+    sleep_hours: float
+
+    timestamp: str
+
+
+class WearableDeviceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+
+    patient_id: int
+
+    device_name: str
+
+    manufacturer: str
+
+    device_type: str
+
+    last_sync: str | None
+
+    is_connected: str
+
+# =========================
+# registration requests
+# =========================
+
+class RegistrationRequestCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(min_length=1)
+    role: str
+    password: str = Field(min_length=8)
+
+    age: int | None = Field(default=None, ge=0, le=130)
+    gender: str | None = None
+    conditions: str | None = None
+    medication_notes: str | None = None
+    lifestyle_notes: str | None = None
+
+
+class RegistrationRequestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: EmailStr
+    full_name: str
+    role: str
+    status: str
+    created_at: str
+
+    age: int | None = None
+    gender: str | None = None
+    conditions: str | None = None
+    medication_notes: str | None = None
+    lifestyle_notes: str | None = None

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState } from "react";
 import { loginUser } from "../services/api";
 
-type UserRole = "admin" | "doctor" | "patient";
+type UserRole = "admin" | "doctor" | "patient" | "nurse";
 
 type AuthUser = {
   id: number;
@@ -18,6 +18,7 @@ type AuthContextType = {
   isDoctor: boolean;
   isAdmin: boolean;
   isPatient: boolean;
+  isNurse: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isDoctor: user?.role === "doctor",
         isAdmin: user?.role === "admin",
         isPatient: user?.role === "patient",
+        isNurse: user?.role === "nurse",
       }}
     >
       {children}

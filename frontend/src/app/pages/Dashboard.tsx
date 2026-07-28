@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 
 import StatCard from "../components/StatCard";
 import LinearRegressionPanel from "../components/LinearRegressionPanel";
@@ -12,7 +10,6 @@ import AIExplanationPanel from "../components/AIExplanationPanel";
 import TrendAnalysisPanel from "../components/TrendAnalysisPanel";
 import AlertPanel from "../components/AlertPanel";
 import NotificationCenter from "../components/NotificationCenter";
-import NotificationDropdown from "../components/NotificationDropdown";
 import ClinicianQueue from "../components/ClinicianQueue";
 import ClinicianActivityFeed from "../components/ClinicianActivityFeed";
 import PatientDetailModal from "../components/PatientDetailModal";
@@ -30,6 +27,7 @@ import PatientTimelineDatabase from "../components/PatientTimelineDatabase";
 import MLPredictionPanel from "../components/MLPredictionPanel";
 
 import { useHealthData } from "../context/HealthDataContext";
+import { useAuth } from "../context/AuthContext";
 import {
   generateDynamicInsight,
   getDashboardStats,
@@ -54,6 +52,7 @@ export default function Dashboard() {
 
   const { healthData, setHealthData, selectedPatient, patients, refreshVitals } =
     useHealthData();
+  const { isDoctor, isNurse, isPatient } = useAuth();
 
   const [dateRange, setDateRange] = useState("7");
   const [metric, setMetric] = useState("all");
@@ -143,9 +142,7 @@ export default function Dashboard() {
     setLatestSocketRecord(record);
 
     setHealthData((previousData) => {
-      const alreadyExists = previousData.some(
-        (item) => item.id === record.id
-      );
+      const alreadyExists = previousData.some((item) => item.id === record.id);
 
       if (alreadyExists) return previousData;
 
@@ -208,6 +205,11 @@ export default function Dashboard() {
   const exportPDF = async () => {
     if (!reportRef.current) return;
 
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
+
     const canvas = await html2canvas(reportRef.current, {
       scale: 2,
       backgroundColor: document.documentElement.classList.contains("dark")
@@ -228,9 +230,9 @@ export default function Dashboard() {
   return (
     <>
       <div ref={reportRef} className="dashboard-shell space-y-8">
-        <section className="glass-card fade-up rounded-3xl p-5">
+        <section id="dashboard-controls" className="glass-card fade-up rounded-3xl p-5 scroll-mt-28">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
               <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
                 Patient:
               </label>
@@ -239,7 +241,7 @@ export default function Dashboard() {
 
               <button
                 onClick={() => setPatientModalOpen(true)}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:scale-[1.02] hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+                className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:scale-[1.02] hover:bg-slate-800 dark:bg-white dark:text-slate-950 sm:w-auto"
               >
                 View Patient
               </button>
@@ -251,7 +253,7 @@ export default function Dashboard() {
               <select
                 value={dateRange}
                 onChange={(event) => setDateRange(event.target.value)}
-                className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80"
+                className="w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:w-auto"
               >
                 <option value="7">7 records</option>
                 <option value="14">14 records</option>
@@ -265,7 +267,7 @@ export default function Dashboard() {
               <select
                 value={metric}
                 onChange={(event) => setMetric(event.target.value)}
-                className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80"
+                className="w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:w-auto"
               >
                 <option value="all">All Metrics</option>
                 <option value="heart">Heart Rate</option>
@@ -277,32 +279,36 @@ export default function Dashboard() {
               </select>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-  <NotificationDropdown alerts={alerts} />
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              {(isDoctor || isNurse) && (
+                <>
+                  <button
+                    onClick={toggleLiveMonitoring}
+                    className={`relative w-full rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] sm:w-auto ${
+                      liveMonitoring
+                        ? "bg-red-600 shadow-red-500/25 hover:bg-red-700"
+                        : "bg-green-600 shadow-green-500/25 hover:bg-green-700"
+                    } ${liveMonitoring ? "live-pulse" : ""}`}
+                  >
+                    {liveMonitoring ? "Stop WebSocket Stream" : "Start WebSocket Stream"}
+                  </button>
 
-  <button
-    onClick={toggleLiveMonitoring}
-    className={`relative rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] ${
-      liveMonitoring
-        ? "bg-red-600 shadow-red-500/25 hover:bg-red-700"
-        : "bg-green-600 shadow-green-500/25 hover:bg-green-700"
-    } ${liveMonitoring ? "live-pulse" : ""}`}
-  >
-    {liveMonitoring ? "Stop WebSocket Stream" : "Start WebSocket Stream"}
-  </button>
+                  {isDoctor && (
+                    <ClinicianPdfReportButton
+                      patient={selectedPatient}
+                      vitals={patientData}
+                    />
+                  )}
+                </>
+              )}
 
-  <ClinicianPdfReportButton
-    patient={selectedPatient}
-    vitals={patientData}
-  />
-
-  <button
-    onClick={exportPDF}
-    className="rounded-xl border border-slate-200 bg-white/80 px-5 py-3 text-sm font-bold shadow-sm transition hover:scale-[1.02] hover:bg-white dark:border-slate-700 dark:bg-slate-900/80"
-  >
-    Export Dashboard PDF
-  </button>
-</div>
+              <button
+                onClick={exportPDF}
+                className="w-full rounded-xl border border-slate-200 bg-white/80 px-5 py-3 text-sm font-bold shadow-sm transition hover:scale-[1.02] hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 sm:w-auto"
+              >
+                Export Dashboard PDF
+              </button>
+            </div>
           </div>
 
           <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
@@ -321,37 +327,84 @@ export default function Dashboard() {
           )}
         </section>
 
-        <WebSocketLivePanel
-          connected={socketConnected}
-          latestRecord={latestSocketRecord}
-        />
+        {(isDoctor || isNurse) && (
+          <section id="live-monitoring" className="scroll-mt-28">
+            <WebSocketLivePanel
+              connected={socketConnected}
+              latestRecord={latestSocketRecord}
+            />
+          </section>
+        )}
 
-        <DatabaseActivityFeed />
+        {isDoctor && (
+          <section id="activity-feed" className="scroll-mt-28">
+            <DatabaseActivityFeed />
+          </section>
+        )}
 
-        <div className="grid gap-6 xl:grid-cols-2">
+        <section id="ai-assistant" className="scroll-mt-28">
+          <HealthAIAssistant patientId={selectedPatient.id} />
+        </section>
+
+        <section
+          id="prediction"
+          className={`grid gap-6 scroll-mt-28 ${
+            isPatient ? "xl:grid-cols-1" : "xl:grid-cols-2"
+          }`}
+        >
           <MLPredictionPanel patientId={selectedPatient.id} />
-          <LinearRegressionPanel patientId={selectedPatient.id} />
-<HealthAIAssistant patientId={selectedPatient.id} />
-          <MedicationAdherenceDatabase patientId={selectedPatient.id} />
-        </div>
 
-        <PatientTimelineDatabase patientId={selectedPatient.id} />
+          {isDoctor && (
+            <LinearRegressionPanel patientId={selectedPatient.id} />
+          )}
+        </section>
 
-        <ClinicianActivityFeed
-          alertsCount={alerts.length}
-          queueCount={clinicianQueue.length}
-        />
+        <section id="medication-adherence" className="scroll-mt-28">
+          <MedicationAdherenceDatabase
+            patientId={selectedPatient.id}
+            canAddMedication={isNurse}
+            canUpdateStatus={isNurse}
+          />
+        </section>
 
-        <AIInsightPanel insight={insight} onGenerate={generateInsight} />
+        <section id="patient-timeline" className="scroll-mt-28">
+          <PatientTimelineDatabase
+            patientId={selectedPatient.id}
+            canAddEvent={isDoctor || isNurse}
+            defaultEventType={isNurse ? "Nursing Note" : "Clinical Note"}
+            defaultTitle={isNurse ? "Nursing note added" : "Clinical note added"}
+          />
+        </section>
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <PredictiveRiskPanel prediction={prediction} />
-          <MedicationPanel patientId={selectedPatient.id} />
-        </div>
+        {isDoctor && (
+          <section id="clinician-activity" className="scroll-mt-28">
+            <ClinicianActivityFeed
+              alertsCount={alerts.length}
+              queueCount={clinicianQueue.length}
+            />
+          </section>
+        )}
 
-        <AIClinicianReport report={clinicianReport} />
+        {isDoctor && (
+          <section id="ai-insights" className="scroll-mt-28">
+            <AIInsightPanel insight={insight} onGenerate={generateInsight} />
+          </section>
+        )}
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5">
+        {isDoctor && (
+          <section id="predictive-risk" className="grid gap-6 xl:grid-cols-2 scroll-mt-28">
+            <PredictiveRiskPanel prediction={prediction} />
+            <MedicationPanel patientId={selectedPatient.id} />
+          </section>
+        )}
+
+        {isDoctor && (
+          <section id="reports" className="scroll-mt-28">
+            <AIClinicianReport report={clinicianReport} />
+          </section>
+        )}
+
+        <section id="stats" className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5 scroll-mt-28">
           <StatCard
             title="Average Risk Score"
             value={`${stats.avgRisk}/10`}
@@ -420,22 +473,42 @@ export default function Dashboard() {
           />
         </section>
 
-        <AlertPanel alerts={alerts} />
+        <section id="alerts" className="scroll-mt-28">
+          <AlertPanel alerts={alerts} />
+        </section>
 
-        <NotificationCenter alerts={alerts} />
+        {isDoctor && (
+          <section id="notifications" className="scroll-mt-28">
+            <NotificationCenter alerts={alerts} />
+          </section>
+        )}
 
-        <ClinicianQueue queue={clinicianQueue} />
+        {isDoctor && (
+          <section id="review-queue" className="scroll-mt-28">
+            <ClinicianQueue queue={clinicianQueue} />
+          </section>
+        )}
 
-        <AIExplanationPanel
-          reasons={aiAnalysis.reasons}
-          riskLevel={aiAnalysis.riskLevel}
-        />
+        {isDoctor && (
+          <section id="ai-explanation" className="scroll-mt-28">
+            <AIExplanationPanel
+              reasons={aiAnalysis.reasons}
+              riskLevel={aiAnalysis.riskLevel}
+            />
+          </section>
+        )}
 
-        <TrendAnalysisPanel trends={trends} />
+        <section id="trend-analysis" className="scroll-mt-28">
+          <TrendAnalysisPanel trends={trends} />
+        </section>
 
-        <PatientTimeline records={patientData} />
+        {isDoctor && (
+          <section id="patient-timeline-local" className="scroll-mt-28">
+            <PatientTimeline records={patientData} />
+          </section>
+        )}
 
-        <section className="dashboard-grid">
+        <section id="vitals" className="dashboard-grid scroll-mt-28">
           <div className="col-span-12 xl:col-span-4">
             <HealthScoreGauge score={healthScore} />
           </div>
@@ -443,7 +516,9 @@ export default function Dashboard() {
           <HealthCharts data={filteredData} metric={metric} />
         </section>
 
-        <DataTable data={filteredData} />
+        <section id="data-table" className="scroll-mt-28">
+          <DataTable data={filteredData} />
+        </section>
       </div>
 
       <PatientDetailModal

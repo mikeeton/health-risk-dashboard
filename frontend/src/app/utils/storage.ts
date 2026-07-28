@@ -2,6 +2,7 @@ import type { HealthData } from "../data/healthData";
 
 const HEALTH_DATA_KEY = "health-risk-dashboard-data";
 const THEME_KEY = "health-risk-dashboard-theme";
+export type AppTheme = "light" | "dark";
 
 export function saveHealthData(data: HealthData[]) {
   localStorage.setItem(HEALTH_DATA_KEY, JSON.stringify(data));
@@ -18,11 +19,24 @@ export function loadHealthData(): HealthData[] | null {
   }
 }
 
-export function saveTheme(theme: "light" | "dark") {
+export function saveTheme(theme: AppTheme) {
   localStorage.setItem(THEME_KEY, theme);
 }
 
-export function loadTheme(): "light" | "dark" {
+export function getSavedTheme(): AppTheme | null {
   const saved = localStorage.getItem(THEME_KEY);
-  return saved === "dark" ? "dark" : "light";
+
+  if (saved === "dark" || saved === "light") return saved;
+
+  return null;
+}
+
+export function loadTheme(): AppTheme {
+  const saved = getSavedTheme();
+
+  if (saved) return saved;
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }

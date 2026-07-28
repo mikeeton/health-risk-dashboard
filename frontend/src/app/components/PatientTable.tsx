@@ -1,4 +1,4 @@
-import type { Patient } from "../types/patient";
+import type { Patient } from "../../types/patient";
 
 type PatientTableProps = {
   patients: Patient[];

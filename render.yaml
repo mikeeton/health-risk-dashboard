@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: health-risk-dashboard-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash -lc "python scripts/wait_for_database.py && alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health/ready
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: health-risk-dashboard-db
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 30
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: 7
+      - key: CORS_ORIGINS
+        sync: false
+      - key: RUN_STARTUP_SCHEMA_CHECK
+        value: false
+      - key: RATE_LIMIT_ENABLED
+        value: true
+      - key: RATE_LIMIT_REQUESTS
+        value: 120
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: 60
+      - key: AUTH_RATE_LIMIT_REQUESTS
+        value: 20
+      - key: AUTH_RATE_LIMIT_WINDOW_SECONDS
+        value: 60
+      - key: TRUSTED_PROXY_COUNT
+        value: 1
+      - key: GROQ_API_KEY
+        sync: false
+
+databases:
+  - name: health-risk-dashboard-db
+    plan: free
+    databaseName: health_ai
+    user: health_ai_user

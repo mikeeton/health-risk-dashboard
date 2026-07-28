@@ -1,12 +1,19 @@
 # Python
 backend/venv/
-backend/_pycache_/
-backend/**/_pycache_/
+backend/__pycache__/
+backend/**/__pycache__/
+__pycache__/
+**/__pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
 
-# Environmnent files
+# Environment files
 .env
 backend/.env
+frontend/.env
+frontend/.env.local
 
 #local db
 *.db

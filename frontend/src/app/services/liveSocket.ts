@@ -1,4 +1,20 @@
 import type { HealthData } from "../data/healthData";
+import { API_BASE_URL, getAuthToken } from "./api";
+
+function getLiveSocketUrl(patientId: number) {
+  const apiUrl = new URL(API_BASE_URL);
+  apiUrl.protocol = apiUrl.protocol === "https:" ? "wss:" : "ws:";
+  apiUrl.pathname = `/ws/live/${patientId}`;
+  apiUrl.search = "";
+
+  const token = getAuthToken();
+
+  if (token) {
+    apiUrl.searchParams.set("token", token);
+  }
+
+  return apiUrl.toString();
+}
 
 export function createLiveVitalsSocket(
   patientId: number,
@@ -7,7 +23,7 @@ export function createLiveVitalsSocket(
   onClose?: () => void,
   onError?: () => void
 ) {
-  const socket = new WebSocket(`ws://127.0.0.1:8000/ws/live/${patientId}`);
+  const socket = new WebSocket(getLiveSocketUrl(patientId));
 
   socket.onopen = () => {
     onOpen?.();

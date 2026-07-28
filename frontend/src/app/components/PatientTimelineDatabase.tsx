@@ -13,12 +13,20 @@ type PatientEvent = {
 
 type Props = {
   patientId: number;
+  canAddEvent?: boolean;
+  defaultEventType?: string;
+  defaultTitle?: string;
 };
 
-export default function PatientTimelineDatabase({ patientId }: Props) {
+export default function PatientTimelineDatabase({
+  patientId,
+  canAddEvent = true,
+  defaultEventType = "Clinical Note",
+  defaultTitle = "Clinician note added",
+}: Props) {
   const [events, setEvents] = useState<PatientEvent[]>([]);
-  const [title, setTitle] = useState("Clinician note added");
-  const [eventType, setEventType] = useState("Clinical Note");
+  const [title, setTitle] = useState(defaultTitle);
+  const [eventType, setEventType] = useState(defaultEventType);
 
   const loadEvents = async () => {
     try {
@@ -58,27 +66,29 @@ export default function PatientTimelineDatabase({ patientId }: Props) {
         </div>
       </div>
 
-      <div className="mb-5 grid gap-3 md:grid-cols-3">
-        <input
-          value={eventType}
-          onChange={(event) => setEventType(event.target.value)}
-          className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
-        />
+      {canAddEvent && (
+        <div className="mb-5 grid gap-3 md:grid-cols-3">
+          <input
+            value={eventType}
+            onChange={(event) => setEventType(event.target.value)}
+            className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+          />
 
-        <input
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
-        />
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+          />
 
-        <button
-          onClick={addEvent}
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700"
-        >
-          <Plus className="h-4 w-4" />
-          Add Event
-        </button>
-      </div>
+          <button
+            onClick={addEvent}
+            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" />
+            Add Event
+          </button>
+        </div>
+      )}
 
       <div className="space-y-4">
         {events.length === 0 ? (

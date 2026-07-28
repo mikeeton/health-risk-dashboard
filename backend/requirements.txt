@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+python-dotenv
+python-jose[cryptography]
+pydantic[email]
+psycopg2-binary
+pytest
+httpx
+numpy
+scikit-learn
+groq
