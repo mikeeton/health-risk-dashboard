@@ -5,7 +5,7 @@ services:
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: bash -lc "python scripts/wait_for_database.py && alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    startCommand: bash -lc "python scripts/wait_for_database.py && alembic upgrade head && python scripts/preflight.py && uvicorn main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health/ready
     envVars:
       - key: DATABASE_URL
@@ -24,6 +24,14 @@ services:
         value: 7
       - key: CORS_ORIGINS
         sync: false
+      - key: APP_ENV
+        value: production
+      - key: FORCE_HTTPS
+        value: true
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: PUBLIC_API_DOCS
+        value: false
       - key: RUN_STARTUP_SCHEMA_CHECK
         value: false
       - key: RATE_LIMIT_ENABLED
@@ -40,6 +48,10 @@ services:
         value: 1
       - key: GROQ_API_KEY
         sync: false
+      - key: AI_ENABLED
+        value: false
+      - key: AI_MODEL
+        value: llama-3.1-8b-instant
 
 databases:
   - name: health-risk-dashboard-db

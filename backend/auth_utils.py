@@ -1,5 +1,7 @@
 import hashlib
 import secrets
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 from datetime import datetime, timedelta, timezone
 
@@ -23,19 +25,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 REFRESH_TOKEN_EXPIRE_DAYS = settings.refresh_token_expire_days
 
 bearer_scheme = HTTPBearer(auto_error=False)
+password_hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
 
 
 def hash_password(password: str):
-    salt = secrets.token_hex(16)
-
-    hashed = hashlib.pbkdf2_hmac(
-        "sha256",
-        password.encode("utf-8"),
-        salt.encode("utf-8"),
-        100000,
-    ).hex()
-
-    return f"{salt}${hashed}"
+    return password_hasher.hash(password)
 
 
 def verify_password(
@@ -43,6 +37,11 @@ def verify_password(
     stored_password: str
 ):
     try:
+        if stored_password.startswith("$argon2"):
+            return password_hasher.verify(stored_password, password)
+
+        # Backward compatibility for existing accounts. Successful logins are
+        # transparently upgraded by `password_needs_rehash`.
         salt, hashed = stored_password.split("$")
 
         check_hash = hashlib.pbkdf2_hmac(
@@ -57,8 +56,17 @@ def verify_password(
             hashed
         )
 
-    except Exception:
+    except (ValueError, InvalidHashError, VerifyMismatchError):
         return False
+
+
+def password_needs_rehash(stored_password: str) -> bool:
+    if not stored_password.startswith("$argon2"):
+        return True
+    try:
+        return password_hasher.check_needs_rehash(stored_password)
+    except InvalidHashError:
+        return True
 
 
 def create_token(

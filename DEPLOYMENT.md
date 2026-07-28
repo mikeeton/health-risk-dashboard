@@ -19,11 +19,16 @@ Create `backend/.env` from `backend/.env.example` and set production values:
 
 ```text
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB_NAME
+APP_ENV=production
 SECRET_KEY=replace-with-a-long-random-production-secret
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7
 CORS_ORIGINS=https://your-frontend-domain.example
+ALLOWED_HOSTS=your-api-domain.example
+FORCE_HTTPS=true
+PUBLIC_API_DOCS=false
+MAX_REQUEST_BYTES=1048576
 RUN_STARTUP_SCHEMA_CHECK=false
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_REQUESTS=120
@@ -32,14 +37,17 @@ AUTH_RATE_LIMIT_REQUESTS=20
 AUTH_RATE_LIMIT_WINDOW_SECONDS=60
 TRUSTED_PROXY_COUNT=1
 GROQ_API_KEY=
+AI_ENABLED=false
+AI_MODEL=llama-3.1-8b-instant
+AI_TIMEOUT_SECONDS=12
 ```
 
 Keep real `.env` files out of Git. Rotate any key that was ever exposed in a
 ticket, screenshot, terminal output, or repository.
 
-`GROQ_API_KEY` is optional. If it is not set, the backend still starts and the
-AI assistant endpoints return a clear "not configured" message instead of
-crashing the deployment.
+Keep `AI_ENABLED=false` until the AI activation gates in
+`DEPLOYMENT_CHECKLIST.md` are approved. A key by itself does not authorize
+processing patient data through the provider.
 
 ## 3. Database Setup
 
@@ -55,11 +63,11 @@ alembic current
 The current migration chain ends with:
 
 ```text
-20260623_0004_constraints
+20260728_0006_auth_session_cascade
 ```
 
-That migration adds workflow constraints and uniqueness protection for active
-staff assignments and pending referral requests.
+The latest migrations add rotating, revocable refresh-token sessions with
+safe cascading cleanup.
 
 ## 4. Backend Service
 
@@ -131,11 +139,11 @@ Alembic migrations, and WebSockets.
 
 ```text
 CORS_ORIGINS=https://your-vercel-app.vercel.app
-GROQ_API_KEY=your-groq-key-if-you-use-ai
+ALLOWED_HOSTS=your-render-api.onrender.com
 ```
 
-`GROQ_API_KEY` can be left empty for the first deploy if you only want to prove
-the dashboard, authentication, referrals, notifications, and admin workflows.
+Leave AI disabled for the initial synthetic-data deployment. Enable it only
+after the privacy, clinical-safety, and provider approvals are complete.
 
 6. After the first deployment, run the admin reset command from Render Shell:
 

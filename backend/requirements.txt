@@ -11,3 +11,4 @@ httpx
 numpy
 scikit-learn
 groq
+argon2-cffi

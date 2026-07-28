@@ -85,7 +85,7 @@ test("authenticated app shell fits phone and tablet widths", async ({ page }) =>
   });
 
   await page.addInitScript(() => {
-    localStorage.setItem(
+    sessionStorage.setItem(
       "health-auth-user",
       JSON.stringify({
         id: 1,
@@ -94,7 +94,7 @@ test("authenticated app shell fits phone and tablet widths", async ({ page }) =>
         role: "patient",
       })
     );
-    localStorage.setItem("health-auth-token", "responsive-test-token");
+    sessionStorage.setItem("health-auth-token", "responsive-test-token");
   });
 
   for (const size of [

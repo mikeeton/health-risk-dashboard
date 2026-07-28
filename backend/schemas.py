@@ -2,7 +2,29 @@ from datetime import datetime, date
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+
+COMMON_PASSWORDS = {
+    "password", "password123", "password123!", "admin123", "qwerty123",
+    "letmein123", "welcome123",
+}
+
+
+def validate_password_strength(value: str) -> str:
+    if len(value) < 12:
+        raise ValueError("Password must contain at least 12 characters")
+    if value.lower() in COMMON_PASSWORDS:
+        raise ValueError("Password is too common")
+    if not any(character.islower() for character in value):
+        raise ValueError("Password must contain a lowercase letter")
+    if not any(character.isupper() for character in value):
+        raise ValueError("Password must contain an uppercase letter")
+    if not any(character.isdigit() for character in value):
+        raise ValueError("Password must contain a number")
+    if not any(not character.isalnum() for character in value):
+        raise ValueError("Password must contain a symbol")
+    return value
 
 
 # =========================
@@ -13,8 +35,10 @@ class UserCreate(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=1)
     role: str
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=12, max_length=128)
     hospital_id: int | None = None
+
+    _strong_password = field_validator("password")(validate_password_strength)
 
 
 class UserLogin(BaseModel):
@@ -105,7 +129,13 @@ class AdminPasswordReset(BaseModel):
     """Admin-verified password reset for an existing account."""
 
     admin_password: str = Field(min_length=8)
-    new_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
+
+    _strong_password = field_validator("new_password")(validate_password_strength)
+
+
+class AssistantQuestion(BaseModel):
+    question: str = Field(min_length=2, max_length=500)
 
 
 class StaffAssignmentCreate(BaseModel):
@@ -455,13 +485,15 @@ class RegistrationRequestCreate(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=1)
     role: str
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=12, max_length=128)
 
     age: int | None = Field(default=None, ge=0, le=130)
     gender: str | None = None
     conditions: str | None = None
     medication_notes: str | None = None
     lifestyle_notes: str | None = None
+
+    _strong_password = field_validator("password")(validate_password_strength)
 
 
 class RegistrationRequestResponse(BaseModel):

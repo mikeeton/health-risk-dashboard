@@ -23,6 +23,7 @@ class Settings:
 
     database_url = os.getenv("DATABASE_URL", "")
 
+    environment = os.getenv("APP_ENV", "development").strip().lower()
     secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
     jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
     access_token_expire_minutes = int(
@@ -49,6 +50,13 @@ class Settings:
     run_startup_schema_check = (
         os.getenv("RUN_STARTUP_SCHEMA_CHECK", "false").lower() == "true"
     )
+    public_api_docs = os.getenv("PUBLIC_API_DOCS", "false").lower() == "true"
+    force_https = os.getenv("FORCE_HTTPS", "false").lower() == "true"
+    allowed_hosts = _csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver")
+    max_request_bytes = int(os.getenv("MAX_REQUEST_BYTES", "1048576"))
+    ai_enabled = os.getenv("AI_ENABLED", "false").lower() == "true"
+    ai_model = os.getenv("AI_MODEL", "llama-3.1-8b-instant")
+    ai_timeout_seconds = float(os.getenv("AI_TIMEOUT_SECONDS", "12"))
 
     def validate(self):
         if not self.database_url:
@@ -63,6 +71,25 @@ class Settings:
                 "Only PostgreSQL is supported. Set DATABASE_URL to a "
                 "postgresql:// or postgresql+driver:// URL."
             )
+
+        if self.environment == "production":
+            if self.secret_key == "dev-secret-change-me" or len(self.secret_key) < 32:
+                raise RuntimeError(
+                    "Production SECRET_KEY must be a unique value of at least 32 characters."
+                )
+            if not self.force_https:
+                raise RuntimeError("FORCE_HTTPS=true is required in production.")
+            if self.run_startup_schema_check:
+                raise RuntimeError(
+                    "RUN_STARTUP_SCHEMA_CHECK must be false in production; use Alembic."
+                )
+            if any(origin.startswith("http://") for origin in self.cors_origins):
+                raise RuntimeError("Production CORS_ORIGINS must use HTTPS.")
+
+        if self.max_request_bytes < 1024 or self.max_request_bytes > 10_485_760:
+            raise RuntimeError("MAX_REQUEST_BYTES must be between 1 KiB and 10 MiB.")
+        if self.ai_timeout_seconds <= 0 or self.ai_timeout_seconds > 60:
+            raise RuntimeError("AI_TIMEOUT_SECONDS must be between 0 and 60.")
 
 
 @lru_cache

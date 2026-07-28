@@ -1,3 +1,7 @@
+from datetime import datetime, timedelta, timezone
+import hashlib
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -10,6 +14,7 @@ from auth_utils import (
     create_access_token,
     create_refresh_token,
     decode_access_token,
+    password_needs_rehash,
 )
 from routes.audit import write_audit_log
 
@@ -19,18 +24,19 @@ router = APIRouter(
 )
 
 
+def utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 @router.post("/register", response_model=schemas.UserResponse)
 def register_user(
     user: schemas.UserCreate,
     db: Session = Depends(get_db)
 ):
-    allowed_roles = ["admin", "doctor", "nurse", "patient"]
-
-    if user.role.lower() not in allowed_roles:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid role. Use admin, doctor, nurse, or patient."
-        )
+    raise HTTPException(
+        status_code=403,
+        detail="Direct registration is disabled. Submit an access request for approval.",
+    )
 
     existing_user = (
         db.query(models.User)
@@ -83,6 +89,13 @@ def login_user(
             detail="Invalid email or password"
         )
 
+    if getattr(user, "status", "active") != "active":
+        raise HTTPException(status_code=403, detail="User account is not active")
+
+    if password_needs_rehash(user.password_hash):
+        user.password_hash = hash_password(login.password)
+        db.commit()
+
     payload = {
         "sub": user.email,
         "role": user.role,
@@ -97,9 +110,20 @@ def login_user(
         user_email=user.email,
     )
 
+    refresh_jti = secrets.token_urlsafe(32)
+    refresh_token = create_refresh_token({**payload, "jti": refresh_jti})
+    db.add(
+        models.AuthSession(
+            user_id=user.id,
+            refresh_jti_hash=hashlib.sha256(refresh_jti.encode()).hexdigest(),
+            expires_at=utc_now_naive() + timedelta(days=7),
+        )
+    )
+    db.commit()
+
     return {
         "access_token": create_access_token(payload),
-        "refresh_token": create_refresh_token(payload),
+        "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": user,
     }
@@ -107,7 +131,8 @@ def login_user(
 
 @router.post("/refresh")
 def refresh_token(
-    request: schemas.RefreshTokenRequest
+    request: schemas.RefreshTokenRequest,
+    db: Session = Depends(get_db),
 ):
     payload = decode_access_token(request.refresh_token)
 
@@ -117,13 +142,63 @@ def refresh_token(
             detail="Invalid refresh token"
         )
 
+    jti = payload.get("jti")
+    if not jti:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    session = (
+        db.query(models.AuthSession)
+        .filter(
+            models.AuthSession.refresh_jti_hash
+            == hashlib.sha256(jti.encode()).hexdigest(),
+            models.AuthSession.revoked_at.is_(None),
+        )
+        .first()
+    )
+    if not session or session.expires_at <= utc_now_naive():
+        raise HTTPException(status_code=401, detail="Refresh token expired or revoked")
+
+    user = db.query(models.User).filter(models.User.id == session.user_id).first()
+    if not user or user.status != "active":
+        raise HTTPException(status_code=401, detail="Account unavailable")
+
     new_payload = {
         "sub": payload.get("sub"),
         "role": payload.get("role"),
         "user_id": payload.get("user_id"),
     }
 
+    new_jti = secrets.token_urlsafe(32)
+    session.revoked_at = utc_now_naive()
+    db.add(
+        models.AuthSession(
+            user_id=user.id,
+            refresh_jti_hash=hashlib.sha256(new_jti.encode()).hexdigest(),
+            expires_at=utc_now_naive() + timedelta(days=7),
+        )
+    )
+    db.commit()
+
     return {
         "access_token": create_access_token(new_payload),
+        "refresh_token": create_refresh_token({**new_payload, "jti": new_jti}),
         "token_type": "bearer",
     }
+
+
+@router.post("/logout", status_code=204)
+def logout(request: schemas.RefreshTokenRequest, db: Session = Depends(get_db)):
+    payload = decode_access_token(request.refresh_token)
+    jti = payload.get("jti") if payload else None
+    if jti:
+        session = (
+            db.query(models.AuthSession)
+            .filter(
+                models.AuthSession.refresh_jti_hash
+                == hashlib.sha256(jti.encode()).hexdigest()
+            )
+            .first()
+        )
+        if session and session.revoked_at is None:
+            session.revoked_at = utc_now_naive()
+            db.commit()

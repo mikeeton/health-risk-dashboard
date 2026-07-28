@@ -462,3 +462,97 @@ def test_clinician_actions_use_validated_payloads_and_block_admin(
     assert valid_note_response.json()["event_type"] == "Diagnosis"
     assert admin_history_response.status_code == 403
     assert admin_patient_records_response.status_code == 403
+
+
+def test_refresh_tokens_rotate_and_reuse_is_rejected(client, db, cleanup):
+    user = create_user(db, cleanup, "doctor")
+    login_response = client.post(
+        "/auth/login",
+        json={"email": user.email, "password": TEST_PASSWORD},
+    )
+    assert login_response.status_code == 200
+    original_refresh = login_response.json()["refresh_token"]
+
+    rotated = client.post(
+        "/auth/refresh",
+        json={"refresh_token": original_refresh},
+    )
+    assert rotated.status_code == 200
+    assert rotated.json()["refresh_token"] != original_refresh
+
+    replay = client.post(
+        "/auth/refresh",
+        json={"refresh_token": original_refresh},
+    )
+    assert replay.status_code == 401
+
+
+def test_direct_registration_is_disabled(client):
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "privilege-escalation@example.com",
+            "full_name": "Unapproved Admin",
+            "role": "admin",
+            "password": TEST_PASSWORD,
+        },
+    )
+    assert response.status_code == 403
+
+
+def test_weak_registration_password_is_rejected(client):
+    response = client.post(
+        "/registration-requests/",
+        json={
+            "email": "weak-password@example.com",
+            "full_name": "Weak Password",
+            "role": "patient",
+            "password": "password",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_ai_question_uses_post_and_emergency_rule_bypasses_provider(
+    client, db, cleanup
+):
+    doctor = create_user(db, cleanup, "doctor")
+    patient = create_patient(
+        db,
+        cleanup,
+        name="Private Patient Name",
+        doctor_id=doctor.id,
+    )
+    token = login_token(client, doctor.email)
+
+    get_response = client.get(
+        f"/assistant/ask/{patient.id}?question=chest%20pain",
+        headers=auth_header(token),
+    )
+    response = client.post(
+        f"/assistant/ask/{patient.id}",
+        json={"question": "I have severe chest pain and cannot breathe"},
+        headers=auth_header(token),
+    )
+
+    assert get_response.status_code == 405
+    assert response.status_code == 200
+    assert response.json()["model_used"] == "deterministic-safety-rule"
+    assert response.json()["requires_human_review"] is True
+    assert "emergency services" in response.json()["answer"].lower()
+
+
+def test_ai_context_is_pseudonymised(db, cleanup):
+    from routes.assistant import build_patient_context
+
+    doctor = create_user(db, cleanup, "doctor")
+    patient = create_patient(
+        db,
+        cleanup,
+        name="Never Send This Name",
+        doctor_id=doctor.id,
+    )
+    context = build_patient_context(patient.id, db)
+
+    assert "Never Send This Name" not in context
+    assert f"patient-{patient.id}" in context

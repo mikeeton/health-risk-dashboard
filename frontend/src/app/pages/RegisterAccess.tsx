@@ -112,6 +112,9 @@ export default function RegisterAccess() {
               setForm({ ...form, password: event.target.value })
             }
             placeholder="Password"
+            minLength={12}
+            maxLength={128}
+            autoComplete="new-password"
             className="rounded-2xl border-white/10 bg-white/10 px-5 py-4 pr-12 text-white placeholder:text-slate-400 focus:border-blue-400 focus:ring-blue-400/20 dark:bg-white/10"
           />
 

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from "react";
-import { loginUser } from "../services/api";
+import { loginUser, logoutUser } from "../services/api";
 
 type UserRole = "admin" | "doctor" | "patient" | "nurse";
 
@@ -24,8 +24,8 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const savedUser = localStorage.getItem("health-auth-user");
-  const savedToken = localStorage.getItem("health-auth-token");
+  const savedUser = sessionStorage.getItem("health-auth-user");
+  const savedToken = sessionStorage.getItem("health-auth-token");
 
   const [user, setUser] = useState<AuthUser | null>(
     savedUser ? JSON.parse(savedUser) : null
@@ -42,16 +42,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
     setToken(data.access_token);
 
-    localStorage.setItem("health-auth-user", JSON.stringify(data.user));
-    localStorage.setItem("health-auth-token", data.access_token);
+    sessionStorage.setItem("health-auth-user", JSON.stringify(data.user));
+    sessionStorage.setItem("health-auth-token", data.access_token);
+    sessionStorage.setItem("health-refresh-token", data.refresh_token);
   };
 
   const logout = () => {
+    void logoutUser(sessionStorage.getItem("health-refresh-token"));
     setUser(null);
     setToken(null);
 
-    localStorage.removeItem("health-auth-user");
-    localStorage.removeItem("health-auth-token");
+    sessionStorage.removeItem("health-auth-user");
+    sessionStorage.removeItem("health-auth-token");
+    sessionStorage.removeItem("health-refresh-token");
   };
 
   return (

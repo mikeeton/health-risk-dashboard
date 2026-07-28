@@ -5,6 +5,7 @@ from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
 
@@ -18,6 +19,7 @@ from middleware import (
     RateLimitMiddleware,
     RequestMetricsMiddleware,
     SecurityHeadersMiddleware,
+    RequestSizeLimitMiddleware,
 )
 from observability import request_tracker
 from routes import analytics, assistant, admin_assignments, admin_users, referrals
@@ -206,11 +208,16 @@ if settings.run_startup_schema_check:
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
+    docs_url="/docs" if settings.public_api_docs else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if settings.public_api_docs else None,
 )
 
 app.add_middleware(RequestMetricsMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
 app.add_middleware(
     CORSMiddleware,

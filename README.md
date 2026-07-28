@@ -8,17 +8,10 @@ The application is intentionally PostgreSQL-only. It does not fall back to
 SQLite, because the production data model depends on durable relational
 ownership rules.
 
-## Current Login Accounts
+## Local administrator setup
 
-Development accounts currently available in the local PostgreSQL database:
-
-```text
-Doctor: doctor3@example.com / Password123
-Patient: max@example.com / Password123
-Admin: admin@example.com / AdminPassword123!
-```
-
-Reset or create the admin account at any time:
+No default production credentials are provided. Create a unique local or
+initial deployment administrator with a password-manager-generated password:
 
 ```bash
 cd backend
@@ -26,7 +19,7 @@ source venv/bin/activate
 python scripts/reset_admin.py \
   --email admin@example.com \
   --full-name "System Admin" \
-  --password 'AdminPassword123!'
+  --password 'replace-with-a-unique-strong-password'
 ```
 
 ## Stack
@@ -68,10 +61,11 @@ FastAPI backend on http://127.0.0.1:8000
 PostgreSQL database
 ```
 
-The frontend stores the login token in `localStorage` and sends it as a Bearer
-token to protected API routes. The backend decodes the token, loads the current
-user, checks account status, and then applies role-based access rules before
-returning patient data.
+The frontend stores the short-lived login session in `sessionStorage` and sends
+the access token as a Bearer token to protected API routes. Refresh tokens
+rotate on use, are revocable on logout, and are stored only as hashes by the
+backend. The backend loads the current active user and applies role and
+patient-level access rules before returning data.
 
 ## Request Flow
 

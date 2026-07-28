@@ -7,8 +7,12 @@ access-control helpers.
 """
 
 from database import Base
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+
+
+def utc_now_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class User(Base):
@@ -25,6 +29,24 @@ class User(Base):
     password_hash = Column(String, nullable=False)
 
     status = Column(String, default="active")
+
+
+class AuthSession(Base):
+    """Rotating refresh-token session; raw refresh tokens are never stored."""
+
+    __tablename__ = "auth_sessions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    refresh_jti_hash = Column(String, nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
 
 class Patient(Base):
@@ -114,7 +136,7 @@ class AuditLog(Base):
     action = Column(String, nullable=False)
     entity = Column(String, nullable=False)
     entity_id = Column(String, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=utc_now_naive)
 
 
 class Medication(Base):

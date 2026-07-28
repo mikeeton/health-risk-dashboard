@@ -19,7 +19,7 @@ export function getWebSocketUrl(path: string) {
 }
 
 export function getAuthToken() {
-  return localStorage.getItem("health-auth-token");
+  return sessionStorage.getItem("health-auth-token");
 }
 
 async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
@@ -144,6 +144,15 @@ export async function loginUser(credentials: unknown) {
   }
 
   return response.json();
+}
+
+export async function logoutUser(refreshToken: string | null) {
+  if (!refreshToken) return;
+  await window.fetch(`${API_BASE_URL}/auth/logout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
 }
 
 export async function createReviewCase(review: unknown) {
@@ -430,11 +439,11 @@ export async function getAIPatientSummary(patientId: number) {
 }
 
 export async function askHealthAI(patientId: number, question: string) {
-  const response = await apiFetch(
-    `${API_BASE_URL}/assistant/ask/${patientId}?question=${encodeURIComponent(
-      question
-    )}`
-  );
+  const response = await apiFetch(`${API_BASE_URL}/assistant/ask/${patientId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question }),
+  });
 
   if (!response.ok) {
     throw new Error("Failed to ask Health AI");
