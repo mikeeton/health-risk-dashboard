@@ -1,17 +1,17 @@
-## python
-backend/venv
-backend/__pycache__/
+# Python
+backend/venv/
+backend/_pycache_/
+backend/**/_pycache_/
 *.pyc
 
-#environment variables
-backend/.env
+# Environmnent files
 .env
+backend/.env
 
-#local dbn
+#local db
 *.db
 backend/*.db
-*.db
 
-#node modules
+#Node
 frontend/node_modules/
 frontend/dist/
