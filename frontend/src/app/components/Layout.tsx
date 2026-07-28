@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Outlet, NavLink } from "react-router";
+import { Outlet, NavLink, useLocation } from "react-router";
 import {
   Activity,
   BarChart3,
+  BellRing,
   Bot,
   ClipboardList,
   FileText,
@@ -31,9 +32,9 @@ import NotificationDropdown from "./NotificationDropdown";
 
 import { useAuth } from "../context/AuthContext";
 import { useHealthData } from "../context/HealthDataContext";
-import { generateAlerts } from "../utils/alertEngine";
 
 export default function Layout() {
+  const location = useLocation();
   const { user, logout } = useAuth();
 
   const isAdmin = user?.role === "admin";
@@ -41,7 +42,7 @@ export default function Layout() {
   const isNurse = user?.role === "nurse";
   const isPatient = user?.role === "patient";
 
-  const { healthData, selectedPatient } = useHealthData();
+  const { selectedPatient } = useHealthData();
 
   const roleLabel = user?.role
     ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)} Workspace`
@@ -68,11 +69,6 @@ export default function Layout() {
       : isNurse
         ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
         : "border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200";
-
-  const alerts = generateAlerts(
-    healthData.filter((record) => record.patientId === selectedPatient.id),
-    selectedPatient
-  );
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -196,6 +192,12 @@ export default function Layout() {
       icon: Bot,
       show: isDoctor || isNurse,
     },
+    {
+      label: "Notifications",
+      path: "/notifications",
+      icon: BellRing,
+      show: Boolean(user),
+    },
   ];
 
   const SidebarContent = ({ mobile = false }: { mobile?: boolean }) => (
@@ -206,7 +208,7 @@ export default function Layout() {
           onClick={() =>
             mobile ? setMobileOpen(false) : setSidebarOpen((value) => !value)
           }
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white"
+          className="brand-mark flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] text-white"
         >
           <Activity className="h-5 w-5" />
         </motion.button>
@@ -220,7 +222,7 @@ export default function Layout() {
               className="flex flex-1 items-center justify-between"
             >
               <div>
-                <h1 className="text-xl font-bold tracking-tight">Health AI</h1>
+                <h1 className="text-xl font-extrabold tracking-tight">Health AI</h1>
 
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Monitoring Platform
@@ -230,7 +232,7 @@ export default function Layout() {
               {!mobile && (
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  className="app-icon-button h-9 w-9 border-0 bg-transparent text-slate-500 shadow-none dark:text-slate-400"
                 >
                   <PanelLeftClose className="h-4 w-4" />
                 </button>
@@ -239,7 +241,7 @@ export default function Layout() {
               {mobile && (
                 <button
                   onClick={() => setMobileOpen(false)}
-                  className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  className="app-icon-button h-9 w-9 border-0 bg-transparent text-slate-500 shadow-none dark:text-slate-400"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -251,7 +253,7 @@ export default function Layout() {
         {!sidebarOpen && !mobile && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            className="app-icon-button h-9 w-9 border-0 bg-transparent text-slate-500 shadow-none dark:text-slate-400"
           >
             <PanelLeftOpen className="h-4 w-4" />
           </button>
@@ -271,14 +273,14 @@ export default function Layout() {
                 title={item.label}
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
-                  `group flex items-center rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  `nav-item group flex items-center rounded-xl text-sm font-semibold transition-all duration-200 ${
                     sidebarOpen || mobile
                       ? "gap-3 px-4 py-3"
                       : "justify-center px-0 py-3"
                   } ${
                     isActive
-                      ? "bg-blue-600 text-white"
-                      : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                      ? "nav-item-active"
+                      : "text-slate-600 hover:bg-blue-50 hover:text-blue-800 dark:text-slate-300 dark:hover:bg-blue-950/30 dark:hover:text-blue-200"
                   }`
                 }
               >
@@ -304,15 +306,13 @@ export default function Layout() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white">
+    <div className="app-canvas text-slate-900 dark:text-white">
       <motion.aside
         animate={{
           width: sidebarOpen ? 260 : 88,
         }}
-        transition={{
-          duration: 0.24,
-        }}
-        className="fixed left-0 top-0 z-50 hidden h-screen flex-col border-r border-slate-200 bg-white px-5 py-6 dark:border-slate-800 dark:bg-slate-950 lg:flex"
+        transition={{ type: "spring", stiffness: 280, damping: 30 }}
+        className="premium-sidebar fixed left-0 top-0 z-50 hidden h-screen flex-col border-r border-[var(--panel-border)] px-5 py-6 lg:flex"
       >
         <SidebarContent />
       </motion.aside>
@@ -330,7 +330,7 @@ export default function Layout() {
               animate={{ x: 0 }}
               exit={{ x: -300 }}
               transition={{ duration: 0.25 }}
-              className="h-full w-[285px] border-r border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950"
+              className="premium-sidebar h-full w-[285px] border-r border-[var(--panel-border)] p-5"
             >
               <SidebarContent mobile />
             </motion.aside>
@@ -342,17 +342,15 @@ export default function Layout() {
         animate={{
           marginLeft: isDesktopShell ? (sidebarOpen ? 260 : 88) : 0,
         }}
-        transition={{
-          duration: 0.24,
-        }}
+        transition={{ type: "spring", stiffness: 280, damping: 30 }}
         className="min-h-screen lg:block"
       >
-        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:px-7">
+        <header className="premium-header sticky top-0 z-40 border-b px-4 py-3 sm:px-7">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 onClick={() => setMobileOpen(true)}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 lg:hidden"
+                className="app-icon-button shrink-0 lg:hidden"
               >
                 <Menu className="h-5 w-5" />
               </button>
@@ -379,7 +377,7 @@ export default function Layout() {
             </div>
 
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-              <NotificationDropdown alerts={alerts} />
+              <NotificationDropdown />
 
               <ThemeToggle />
 
@@ -404,7 +402,7 @@ export default function Layout() {
 
                   <button
                     onClick={logout}
-                    className="flex h-10 w-10 items-center justify-center gap-2 rounded-xl bg-red-600 text-sm font-bold text-white transition hover:bg-red-700 sm:w-auto sm:px-4"
+                    className="clinical-button flex h-11 w-11 items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 sm:w-auto sm:px-4"
                     aria-label="Logout"
                   >
                     <LogOut className="h-4 w-4" />
@@ -421,7 +419,14 @@ export default function Layout() {
         </header>
 
         <main className="px-4 pb-8 sm:px-8">
-          <Outlet />
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.42, ease: [0.2, 0.8, 0.2, 1] }}
+          >
+            <Outlet />
+          </motion.div>
         </main>
       </motion.div>
     </div>

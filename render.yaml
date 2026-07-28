@@ -3,7 +3,8 @@ services:
     name: health-risk-dashboard-api
     runtime: python
     rootDir: backend
-    plan: free
+    plan: starter
+    region: frankfurt
     buildCommand: pip install -r requirements.txt
     startCommand: bash -lc "python scripts/wait_for_database.py && alembic upgrade head && python scripts/preflight.py && uvicorn main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health/ready
@@ -12,6 +13,19 @@ services:
         fromDatabase:
           name: health-risk-dashboard-db
           property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: health-risk-dashboard-events
+          property: connectionString
+      - key: REQUIRE_REDIS
+        value: true
+      - key: DATABASE_POOL_SIZE
+        value: 5
+      - key: DATABASE_MAX_OVERFLOW
+        value: 10
+      - key: DATABASE_POOL_RECYCLE_SECONDS
+        value: 300
       - key: PYTHON_VERSION
         value: 3.12.3
       - key: SECRET_KEY
@@ -52,9 +66,73 @@ services:
         value: false
       - key: AI_MODEL
         value: llama-3.1-8b-instant
+      - key: FRONTEND_URL
+        sync: false
+      - key: WITHINGS_CLIENT_ID
+        sync: false
+      - key: WITHINGS_CLIENT_SECRET
+        sync: false
+      - key: WITHINGS_REDIRECT_URI
+        sync: false
+      - key: WITHINGS_WEBHOOK_URL
+        sync: false
+      - key: REQUIRE_WITHINGS
+        value: true
+      - key: INTEGRATION_ENCRYPTION_KEY
+        generateValue: true
+      - key: SENTRY_DSN
+        sync: false
+      - key: REQUIRE_SENTRY
+        value: true
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: 0.1
+      - key: RELEASE
+        sync: false
+
+  - type: keyvalue
+    name: health-risk-dashboard-events
+    plan: starter
+    region: frankfurt
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
+
+  - type: cron
+    name: health-risk-dashboard-backup
+    runtime: python
+    rootDir: backend
+    plan: starter
+    region: frankfurt
+    schedule: "0 3 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/backup_postgres.py
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: health-risk-dashboard-db
+          property: connectionString
+      - key: BACKUP_S3_BUCKET
+        sync: false
+      - key: BACKUP_S3_PREFIX
+        value: health-risk-dashboard
+      - key: BACKUP_S3_ENDPOINT
+        sync: false
+      - key: BACKUP_ENCRYPTION_KEY
+        generateValue: true
+      - key: BACKUP_RETENTION_DAYS
+        value: 30
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_DEFAULT_REGION
+        value: eu-west-2
 
 databases:
   - name: health-risk-dashboard-db
-    plan: free
+    plan: basic-256mb
+    region: frankfurt
+    postgresMajorVersion: "16"
+    ipAllowList: []
     databaseName: health_ai
     user: health_ai_user

@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import models
+from notification_broadcast import queue_notification_broadcast
 
 
 def create_notification(
@@ -34,6 +35,7 @@ def create_notification(
         created_at=datetime.now().isoformat(timespec="seconds"),
     )
     db.add(notification)
+    queue_notification_broadcast(db)
     return notification
 
 

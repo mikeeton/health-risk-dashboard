@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import models
-from auth_utils import hash_password
+from auth_utils import create_access_token, hash_password
 from database import SessionLocal
 from main import app
 
@@ -152,6 +152,278 @@ def login_token(client: TestClient, email: str) -> str:
 
 def auth_header(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def test_notification_read_receipts_are_private_per_user(client, db, cleanup):
+    first_doctor = create_user(db, cleanup, "doctor")
+    second_doctor = create_user(db, cleanup, "doctor")
+    notification = models.Notification(
+        user_email=None,
+        target_role="doctor",
+        title="Shared clinical update",
+        message="A role-wide update for receipt isolation testing.",
+        type="assignment",
+        is_read="false",
+        created_at=datetime.now().isoformat(timespec="seconds"),
+    )
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+
+    try:
+        first_headers = auth_header(login_token(client, first_doctor.email))
+        second_headers = auth_header(login_token(client, second_doctor.email))
+
+        first_inbox = client.get(
+            "/notifications/?status=unread", headers=first_headers
+        )
+        second_inbox = client.get(
+            "/notifications/?status=unread", headers=second_headers
+        )
+        assert first_inbox.status_code == 200
+        assert second_inbox.status_code == 200
+        assert notification.id in {item["id"] for item in first_inbox.json()}
+        assert notification.id in {item["id"] for item in second_inbox.json()}
+
+        marked = client.patch(
+            f"/notifications/{notification.id}/read", headers=first_headers
+        )
+        assert marked.status_code == 200
+        assert marked.json()["is_read"] == "true"
+        assert marked.json()["read_at"]
+
+        first_after = client.get(
+            "/notifications/?status=unread", headers=first_headers
+        )
+        second_after = client.get(
+            "/notifications/?status=unread", headers=second_headers
+        )
+        first_history = client.get(
+            "/notifications/?status=read", headers=first_headers
+        )
+
+        assert notification.id not in {item["id"] for item in first_after.json()}
+        assert notification.id in {item["id"] for item in second_after.json()}
+        assert notification.id in {item["id"] for item in first_history.json()}
+    finally:
+        db.query(models.NotificationRead).filter(
+            models.NotificationRead.notification_id == notification.id
+        ).delete(synchronize_session=False)
+        db.query(models.Notification).filter(
+            models.Notification.id == notification.id
+        ).delete(synchronize_session=False)
+        db.commit()
+
+
+def test_complete_role_based_clinical_workflow(
+    client, db, cleanup, monkeypatch
+):
+    """Exercise the deployment-critical admin, doctor, nurse, and patient path."""
+
+    from routes import assistant as assistant_routes
+
+    admin = create_user(db, cleanup, "admin")
+    doctor = create_user(db, cleanup, "doctor")
+    receiving_doctor = create_user(db, cleanup, "doctor")
+    nurse = create_user(db, cleanup, "nurse")
+    patient_user = create_user(db, cleanup, "patient")
+    patient = create_patient(
+        db,
+        cleanup,
+        name=f"Workflow Patient {uuid4().hex[:8]}",
+        doctor_id=doctor.id,
+        nurse_id=nurse.id,
+        user_id=patient_user.id,
+    )
+
+    def role_header(user: models.User) -> dict[str, str]:
+        return auth_header(
+            create_access_token(
+                {"sub": user.email, "role": user.role, "user_id": user.id}
+            )
+        )
+
+    # Login itself is exercised through the public endpoint; the remaining
+    # role tokens are minted directly so this single workflow does not consume
+    # the suite's brute-force rate-limit budget.
+    admin_headers = auth_header(login_token(client, admin.email))
+    doctor_headers = role_header(doctor)
+    nurse_headers = role_header(nurse)
+    patient_headers = role_header(patient_user)
+
+    created_ids: dict[str, int] = {}
+    try:
+        assignment = client.post(
+            "/admin/assignments/",
+            headers=admin_headers,
+            json={
+                "patient_id": patient.id,
+                "staff_user_id": nurse.id,
+                "role": "nurse",
+            },
+        )
+        assert assignment.status_code == 200
+        created_ids["assignment"] = assignment.json()["id"]
+
+        timestamp = datetime.now().isoformat(timespec="microseconds")
+        vital = client.post(
+            "/vitals/",
+            headers=doctor_headers,
+            json={
+                "patient_id": patient.id,
+                "timestamp": timestamp,
+                "heart_rate": 82,
+                "spo2": 97,
+                "systolic_bp": 124,
+                "diastolic_bp": 78,
+                "steps": 4200,
+                "sleep_hours": 7.2,
+                "active_minutes": 35,
+                "calories": 1900,
+                "risk_score": 2,
+                "activity_state": "resting",
+            },
+        )
+        assert vital.status_code == 200
+        created_ids["vital"] = vital.json()["id"]
+        assert client.get(
+            f"/vitals/{patient.id}", headers=nurse_headers
+        ).status_code == 200
+        assert client.get(
+            f"/vitals/{patient.id}", headers=patient_headers
+        ).status_code == 200
+        assert client.post(
+            "/vitals/",
+            headers=patient_headers,
+            json={
+                "patient_id": patient.id,
+                "timestamp": f"{timestamp}-forbidden",
+                "heart_rate": 82,
+                "spo2": 97,
+                "systolic_bp": 124,
+                "diastolic_bp": 78,
+                "steps": 0,
+                "sleep_hours": 7,
+                "active_minutes": 0,
+                "calories": 1800,
+                "risk_score": 2,
+                "activity_state": "resting",
+            },
+        ).status_code == 403
+
+        medication = client.post(
+            "/medications/",
+            headers=nurse_headers,
+            json={
+                "patient_id": patient.id,
+                "name": "Workflow Medicine",
+                "dosage": "5 mg",
+                "schedule_time": "09:00",
+                "status": "Due",
+                "notes": "Role workflow verification",
+            },
+        )
+        assert medication.status_code == 200
+        created_ids["medication"] = medication.json()["id"]
+        assert client.patch(
+            f"/medications/{created_ids['medication']}",
+            headers=nurse_headers,
+            json={"status": "Taken", "notes": "Verified"},
+        ).status_code == 200
+        assert client.get(
+            f"/medications/{patient.id}", headers=patient_headers
+        ).status_code == 200
+
+        monkeypatch.setattr(
+            assistant_routes,
+            "ask_groq",
+            lambda _prompt: {
+                "model": "deployment-test-model",
+                "answer": "Synthetic workflow summary for human review.",
+            },
+        )
+        summary = client.get(
+            f"/assistant/patient-summary/{patient.id}",
+            headers=doctor_headers,
+        )
+        assert summary.status_code == 200
+        assert summary.json()["model_used"] == "deployment-test-model"
+        handover = client.get(
+            f"/assistant/handover/{patient.id}", headers=doctor_headers
+        )
+        assert handover.status_code == 200
+
+        referral = client.post(
+            "/referrals/",
+            headers=doctor_headers,
+            json={
+                "patient_id": patient.id,
+                "receiving_user_id": receiving_doctor.id,
+                "reason": "Specialist review requested",
+                "urgency": "Medium",
+                "notes": "Synthetic deployment workflow",
+            },
+        )
+        assert referral.status_code == 200
+        created_ids["referral"] = referral.json()["id"]
+        approval = client.post(
+            f"/referrals/{created_ids['referral']}/approve",
+            headers=admin_headers,
+            json={"admin_note": "Approved during deployment workflow"},
+        )
+        assert approval.status_code == 200
+        assert approval.json()["status"] == "approved"
+
+        receiving_headers = role_header(receiving_doctor)
+        assert client.get(
+            f"/patients/{patient.id}", headers=receiving_headers
+        ).status_code == 200
+        inbox = client.get(
+            "/notifications/?status=unread", headers=receiving_headers
+        )
+        assert inbox.status_code == 200
+        assert any(
+            item["related_entity"] == "ReferralRequest"
+            for item in inbox.json()
+        )
+    finally:
+        db.rollback()
+        db.query(models.NotificationRead).filter(
+            models.NotificationRead.user_email.in_(
+                [
+                    admin.email,
+                    doctor.email,
+                    receiving_doctor.email,
+                    nurse.email,
+                    patient_user.email,
+                ]
+            )
+        ).delete(synchronize_session=False)
+        db.query(models.Notification).filter(
+            models.Notification.user_email.in_(
+                [
+                    admin.email,
+                    doctor.email,
+                    receiving_doctor.email,
+                    nurse.email,
+                    patient_user.email,
+                ]
+            )
+        ).delete(synchronize_session=False)
+        if "referral" in created_ids:
+            db.query(models.ReferralRequest).filter(
+                models.ReferralRequest.id == created_ids["referral"]
+            ).delete(synchronize_session=False)
+        db.query(models.PatientStaffAssignment).filter(
+            models.PatientStaffAssignment.patient_id == patient.id
+        ).delete(synchronize_session=False)
+        db.query(models.Medication).filter(
+            models.Medication.patient_id == patient.id
+        ).delete(synchronize_session=False)
+        db.query(models.Vital).filter(
+            models.Vital.patient_id == patient.id
+        ).delete(synchronize_session=False)
+        db.commit()
 
 
 def test_admin_only_routes_reject_doctor_and_allow_admin(client, db, cleanup):
@@ -556,3 +828,52 @@ def test_ai_context_is_pseudonymised(db, cleanup):
 
     assert "Never Send This Name" not in context
     assert f"patient-{patient.id}" in context
+
+
+def test_withings_webhook_verification_and_unknown_notifications_are_safe(client):
+    assert client.head("/integrations/withings/webhook").status_code == 204
+    response = client.post(
+        "/integrations/withings/webhook",
+        content="userid=unknown&appli=4&startdate=1&enddate=2",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.status_code == 204
+
+
+def test_withings_connection_requires_complete_server_configuration(
+    client, db, cleanup
+):
+    doctor = create_user(db, cleanup, "doctor")
+    patient = create_patient(
+        db,
+        cleanup,
+        name="Withings Test",
+        doctor_id=doctor.id,
+    )
+    token = login_token(client, doctor.email)
+    response = client.get(
+        f"/integrations/withings/connect/{patient.id}",
+        headers=auth_header(token),
+    )
+    assert response.status_code == 503
+
+
+def test_patient_creation_handles_multiple_active_nurses(client, db, cleanup):
+    doctor = create_user(db, cleanup, "doctor")
+    first_nurse = create_user(db, cleanup, "nurse")
+    create_user(db, cleanup, "nurse")
+    token = login_token(client, doctor.email)
+    response = client.post(
+        "/patients/",
+        headers=auth_header(token),
+        json={
+            "name": f"Multi Nurse Patient {uuid4().hex[:8]}",
+            "age": 45,
+            "condition": "General Monitoring",
+            "risk_level": "Low",
+            "last_checkup": datetime.now().date().isoformat(),
+        },
+    )
+    assert response.status_code == 200
+    cleanup["patient_ids"].append(response.json()["id"])
+    assert response.json()["assigned_nurse_id"] is not None

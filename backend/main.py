@@ -20,8 +20,12 @@ from middleware import (
     RequestMetricsMiddleware,
     SecurityHeadersMiddleware,
     RequestSizeLimitMiddleware,
+    EnforceHTTPSMiddleware,
 )
 from observability import request_tracker
+from monitoring import initialize_error_reporting
+from notification_broadcast import redis_healthcheck
+from live_updates import subscribe, unsubscribe
 from routes import analytics, assistant, admin_assignments, admin_users, referrals
 from routes import registration_requests
 from routes import medications, events, ml, live_simulator
@@ -29,8 +33,10 @@ from routes import role_actions
 from routes import patients, vitals, auth, reviews, audit
 from routes import notifications
 from routes import wearables
+from routes import integrations_withings
 
 settings = get_settings()
+initialize_error_reporting()
 
 
 def ensure_database_schema():
@@ -217,6 +223,7 @@ app.add_middleware(RequestMetricsMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(EnforceHTTPSMiddleware)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
 app.add_middleware(
@@ -234,6 +241,7 @@ app.include_router(auth.router)
 app.include_router(role_actions.router)
 app.include_router(patients.router)
 app.include_router(wearables.router)
+app.include_router(integrations_withings.router)
 app.include_router(vitals.router)
 app.include_router(reviews.router)
 app.include_router(audit.router)
@@ -265,12 +273,22 @@ def liveness_check():
 
 
 @app.get("/health/ready")
-def readiness_check(db: Session = Depends(get_db)):
+async def readiness_check(db: Session = Depends(get_db)):
     db.execute(text("SELECT 1"))
+    redis_status = "not_configured"
+    if settings.redis_url:
+        try:
+            redis_status = "ok" if await redis_healthcheck() else "unavailable"
+        except Exception:
+            redis_status = "unavailable"
+    if settings.require_redis and redis_status != "ok":
+        raise HTTPException(status_code=503, detail="Redis is unavailable")
 
     return {
         "status": "ready",
         "database": "ok",
+        "redis": redis_status,
+        "error_reporting": "configured" if settings.sentry_dsn else "disabled",
         "process_id": os.getpid(),
     }
 
@@ -304,9 +322,20 @@ async def websocket_live_monitoring(websocket: WebSocket, patient_id: int):
         db.close()
 
     await websocket.accept()
+    update_queue = subscribe(patient_id)
 
     try:
         while True:
+            try:
+                external_record = await asyncio.wait_for(
+                    update_queue.get(),
+                    timeout=settings.websocket_interval_seconds,
+                )
+                await websocket.send_json(external_record)
+                continue
+            except asyncio.TimeoutError:
+                pass
+
             heart_rate = random.randint(72, 145)
             spo2 = round(random.uniform(88, 99), 1)
             systolic_bp = random.randint(115, 185)
@@ -344,6 +373,8 @@ async def websocket_live_monitoring(websocket: WebSocket, patient_id: int):
                 "activityState": random.choice(
                     ["resting", "walking", "sleeping", "active"]
                 ),
+                "source": "simulator",
+                "persisted": False,
             }
 
             await websocket.send_json(record)
@@ -351,3 +382,5 @@ async def websocket_live_monitoring(websocket: WebSocket, patient_id: int):
 
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for patient {patient_id}")
+    finally:
+        unsubscribe(patient_id, update_queue)

@@ -29,6 +29,17 @@ settings = get_settings()
 PROMPT_VERSION = "clinical-assistant-v2"
 
 
+@router.get("/configuration")
+def assistant_configuration(
+    current_user: models.User = Depends(get_current_user),
+):
+    return {
+        "enabled": settings.ai_enabled,
+        "provider_key_present": bool(os.getenv("GROQ_API_KEY")),
+        "model": settings.ai_model if settings.ai_enabled else None,
+    }
+
+
 class ClinicalAIOutput(BaseModel):
     risk_level: str = Field(pattern="^(Low|Medium|High|Unknown)$")
     summary: str = Field(min_length=1, max_length=2000)

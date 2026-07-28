@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 import type { HealthData } from "../data/healthData";
-import { healthData as defaultHealthData } from "../data/healthData";
 
 import type { Patient, RiskLevel } from "../../types/patient";
 import { getPatients, getVitals } from "../services/api";
@@ -13,6 +12,7 @@ type HealthDataContextType = {
 
   patients: Patient[];
   selectedPatient: Patient;
+  hasPatients: boolean;
   setSelectedPatientId: (id: number) => void;
 
   loading: boolean;
@@ -99,11 +99,9 @@ export function HealthDataProvider({
 }) {
   const { token, isAdmin } = useAuth();
 
-  const [healthData, setHealthData] = useState<HealthData[]>(
-    defaultHealthData
-  );
+  const [healthData, setHealthData] = useState<HealthData[]>([]);
 
-  const [patients, setPatients] = useState<Patient[]>([fallbackPatient]);
+  const [patients, setPatients] = useState<Patient[]>([]);
 
   const [selectedPatientId, setSelectedPatientId] = useState<number>(1);
 
@@ -115,7 +113,7 @@ export function HealthDataProvider({
     fallbackPatient;
 
   const refreshVitals = async () => {
-    if (!token || isAdmin) return;
+    if (!token || isAdmin || patients.length === 0) return;
 
     try {
       const vitals = await getVitals(selectedPatient.id);
@@ -138,9 +136,9 @@ export function HealthDataProvider({
       // Admin users do not load clinical patient/vital data. This keeps the
       // frontend aligned with the backend privacy model and avoids noisy
       // rejected requests on admin-only screens.
-      setPatients([fallbackPatient]);
-      setSelectedPatientId(fallbackPatient.id);
-      setHealthData(defaultHealthData);
+      setPatients([]);
+      setSelectedPatientId(0);
+      setHealthData([]);
       setLoading(false);
       return;
     }
@@ -155,6 +153,10 @@ export function HealthDataProvider({
         if (mappedPatients.length > 0) {
           setPatients(mappedPatients);
           setSelectedPatientId(mappedPatients[0].id);
+        } else {
+          setPatients([]);
+          setSelectedPatientId(0);
+          setHealthData([]);
         }
       } catch (error) {
         console.error("Failed to fetch patients:", error);
@@ -167,10 +169,10 @@ export function HealthDataProvider({
   }, [token, isAdmin]);
 
   useEffect(() => {
-    if (!token || isAdmin || !selectedPatient?.id) return;
+    if (!token || isAdmin || patients.length === 0) return;
 
     refreshVitals();
-  }, [selectedPatient.id, token, isAdmin]);
+  }, [selectedPatient.id, token, isAdmin, patients.length]);
 
   return (
     <HealthDataContext.Provider
@@ -179,6 +181,7 @@ export function HealthDataProvider({
         setHealthData,
         patients,
         selectedPatient,
+        hasPatients: patients.length > 0,
         setSelectedPatientId,
         loading,
         refreshVitals,

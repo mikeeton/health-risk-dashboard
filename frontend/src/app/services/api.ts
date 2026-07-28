@@ -1,6 +1,14 @@
 const configuredApiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
+if (
+  import.meta.env.PROD &&
+  import.meta.env.VITE_API_BASE_URL &&
+  !configuredApiBaseUrl.startsWith("https://")
+) {
+  throw new Error("Production VITE_API_BASE_URL must use HTTPS.");
+}
+
 export const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, "");
 
 export function getWebSocketUrl(path: string) {
@@ -321,6 +329,7 @@ export type AppNotification = {
   related_entity?: string | null;
   related_entity_id?: string | null;
   created_at: string;
+  read_at?: string | null;
 };
 
 export async function getNotifications(options: {
@@ -491,6 +500,33 @@ export async function generateLiveSimulatorVital(patientId: number) {
   }
 
   return response.json();
+}
+
+export async function getWithingsStatus(patientId: number) {
+  const response = await apiFetch(
+    `${API_BASE_URL}/integrations/withings/status/${patientId}`
+  );
+  if (!response.ok) throw new Error("Failed to load Withings status");
+  return response.json();
+}
+
+export async function getWithingsConnectUrl(
+  patientId: number,
+  demo = false
+) {
+  const response = await apiFetch(
+    `${API_BASE_URL}/integrations/withings/connect/${patientId}?demo=${demo}`
+  );
+  if (!response.ok) throw new Error("Withings is not configured");
+  return response.json();
+}
+
+export async function disconnectWithings(patientId: number) {
+  const response = await apiFetch(
+    `${API_BASE_URL}/integrations/withings/connection/${patientId}`,
+    { method: "DELETE" }
+  );
+  if (!response.ok) throw new Error("Failed to disconnect Withings");
 }
 
 export async function getRegistrationRequests() {

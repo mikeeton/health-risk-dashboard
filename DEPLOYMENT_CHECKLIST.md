@@ -13,11 +13,16 @@
 - [ ] `APP_ENV=production`
 - [ ] Unique random `SECRET_KEY` of at least 32 characters
 - [ ] PostgreSQL production `DATABASE_URL`
+- [ ] Private `REDIS_URL` and `REQUIRE_REDIS=true`
 - [ ] HTTPS-only `CORS_ORIGINS`
 - [ ] Exact production `ALLOWED_HOSTS`
 - [ ] `FORCE_HTTPS=true`
 - [ ] `PUBLIC_API_DOCS=false`
 - [ ] `RUN_STARTUP_SCHEMA_CHECK=false`
+- [ ] Exact `FRONTEND_URL` also listed in `CORS_ORIGINS`
+- [ ] Withings callback and webhook are public HTTPS URLs on the API domain
+- [ ] `REQUIRE_WITHINGS=true` and all Withings secrets supplied
+- [ ] `REQUIRE_SENTRY=true` and backend/frontend Sentry DSNs supplied
 - [ ] `AI_ENABLED=false` until the AI governance approval below is complete
 - [ ] Separate development, staging, and production accounts/databases
 

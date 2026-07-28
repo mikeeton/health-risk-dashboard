@@ -383,6 +383,7 @@ class NotificationResponse(BaseModel):
     related_entity: str | None = None
     related_entity_id: str | None = None
     created_at: str
+    read_at: str | None = None
 
 
 class NotificationMarkAllResponse(BaseModel):

@@ -112,6 +112,67 @@ test("authenticated app shell fits phone and tablet widths", async ({ page }) =>
   }
 });
 
+test("all four roles receive the correct protected workspace navigation", async ({
+  browser,
+}) => {
+  const roles = [
+    {
+      role: "doctor",
+      path: "/",
+      workspace: "Doctor Workspace",
+      links: ["Dashboard", "Reports", "Notifications"],
+    },
+    {
+      role: "nurse",
+      path: "/",
+      workspace: "Nurse Workspace",
+      links: ["Dashboard", "Nurse", "Notifications"],
+    },
+    {
+      role: "patient",
+      path: "/",
+      workspace: "Patient Workspace",
+      links: ["Dashboard", "Patient", "Notifications"],
+    },
+    {
+      role: "admin",
+      path: "/admin",
+      workspace: "Admin Workspace",
+      links: ["User Management", "Audit Logs", "Notifications"],
+    },
+  ];
+
+  for (const definition of roles) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.route("**/patients", (route) => route.fulfill({ json: [] }));
+    await page.route("**/notifications/**", (route) =>
+      route.fulfill({ json: [] })
+    );
+    await page.addInitScript((role) => {
+      sessionStorage.setItem(
+        "health-auth-user",
+        JSON.stringify({
+          id: 901,
+          email: `${role}@example.com`,
+          full_name: `Test ${role}`,
+          role,
+        })
+      );
+      sessionStorage.setItem("health-auth-token", `${role}-test-token`);
+    }, definition.role);
+
+    await page.goto(definition.path);
+    await expect(
+      page.getByText(definition.workspace, { exact: true })
+    ).toBeVisible();
+    for (const link of definition.links) {
+      await expect(page.getByRole("link", { name: link })).toBeVisible();
+    }
+    await context.close();
+  }
+});
+
 test("admin can reach protected admin workspace", async ({ page }) => {
   test.skip(
     process.env.E2E_RUN_AUTH !== "1",

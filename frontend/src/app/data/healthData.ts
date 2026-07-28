@@ -1,4 +1,10 @@
-export type ActivityState = "resting" | "walking" | "running" | "sleeping";
+export type ActivityState =
+  | "resting"
+  | "walking"
+  | "running"
+  | "sleeping"
+  | "withings_device"
+  | "condition_based_simulator";
 
 export type HealthData = {
   id: string;
@@ -14,6 +20,8 @@ export type HealthData = {
   calories: number;
   riskScore: number;
   activityState: ActivityState;
+  source?: "simulator" | "withings" | "manual";
+  persisted?: boolean;
 };
 
 export const healthData: HealthData[] = [

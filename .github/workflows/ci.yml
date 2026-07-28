@@ -24,12 +24,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/health_dashboard_test
       SECRET_KEY: ci-only-secret-key-that-is-longer-than-thirty-two-characters
       APP_ENV: test
       RATE_LIMIT_ENABLED: "false"
       AI_ENABLED: "false"
+      REDIS_URL: redis://127.0.0.1:6379/0
     defaults:
       run:
         working-directory: backend

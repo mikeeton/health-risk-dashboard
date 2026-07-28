@@ -1,0 +1,23 @@
+name: Production Health Monitor
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify configuration
+        if: ${{ vars.PRODUCTION_API_URL == '' || vars.PRODUCTION_FRONTEND_URL == '' }}
+        run: |
+          echo "Set PRODUCTION_API_URL and PRODUCTION_FRONTEND_URL repository variables."
+          exit 1
+      - name: Check backend readiness
+        run: curl --fail --silent --show-error --max-time 20 "${{ vars.PRODUCTION_API_URL }}/health/ready"
+      - name: Check frontend
+        run: curl --fail --silent --show-error --max-time 20 --output /dev/null "${{ vars.PRODUCTION_FRONTEND_URL }}"

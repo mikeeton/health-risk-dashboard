@@ -21,6 +21,7 @@ const DoctorDashboard = lazy(() => import("./pages/DoctorDashboard"));
 const NurseDashboard = lazy(() => import("./pages/NurseDashboard"));
 const PatientDashboard = lazy(() => import("./pages/PatientDashboard"));
 const RegisterAccess = lazy(() => import("./pages/RegisterAccess"));
+const Notifications = lazy(() => import("./pages/Notifications"));
 
 function PageLoader() {
   return (
@@ -191,6 +192,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={["doctor", "nurse"]}>
             {lazyPage(<AIAssistantPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "notifications",
+        element: (
+          <ProtectedRoute allowedRoles={["admin", "doctor", "nurse", "patient"]}>
+            {lazyPage(<Notifications />)}
           </ProtectedRoute>
         ),
       },

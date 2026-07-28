@@ -12,3 +12,6 @@ numpy
 scikit-learn
 groq
 argon2-cffi
+redis[hiredis]>=5.2,<7
+sentry-sdk[fastapi]>=2.20,<3
+boto3>=1.35,<2

@@ -114,13 +114,14 @@ def can_access_patient(db: Session, patient_id: int, user: models.User) -> bool:
 
 
 def get_default_active_user_id(db: Session, role: str) -> int | None:
-    return (
+    row = (
         db.query(models.User.id)
         .filter(models.User.role == role)
         .filter((models.User.status == "active") | (models.User.status.is_(None)))
         .order_by(models.User.id.asc())
-        .scalar()
+        .first()
     )
+    return row[0] if row else None
 
 
 def validate_user_for_role(

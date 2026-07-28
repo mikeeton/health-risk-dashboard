@@ -19,6 +19,11 @@ Create `backend/.env` from `backend/.env.example` and set production values:
 
 ```text
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB_NAME
+DATABASE_POOL_SIZE=5
+DATABASE_MAX_OVERFLOW=10
+DATABASE_POOL_RECYCLE_SECONDS=300
+REDIS_URL=redis://PRIVATE_REDIS_HOST:6379
+REQUIRE_REDIS=true
 APP_ENV=production
 SECRET_KEY=replace-with-a-long-random-production-secret
 JWT_ALGORITHM=HS256
@@ -40,6 +45,17 @@ GROQ_API_KEY=
 AI_ENABLED=false
 AI_MODEL=llama-3.1-8b-instant
 AI_TIMEOUT_SECONDS=12
+FRONTEND_URL=https://your-frontend-domain.example
+WITHINGS_CLIENT_ID=
+WITHINGS_CLIENT_SECRET=
+WITHINGS_REDIRECT_URI=https://your-api-domain.example/integrations/withings/callback
+WITHINGS_WEBHOOK_URL=https://your-api-domain.example/integrations/withings/webhook
+INTEGRATION_ENCRYPTION_KEY=
+REQUIRE_WITHINGS=true
+SENTRY_DSN=
+REQUIRE_SENTRY=true
+SENTRY_TRACES_SAMPLE_RATE=0.1
+RELEASE=
 ```
 
 Keep real `.env` files out of Git. Rotate any key that was ever exposed in a
@@ -48,6 +64,8 @@ ticket, screenshot, terminal output, or repository.
 Keep `AI_ENABLED=false` until the AI activation gates in
 `DEPLOYMENT_CHECKLIST.md` are approved. A key by itself does not authorize
 processing patient data through the provider.
+
+See `AI_SETUP.md` and `WITHINGS_SETUP.md` for provider-specific setup.
 
 ## 3. Database Setup
 
@@ -63,11 +81,11 @@ alembic current
 The current migration chain ends with:
 
 ```text
-20260728_0006_auth_session_cascade
+20260728_0008
 ```
 
-The latest migrations add rotating, revocable refresh-token sessions with
-safe cascading cleanup.
+The latest migrations include rotating refresh-token sessions, encrypted
+Withings connections, and private per-user notification read receipts.
 
 ## 4. Backend Service
 
@@ -93,6 +111,33 @@ Health endpoints:
 ```
 
 Use `/health/ready` for readiness because it verifies database connectivity.
+When `REQUIRE_REDIS=true`, readiness also fails if Redis/Valkey is unavailable.
+
+## 4A. Monitoring and encrypted backups
+
+Set `SENTRY_DSN` for backend errors and `VITE_SENTRY_DSN` for frontend errors.
+The SDKs exclude default personally identifiable information and request
+bodies. Configure alert rules in Sentry for new issues, error-rate increases,
+and performance degradation.
+
+The Render Blueprint includes a daily backup cron job. Configure its
+S3-compatible object-storage secrets:
+
+```text
+BACKUP_S3_BUCKET=
+BACKUP_S3_ENDPOINT=
+BACKUP_ENCRYPTION_KEY=
+BACKUP_RETENTION_DAYS=30
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_DEFAULT_REGION=eu-west-2
+```
+
+Backups are created with `pg_dump`, encrypted before upload, and uploaded with
+server-side encryption. `.github/workflows/backup-verify.yml` downloads and
+structurally verifies the newest encrypted backup every Monday. A successful
+verification is not a substitute for a scheduled restore drill into an
+isolated database.
 
 ## 5. Frontend Build
 
@@ -100,6 +145,9 @@ Create `frontend/.env.production` or platform variables:
 
 ```text
 VITE_API_BASE_URL=https://your-api-domain.example
+VITE_SENTRY_DSN=
+VITE_SENTRY_TRACES_SAMPLE_RATE=0.1
+VITE_RELEASE=
 ```
 
 Build the static frontend:

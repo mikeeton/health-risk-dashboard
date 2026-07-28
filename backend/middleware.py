@@ -5,6 +5,7 @@ from uuid import uuid4
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
+from starlette.responses import RedirectResponse
 
 from config import get_settings
 from observability import request_tracker
@@ -21,6 +22,19 @@ def client_ip(request: Request) -> str:
         return ips[index]
 
     return request.client.host if request.client else "unknown"
+
+
+class EnforceHTTPSMiddleware(BaseHTTPMiddleware):
+    """Redirect requests explicitly reported as HTTP by the trusted proxy."""
+
+    async def dispatch(self, request: Request, call_next):
+        forwarded_proto = request.headers.get("x-forwarded-proto", "")
+        if settings.force_https and forwarded_proto:
+            public_proto = forwarded_proto.split(",")[0].strip().lower()
+            if public_proto != "https":
+                secure_url = request.url.replace(scheme="https")
+                return RedirectResponse(str(secure_url), status_code=307)
+        return await call_next(request)
 
 
 class RequestMetricsMiddleware(BaseHTTPMiddleware):

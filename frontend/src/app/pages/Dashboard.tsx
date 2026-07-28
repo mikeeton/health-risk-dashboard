@@ -9,7 +9,6 @@ import AIInsightPanel from "../components/AIInsightPanel";
 import AIExplanationPanel from "../components/AIExplanationPanel";
 import TrendAnalysisPanel from "../components/TrendAnalysisPanel";
 import AlertPanel from "../components/AlertPanel";
-import NotificationCenter from "../components/NotificationCenter";
 import ClinicianQueue from "../components/ClinicianQueue";
 import ClinicianActivityFeed from "../components/ClinicianActivityFeed";
 import PatientDetailModal from "../components/PatientDetailModal";
@@ -25,6 +24,7 @@ import DatabaseActivityFeed from "../components/DatabaseActivityFeed";
 import MedicationAdherenceDatabase from "../components/MedicationAdherenceDatabase";
 import PatientTimelineDatabase from "../components/PatientTimelineDatabase";
 import MLPredictionPanel from "../components/MLPredictionPanel";
+import WithingsIntegration from "../components/WithingsIntegration";
 
 import { useHealthData } from "../context/HealthDataContext";
 import { useAuth } from "../context/AuthContext";
@@ -50,8 +50,15 @@ export default function Dashboard() {
   const reportRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
-  const { healthData, setHealthData, selectedPatient, patients, refreshVitals } =
-    useHealthData();
+  const {
+    healthData,
+    setHealthData,
+    selectedPatient,
+    patients,
+    hasPatients,
+    loading,
+    refreshVitals,
+  } = useHealthData();
   const { isDoctor, isNurse, isPatient } = useAuth();
 
   const [dateRange, setDateRange] = useState("7");
@@ -138,6 +145,27 @@ export default function Dashboard() {
     setLiveMonitoring(false);
   }, [selectedPatient.id]);
 
+  if (loading) {
+    return (
+      <section className="glass-card rounded-3xl p-8" aria-live="polite">
+        Loading assigned patients…
+      </section>
+    );
+  }
+
+  if (!hasPatients) {
+    return (
+      <section className="glass-card rounded-3xl p-8">
+        <h1 className="text-2xl font-extrabold">No accessible patients</h1>
+        <p className="mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
+          {isPatient
+            ? "Your account is not linked to a patient record yet. Ask an administrator to approve and link your registration."
+            : "No patient is assigned to this account. Create a patient as a doctor, or ask an administrator to add a staff assignment."}
+        </p>
+      </section>
+    );
+  }
+
   const handleLiveSocketRecord = async (record: HealthData) => {
     setLatestSocketRecord(record);
 
@@ -150,6 +178,10 @@ export default function Dashboard() {
     });
 
     try {
+      if (record.persisted) {
+        await refreshVitals();
+        return;
+      }
       await createVital({
         patient_id: record.patientId,
         timestamp: record.timestamp,
@@ -230,61 +262,61 @@ export default function Dashboard() {
   return (
     <>
       <div ref={reportRef} className="dashboard-shell space-y-8">
-        <section id="dashboard-controls" className="glass-card fade-up rounded-3xl p-5 scroll-mt-28">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                Patient:
-              </label>
-
-              <PatientSwitcher />
-
+        <section id="dashboard-controls" className="control-deck glass-card fade-up scroll-mt-28 p-5 sm:p-6">
+          <div className="grid gap-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_auto_140px_170px] lg:items-end">
+              <div className="min-w-0">
+                <label className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+                  Patient
+                </label>
+                <PatientSwitcher />
+              </div>
               <button
                 onClick={() => setPatientModalOpen(true)}
-                className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:scale-[1.02] hover:bg-slate-800 dark:bg-white dark:text-slate-950 sm:w-auto"
+                className="clinical-button h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-md hover:bg-slate-800 dark:bg-white dark:text-slate-950 lg:w-auto"
               >
                 View Patient
               </button>
-
-              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                Date Range:
-              </label>
-
-              <select
-                value={dateRange}
-                onChange={(event) => setDateRange(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:w-auto"
-              >
-                <option value="7">7 records</option>
-                <option value="14">14 records</option>
-                <option value="30">30 records</option>
-              </select>
-
-              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                Metric:
-              </label>
-
-              <select
-                value={metric}
-                onChange={(event) => setMetric(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:w-auto"
-              >
-                <option value="all">All Metrics</option>
-                <option value="heart">Heart Rate</option>
-                <option value="oxygen">Oxygen</option>
-                <option value="bp">Blood Pressure</option>
-                <option value="sleep">Sleep</option>
-                <option value="steps">Steps</option>
-                <option value="risk">Risk Score</option>
-              </select>
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+                  Date range
+                </label>
+                <select
+                  value={dateRange}
+                  onChange={(event) => setDateRange(event.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white/80 px-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80"
+                >
+                  <option value="7">7 records</option>
+                  <option value="14">14 records</option>
+                  <option value="30">30 records</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+                  Metric
+                </label>
+                <select
+                  value={metric}
+                  onChange={(event) => setMetric(event.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white/80 px-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80"
+                >
+                  <option value="all">All Metrics</option>
+                  <option value="heart">Heart Rate</option>
+                  <option value="oxygen">Oxygen</option>
+                  <option value="bp">Blood Pressure</option>
+                  <option value="sleep">Sleep</option>
+                  <option value="steps">Steps</option>
+                  <option value="risk">Risk Score</option>
+                </select>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="grid gap-3 sm:grid-cols-3 lg:flex lg:justify-end">
               {(isDoctor || isNurse) && (
                 <>
                   <button
                     onClick={toggleLiveMonitoring}
-                    className={`relative w-full rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] sm:w-auto ${
+                    className={`clinical-button relative h-11 w-full whitespace-nowrap rounded-xl px-5 text-sm font-bold text-white shadow-lg xl:w-auto ${
                       liveMonitoring
                         ? "bg-red-600 shadow-red-500/25 hover:bg-red-700"
                         : "bg-green-600 shadow-green-500/25 hover:bg-green-700"
@@ -304,7 +336,7 @@ export default function Dashboard() {
 
               <button
                 onClick={exportPDF}
-                className="w-full rounded-xl border border-slate-200 bg-white/80 px-5 py-3 text-sm font-bold shadow-sm transition hover:scale-[1.02] hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 sm:w-auto"
+                className="clinical-button h-11 w-full whitespace-nowrap rounded-xl border border-slate-200 bg-white/80 px-5 text-sm font-bold shadow-sm hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 xl:w-auto"
               >
                 Export Dashboard PDF
               </button>
@@ -326,6 +358,8 @@ export default function Dashboard() {
             </div>
           )}
         </section>
+
+        <WithingsIntegration patientId={selectedPatient.id} />
 
         {(isDoctor || isNurse) && (
           <section id="live-monitoring" className="scroll-mt-28">
@@ -476,12 +510,6 @@ export default function Dashboard() {
         <section id="alerts" className="scroll-mt-28">
           <AlertPanel alerts={alerts} />
         </section>
-
-        {isDoctor && (
-          <section id="notifications" className="scroll-mt-28">
-            <NotificationCenter alerts={alerts} />
-          </section>
-        )}
 
         {isDoctor && (
           <section id="review-queue" className="scroll-mt-28">

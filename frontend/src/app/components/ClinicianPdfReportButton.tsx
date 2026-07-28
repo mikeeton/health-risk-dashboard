@@ -60,7 +60,7 @@ export default function ClinicianPdfReportButton({ patient, vitals }: Props) {
     <button
       onClick={downloadReport}
       disabled={loading}
-      className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:bg-blue-700 disabled:opacity-60"
+      className="clinical-button flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-60 xl:w-auto"
     >
       <FileDown className="h-4 w-4" />
       {loading ? "Generating PDF..." : "Download Clinician PDF"}

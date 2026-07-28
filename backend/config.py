@@ -1,5 +1,6 @@
 import os
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from sqlalchemy.engine import make_url
 from dotenv import load_dotenv
@@ -37,6 +38,14 @@ class Settings:
     )
 
     websocket_interval_seconds = int(os.getenv("WEBSOCKET_INTERVAL_SECONDS", "5"))
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    require_redis = os.getenv("REQUIRE_REDIS", "false").lower() == "true"
+    database_pool_size = int(os.getenv("DATABASE_POOL_SIZE", "5"))
+    database_max_overflow = int(os.getenv("DATABASE_MAX_OVERFLOW", "10"))
+    database_pool_recycle_seconds = int(
+        os.getenv("DATABASE_POOL_RECYCLE_SECONDS", "300")
+    )
+    database_sslmode = os.getenv("DATABASE_SSLMODE", "").strip()
 
     rate_limit_enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
     rate_limit_requests = int(os.getenv("RATE_LIMIT_REQUESTS", "120"))
@@ -57,6 +66,20 @@ class Settings:
     ai_enabled = os.getenv("AI_ENABLED", "false").lower() == "true"
     ai_model = os.getenv("AI_MODEL", "llama-3.1-8b-instant")
     ai_timeout_seconds = float(os.getenv("AI_TIMEOUT_SECONDS", "12"))
+    frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:5173").rstrip("/")
+    withings_client_id = os.getenv("WITHINGS_CLIENT_ID", "")
+    withings_client_secret = os.getenv("WITHINGS_CLIENT_SECRET", "")
+    withings_redirect_uri = os.getenv("WITHINGS_REDIRECT_URI", "")
+    withings_webhook_url = os.getenv("WITHINGS_WEBHOOK_URL", "")
+    integration_encryption_key = os.getenv("INTEGRATION_ENCRYPTION_KEY", "")
+    require_withings = os.getenv("REQUIRE_WITHINGS", "false").lower() == "true"
+    sentry_dsn = os.getenv("SENTRY_DSN", "").strip()
+    require_sentry = os.getenv("REQUIRE_SENTRY", "false").lower() == "true"
+    sentry_traces_sample_rate = float(
+        os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")
+    )
+    release = os.getenv("RELEASE", "").strip()
+    backup_retention_days = int(os.getenv("BACKUP_RETENTION_DAYS", "30"))
 
     def validate(self):
         if not self.database_url:
@@ -85,11 +108,76 @@ class Settings:
                 )
             if any(origin.startswith("http://") for origin in self.cors_origins):
                 raise RuntimeError("Production CORS_ORIGINS must use HTTPS.")
+            if not self.frontend_url.startswith("https://"):
+                raise RuntimeError("Production FRONTEND_URL must use HTTPS.")
+            if self.frontend_url not in self.cors_origins:
+                raise RuntimeError(
+                    "Production FRONTEND_URL must also be listed in CORS_ORIGINS."
+                )
+            if self.require_redis and not self.redis_url:
+                raise RuntimeError(
+                    "REDIS_URL is required when REQUIRE_REDIS=true."
+                )
+            if self.redis_url and urlparse(self.redis_url).scheme not in {
+                "redis",
+                "rediss",
+            }:
+                raise RuntimeError("REDIS_URL must use redis:// or rediss://.")
+            if self.ai_enabled and not os.getenv("GROQ_API_KEY", "").strip():
+                raise RuntimeError("GROQ_API_KEY is required when AI_ENABLED=true.")
+            if self.require_sentry and not self.sentry_dsn:
+                raise RuntimeError("SENTRY_DSN is required when REQUIRE_SENTRY=true.")
 
         if self.max_request_bytes < 1024 or self.max_request_bytes > 10_485_760:
             raise RuntimeError("MAX_REQUEST_BYTES must be between 1 KiB and 10 MiB.")
         if self.ai_timeout_seconds <= 0 or self.ai_timeout_seconds > 60:
             raise RuntimeError("AI_TIMEOUT_SECONDS must be between 0 and 60.")
+        if self.database_pool_size < 1 or self.database_pool_size > 50:
+            raise RuntimeError("DATABASE_POOL_SIZE must be between 1 and 50.")
+        if self.database_max_overflow < 0 or self.database_max_overflow > 100:
+            raise RuntimeError("DATABASE_MAX_OVERFLOW must be between 0 and 100.")
+        if not 0 <= self.sentry_traces_sample_rate <= 1:
+            raise RuntimeError("SENTRY_TRACES_SAMPLE_RATE must be between 0 and 1.")
+        if self.backup_retention_days < 1:
+            raise RuntimeError("BACKUP_RETENTION_DAYS must be at least 1.")
+
+        withings_values = (
+            self.withings_client_id,
+            self.withings_client_secret,
+            self.withings_redirect_uri,
+            self.withings_webhook_url,
+            self.integration_encryption_key,
+        )
+        if any(withings_values) and not all(withings_values):
+            raise RuntimeError(
+                "Withings integration requires CLIENT_ID, CLIENT_SECRET, "
+                "REDIRECT_URI, WEBHOOK_URL, and INTEGRATION_ENCRYPTION_KEY."
+            )
+        if self.require_withings and not all(withings_values):
+            raise RuntimeError(
+                "All Withings credentials are required when REQUIRE_WITHINGS=true."
+            )
+        if self.environment == "production" and all(withings_values):
+            if not self.withings_redirect_uri.startswith("https://"):
+                raise RuntimeError("WITHINGS_REDIRECT_URI must use HTTPS.")
+            if not self.withings_webhook_url.startswith("https://"):
+                raise RuntimeError("WITHINGS_WEBHOOK_URL must use HTTPS.")
+            redirect = urlparse(self.withings_redirect_uri)
+            webhook = urlparse(self.withings_webhook_url)
+            if redirect.path != "/integrations/withings/callback":
+                raise RuntimeError(
+                    "WITHINGS_REDIRECT_URI must end with "
+                    "/integrations/withings/callback."
+                )
+            if webhook.path != "/integrations/withings/webhook":
+                raise RuntimeError(
+                    "WITHINGS_WEBHOOK_URL must end with "
+                    "/integrations/withings/webhook."
+                )
+            if redirect.netloc != webhook.netloc:
+                raise RuntimeError(
+                    "Withings redirect and webhook URLs must use the same API host."
+                )
 
 
 @lru_cache

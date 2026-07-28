@@ -20,6 +20,8 @@ from database import engine
 REQUIRED_TABLES = {
     "users",
     "auth_sessions",
+    "notification_reads",
+    "withings_connections",
     "patients",
     "vitals",
     "audit_logs",
@@ -48,6 +50,18 @@ def main():
         raise RuntimeError(
             f"Database migration is {current}; expected exactly {heads}"
         )
+
+    if settings.redis_url:
+        from redis import Redis
+
+        redis_client = Redis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=3,
+            socket_timeout=3,
+        )
+        if not redis_client.ping():
+            raise RuntimeError("Redis readiness check failed")
+        redis_client.close()
 
     print("Production preflight passed.")
 

@@ -10,13 +10,19 @@ import schemas
 from access_control import require_admin, role_name
 from auth_utils import get_current_user, get_user_from_token
 from database import SessionLocal, get_db
+from config import get_settings
 from notification_utils import create_notification as add_notification
+from notification_broadcast import (
+    queue_notification_broadcast,
+    wait_for_notification_change,
+)
 from routes.audit import write_audit_log
 
 router = APIRouter(
     prefix="/notifications",
     tags=["Notifications"],
 )
+settings = get_settings()
 
 
 def notification_scope_filter(current_user: models.User):
@@ -44,13 +50,50 @@ def unread_notification_count(db: Session, current_user: models.User) -> int:
         db.query(models.Notification)
         .filter(notification_scope_filter(current_user))
         .filter(
-            or_(
-                models.Notification.is_read != "true",
-                models.Notification.is_read.is_(None),
+            ~models.Notification.id.in_(
+                db.query(models.NotificationRead.notification_id).filter(
+                    models.NotificationRead.user_email == current_user.email
+                )
             )
         )
         .count()
     )
+
+
+def notification_read_map(
+    db: Session,
+    current_user: models.User,
+    notification_ids: list[int],
+) -> dict[int, str]:
+    if not notification_ids:
+        return {}
+    rows = (
+        db.query(models.NotificationRead)
+        .filter(models.NotificationRead.user_email == current_user.email)
+        .filter(models.NotificationRead.notification_id.in_(notification_ids))
+        .all()
+    )
+    return {row.notification_id: row.read_at for row in rows}
+
+
+def serialize_notification(
+    notification: models.Notification,
+    read_at: str | None = None,
+) -> dict:
+    return {
+        "id": notification.id,
+        "user_email": notification.user_email,
+        "target_role": notification.target_role,
+        "title": notification.title,
+        "message": notification.message,
+        "type": notification.type,
+        "is_read": "true" if read_at else "false",
+        "link": notification.link,
+        "related_entity": notification.related_entity,
+        "related_entity_id": notification.related_entity_id,
+        "created_at": notification.created_at,
+        "read_at": read_at,
+    }
 
 
 @router.websocket("/ws")
@@ -98,7 +141,10 @@ async def notification_socket(websocket: WebSocket, token: str | None = None):
                 )
                 last_signature = signature
 
-            await asyncio.sleep(5)
+            if settings.redis_url:
+                await wait_for_notification_change()
+            else:
+                await asyncio.sleep(settings.websocket_interval_seconds)
     except (asyncio.CancelledError, WebSocketDisconnect):
         pass
     finally:
@@ -150,18 +196,16 @@ def get_notifications(
     current_user: models.User = Depends(get_current_user),
 ):
     query = db.query(models.Notification).filter(notification_scope_filter(current_user))
+    read_ids = db.query(models.NotificationRead.notification_id).filter(
+        models.NotificationRead.user_email == current_user.email
+    )
 
     # Read state is stored as a string for compatibility with the existing
     # schema; null older rows are treated as unread below.
     if status == "read":
-        query = query.filter(models.Notification.is_read == "true")
+        query = query.filter(models.Notification.id.in_(read_ids))
     elif status == "unread":
-        query = query.filter(
-            or_(
-                models.Notification.is_read != "true",
-                models.Notification.is_read.is_(None),
-            )
-        )
+        query = query.filter(~models.Notification.id.in_(read_ids))
 
     if notification_type:
         query = query.filter(models.Notification.type == notification_type)
@@ -177,7 +221,14 @@ def get_notifications(
             )
         )
 
-    return query.order_by(models.Notification.id.desc()).limit(100).all()
+    notifications = query.order_by(models.Notification.id.desc()).limit(100).all()
+    read_map = notification_read_map(
+        db, current_user, [notification.id for notification in notifications]
+    )
+    return [
+        serialize_notification(notification, read_map.get(notification.id))
+        for notification in notifications
+    ]
 
 
 @router.patch("/{notification_id}/read", response_model=schemas.NotificationResponse)
@@ -198,12 +249,24 @@ def mark_notification_read(
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
 
-    notification.is_read = "true"
+    receipt = (
+        db.query(models.NotificationRead)
+        .filter(models.NotificationRead.notification_id == notification.id)
+        .filter(models.NotificationRead.user_email == current_user.email)
+        .first()
+    )
+    if not receipt:
+        receipt = models.NotificationRead(
+            notification_id=notification.id,
+            user_email=current_user.email,
+            read_at=datetime.now().isoformat(timespec="seconds"),
+        )
+        db.add(receipt)
+        queue_notification_broadcast(db)
+        db.commit()
+        db.refresh(receipt)
 
-    db.commit()
-    db.refresh(notification)
-
-    return notification
+    return serialize_notification(notification, receipt.read_at)
 
 
 @router.patch("/bulk/mark-all-read", response_model=schemas.NotificationMarkAllResponse)
@@ -216,17 +279,26 @@ def mark_all_notifications_read(
         db.query(models.Notification)
         .filter(notification_scope_filter(current_user))
         .filter(
-            or_(
-                models.Notification.is_read != "true",
-                models.Notification.is_read.is_(None),
+            ~models.Notification.id.in_(
+                db.query(models.NotificationRead.notification_id).filter(
+                    models.NotificationRead.user_email == current_user.email
+                )
             )
         )
         .all()
     )
 
     for notification in notifications:
-        notification.is_read = "true"
+        db.add(
+            models.NotificationRead(
+                notification_id=notification.id,
+                user_email=current_user.email,
+                read_at=datetime.now().isoformat(timespec="seconds"),
+            )
+        )
 
+    if notifications:
+        queue_notification_broadcast(db)
     db.commit()
 
     return {"updated": len(notifications)}
@@ -256,6 +328,7 @@ def create_system_announcement(
     )
 
     db.add(announcement)
+    queue_notification_broadcast(db)
     db.commit()
     db.refresh(announcement)
 

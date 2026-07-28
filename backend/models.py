@@ -8,7 +8,7 @@ access-control helpers.
 
 from database import Base
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
 
 
 def utc_now_naive():
@@ -108,6 +108,32 @@ class Vital(Base):
     calories = Column(Integer, nullable=False)
     risk_score = Column(Integer, nullable=False)
     activity_state = Column(String, nullable=False)
+    source = Column(String, default="manual", nullable=False)
+    external_id = Column(String, unique=True, nullable=True, index=True)
+
+
+class WithingsConnection(Base):
+    """Encrypted OAuth connection between one patient and Withings user."""
+
+    __tablename__ = "withings_connections"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(
+        Integer,
+        ForeignKey("patients.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    connected_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    withings_userid = Column(String, nullable=False, unique=True, index=True)
+    access_token_encrypted = Column(String, nullable=False)
+    refresh_token_encrypted = Column(String, nullable=False)
+    token_expires_at = Column(DateTime, nullable=False)
+    scopes = Column(String, nullable=True)
+    last_sync_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
 
 class ReviewCase(Base):
@@ -186,6 +212,29 @@ class Notification(Base):
     related_entity = Column(String, nullable=True)
     related_entity_id = Column(String, nullable=True)
     created_at = Column(String, nullable=False)
+
+
+class NotificationRead(Base):
+    """Per-user read receipt for direct, role-wide, and global notifications."""
+
+    __tablename__ = "notification_reads"
+    __table_args__ = (
+        UniqueConstraint(
+            "notification_id",
+            "user_email",
+            name="uq_notification_reads_notification_user",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    notification_id = Column(
+        Integer,
+        ForeignKey("notifications.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_email = Column(String, nullable=False, index=True)
+    read_at = Column(String, nullable=False)
 
 
 class RegistrationRequest(Base):
