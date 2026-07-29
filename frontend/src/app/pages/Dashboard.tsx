@@ -266,7 +266,7 @@ export default function Dashboard() {
           <div className="grid gap-5">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_auto_140px_170px] lg:items-end">
               <div className="min-w-0">
-                <label className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+                <label htmlFor="assigned-patient-switcher" className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
                   Patient
                 </label>
                 <PatientSwitcher />
@@ -278,10 +278,10 @@ export default function Dashboard() {
                 View Patient
               </button>
               <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+                <label htmlFor="dashboard-date-range" className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
                   Date range
                 </label>
-                <select
+                <select id="dashboard-date-range" name="dashboard_date_range" aria-label="Dashboard date range"
                   value={dateRange}
                   onChange={(event) => setDateRange(event.target.value)}
                   className="h-11 w-full rounded-xl border border-slate-200 bg-white/80 px-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80"
@@ -292,10 +292,10 @@ export default function Dashboard() {
                 </select>
               </div>
               <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+                <label htmlFor="dashboard-metric" className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
                   Metric
                 </label>
-                <select
+                <select id="dashboard-metric" name="dashboard_metric" aria-label="Dashboard metric"
                   value={metric}
                   onChange={(event) => setMetric(event.target.value)}
                   className="h-11 w-full rounded-xl border border-slate-200 bg-white/80 px-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/80"

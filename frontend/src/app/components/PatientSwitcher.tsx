@@ -25,7 +25,7 @@ export default function PatientSwitcher() {
       {patients.length > 8 && (
         <label className="relative mb-2 block">
           <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-          <input
+          <input name="patient_search" aria-label="Search assigned patients"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search assigned patients"
@@ -33,7 +33,7 @@ export default function PatientSwitcher() {
           />
         </label>
       )}
-      <select
+      <select id="assigned-patient-switcher" name="selected_patient"
         value={selectedPatient.id}
         onChange={(event) => setSelectedPatientId(Number(event.target.value))}
         className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"

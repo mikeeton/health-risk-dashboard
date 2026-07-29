@@ -88,7 +88,7 @@ export default function RegisterAccess() {
         )}
 
         <div className="space-y-4">
-          <input
+          <input name="full_name" aria-label="Full name"
             value={form.full_name}
             onChange={(event) =>
               setForm({ ...form, full_name: event.target.value })
@@ -97,7 +97,7 @@ export default function RegisterAccess() {
             className="w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
           />
 
-          <input
+          <input name="email" aria-label="Email address" autoComplete="email"
             value={form.email}
             onChange={(event) =>
               setForm({ ...form, email: event.target.value })
@@ -118,7 +118,7 @@ export default function RegisterAccess() {
             className="rounded-2xl border-white/10 bg-white/10 px-5 py-4 pr-12 text-white placeholder:text-slate-400 focus:border-blue-400 focus:ring-blue-400/20 dark:bg-white/10"
           />
 
-          <select
+          <select name="role" aria-label="Requested role"
             value={form.role}
             onChange={(event) =>
               setForm({ ...form, role: event.target.value })
@@ -139,7 +139,7 @@ export default function RegisterAccess() {
               </h2>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <input
+                <input name="age" aria-label="Age"
                   value={form.age}
                   type="number"
                   onChange={(event) =>
@@ -149,7 +149,7 @@ export default function RegisterAccess() {
                   className="rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
                 />
 
-                <select
+                <select name="gender" aria-label="Gender"
                   value={form.gender}
                   onChange={(event) =>
                     setForm({ ...form, gender: event.target.value })
@@ -171,7 +171,7 @@ export default function RegisterAccess() {
                 </select>
               </div>
 
-              <textarea
+              <textarea name="conditions" aria-label="Medical conditions"
                 value={form.conditions}
                 onChange={(event) =>
                   setForm({ ...form, conditions: event.target.value })
@@ -180,7 +180,7 @@ export default function RegisterAccess() {
                 className="mt-4 min-h-28 w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
               />
 
-              <textarea
+              <textarea name="medication_notes" aria-label="Medication notes"
                 value={form.medication_notes}
                 onChange={(event) =>
                   setForm({ ...form, medication_notes: event.target.value })
@@ -189,7 +189,7 @@ export default function RegisterAccess() {
                 className="mt-4 min-h-24 w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
               />
 
-              <textarea
+              <textarea name="lifestyle_notes" aria-label="Lifestyle notes"
                 value={form.lifestyle_notes}
                 onChange={(event) =>
                   setForm({ ...form, lifestyle_notes: event.target.value })

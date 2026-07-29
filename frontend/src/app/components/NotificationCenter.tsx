@@ -158,7 +158,7 @@ export default function NotificationCenter() {
 
             <label className="relative block w-full md:max-w-sm">
               <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
-              <input
+              <input name="notification_search" aria-label="Search notifications"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={`Search ${tab === "unread" ? "inbox" : "read history"}`}

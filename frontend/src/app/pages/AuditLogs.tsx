@@ -157,7 +157,7 @@ export default function AuditLogs() {
           <div className="relative xl:col-span-2">
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
-            <input
+            <input name="audit_search" aria-label="Search audit logs"
               value={search}
               onChange={(event) => {
                 setSearch(event.target.value);
@@ -168,7 +168,7 @@ export default function AuditLogs() {
             />
           </div>
 
-          <select
+          <select name="audit_action_filter" aria-label="Filter by action"
             value={actionFilter}
             onChange={(event) => {
               setActionFilter(event.target.value);
@@ -184,7 +184,7 @@ export default function AuditLogs() {
             ))}
           </select>
 
-          <select
+          <select name="audit_user_filter" aria-label="Filter by user"
             value={userFilter}
             onChange={(event) => {
               setUserFilter(event.target.value);

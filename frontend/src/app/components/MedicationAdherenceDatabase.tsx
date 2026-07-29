@@ -87,21 +87,21 @@ export default function MedicationAdherenceDatabase({
 
       {canAddMedication && (
         <div className="mb-5 grid gap-3 md:grid-cols-4">
-          <input
+          <input name="medication_name" aria-label="Medication name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
             placeholder="Medication name"
           />
 
-          <input
+          <input name="medication_dosage" aria-label="Medication dosage"
             value={dosage}
             onChange={(event) => setDosage(event.target.value)}
             className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
             placeholder="Dosage"
           />
 
-          <input
+          <input name="medication_schedule_time" aria-label="Medication schedule time"
             value={scheduleTime}
             onChange={(event) => setScheduleTime(event.target.value)}
             className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"

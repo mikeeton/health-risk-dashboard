@@ -174,7 +174,7 @@ export default function AdminAssignments() {
           <div className="space-y-4">
             <label className="block text-sm font-bold">
               Patient
-              <select
+              <select name="assignment_patient" aria-label="Patient"
                 value={patientId}
                 onChange={(event) => setPatientId(event.target.value)}
                 className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950"
@@ -189,7 +189,7 @@ export default function AdminAssignments() {
 
             <label className="block text-sm font-bold">
               Staff Role
-              <select
+              <select name="assignment_role" aria-label="Clinical role"
                 value={role}
                 onChange={(event) => setRole(event.target.value as "doctor" | "nurse")}
                 className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950"
@@ -201,7 +201,7 @@ export default function AdminAssignments() {
 
             <label className="block text-sm font-bold">
               Staff Member
-              <select
+              <select name="assignment_staff" aria-label="Staff member"
                 value={staffUserId}
                 onChange={(event) => setStaffUserId(event.target.value)}
                 className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950"

@@ -164,11 +164,11 @@ export default function ReviewCases() {
               </div>
 
               <div className="mt-5">
-                <label className="mb-2 block text-sm font-medium">
+                <label htmlFor={`note-${reviewCase.id}`} className="mb-2 block text-sm font-medium">
                   Clinician Notes
                 </label>
 
-                <textarea
+                <textarea name="review_notes"
                   defaultValue={
                     reviewCase.note || ""
                   }

@@ -347,7 +347,7 @@ export default function HealthAIAssistant({ patientId }: Props) {
       </div>
 
       <div className="flex flex-col gap-3 md:flex-row">
-        <input
+        <input name="ai_question" aria-label="Ask the AI assistant"
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           onKeyDown={(event) => {
@@ -365,7 +365,7 @@ export default function HealthAIAssistant({ patientId }: Props) {
         <div className="mt-6" aria-live="polite">
           <div className="mb-3 flex flex-col gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
             <label className="flex items-center gap-2 text-xs font-semibold">
-              <input type="checkbox" checked={reviewConfirmed} onChange={(event) => setReviewConfirmed(event.target.checked)} />
+              <input name="clinical_review_confirmed" aria-label="Clinical review confirmed" type="checkbox" checked={reviewConfirmed} onChange={(event) => setReviewConfirmed(event.target.checked)} />
               I verified the response against every cited record
             </label>
             <div className="flex flex-wrap items-center gap-2">

@@ -270,7 +270,7 @@ export default function DoctorDashboard() {
             <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
               <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
                 Note Type
-                <select
+                <select name="clinical_note_type" aria-label="Clinical note type"
                   value={noteType}
                   onChange={(event) =>
                     setNoteType(event.target.value as DoctorClinicalNoteType)
@@ -285,7 +285,7 @@ export default function DoctorDashboard() {
 
               <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
                 Title
-                <input
+                <input name="clinical_note_title" aria-label="Clinical note title"
                   value={noteTitle}
                   onChange={(event) => setNoteTitle(event.target.value)}
                   minLength={3}
@@ -299,7 +299,7 @@ export default function DoctorDashboard() {
 
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
               Clinical Details
-              <textarea
+              <textarea name="clinical_note_description" aria-label="Clinical note description"
                 value={noteDescription}
                 onChange={(event) => setNoteDescription(event.target.value)}
                 minLength={5}
@@ -336,7 +336,7 @@ export default function DoctorDashboard() {
           <form onSubmit={handleEscalationSubmit} className="space-y-4">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
               Escalation Note
-              <textarea
+              <textarea name="escalation_note" aria-label="Escalation note"
                 value={escalationNote}
                 onChange={(event) => setEscalationNote(event.target.value)}
                 minLength={5}

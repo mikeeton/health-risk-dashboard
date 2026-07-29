@@ -164,6 +164,9 @@ export default function UploadData() {
 
           <label className="mt-6 inline-block">
             <input
+              id="vitals-csv-upload"
+              name="vitals_csv_upload"
+              aria-label="Choose vitals CSV file"
               type="file"
               accept=".csv"
               onChange={handleFileChange}

@@ -218,7 +218,7 @@ export default function Referrals() {
           <form onSubmit={submitReferral} className="grid gap-4 lg:grid-cols-2">
             <label className="block text-sm font-bold">
               Patient
-              <select
+              <select name="referral_patient" aria-label="Referral patient"
                 value={patientId}
                 onChange={(event) => setPatientId(event.target.value)}
                 required
@@ -234,7 +234,7 @@ export default function Referrals() {
 
             <label className="block text-sm font-bold">
               Receiving Clinician
-              <select
+              <select name="referral_recipient" aria-label="Receiving clinician"
                 value={receivingUserId}
                 onChange={(event) => setReceivingUserId(event.target.value)}
                 className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950"
@@ -252,7 +252,7 @@ export default function Referrals() {
 
             <label className="block text-sm font-bold">
               Department
-              <input
+              <input name="referral_department" aria-label="Referral department"
                 value={department}
                 onChange={(event) => setDepartment(event.target.value)}
                 placeholder="e.g. Cardiology"
@@ -262,7 +262,7 @@ export default function Referrals() {
 
             <label className="block text-sm font-bold">
               Urgency
-              <select
+              <select name="referral_urgency" aria-label="Referral urgency"
                 value={urgency}
                 onChange={(event) => setUrgency(event.target.value as Referral["urgency"])}
                 className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950"
@@ -276,7 +276,7 @@ export default function Referrals() {
 
             <label className="block text-sm font-bold lg:col-span-2">
               Reason
-              <input
+              <input name="referral_reason" aria-label="Referral reason"
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
                 minLength={5}
@@ -289,7 +289,7 @@ export default function Referrals() {
 
             <label className="block text-sm font-bold lg:col-span-2">
               Supporting Notes
-              <textarea
+              <textarea name="referral_notes" aria-label="Referral notes"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
                 rows={4}
@@ -319,7 +319,7 @@ export default function Referrals() {
             </p>
           </div>
 
-          <select
+          <select name="referral_status_filter" aria-label="Filter referrals by status"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
             className="w-fit rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold dark:border-slate-800 dark:bg-slate-950"
@@ -379,7 +379,7 @@ export default function Referrals() {
                     /* Admin review never displays clinical vitals or diagnoses.
                        Approval only changes access by creating an assignment. */
                     <div className="w-full max-w-md space-y-3">
-                      <textarea
+                      <textarea name={`referral_review_${referral.id}`} aria-label="Referral review notes"
                         value={reviewNotes[referral.id] ?? ""}
                         onChange={(event) =>
                           setReviewNotes((current) => ({

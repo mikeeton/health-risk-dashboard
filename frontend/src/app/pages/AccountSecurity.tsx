@@ -116,7 +116,7 @@ export default function AccountSecurity() {
               ["department", "Department"],
               ["organisation", "Organisation"],
             ].map(([field, label]) => (
-              <label key={field} className="text-xs font-bold text-slate-500">{label}<input className={`${inputClass} mt-1`} value={String(profile[field] ?? "")} onChange={(event) => setProfile({ ...profile, [field]: event.target.value })} /></label>
+              <label key={field} className="text-xs font-bold text-slate-500">{label}<input name={`profile_${field}`} className={`${inputClass} mt-1`} value={String(profile[field] ?? "")} onChange={(event) => setProfile({ ...profile, [field]: event.target.value })} /></label>
             ))}
           </div>
           {profile.role === "patient" && (
@@ -130,7 +130,7 @@ export default function AccountSecurity() {
                   ["gp_name", "GP name"],
                   ["gp_practice", "GP practice"],
                 ].map(([field, label]) => (
-                  <label key={field} className="text-xs font-bold text-slate-500">{label}<input className={`${inputClass} mt-1`} value={String(patientProfile[field] ?? "")} onChange={(event) => setProfile({ ...profile, patient_profile: { ...patientProfile, [field]: event.target.value } })} /></label>
+                  <label key={field} className="text-xs font-bold text-slate-500">{label}<input name={`patient_profile_${field}`} className={`${inputClass} mt-1`} value={String(patientProfile[field] ?? "")} onChange={(event) => setProfile({ ...profile, patient_profile: { ...patientProfile, [field]: event.target.value } })} /></label>
                 ))}
               </div>
             </div>
@@ -141,8 +141,8 @@ export default function AccountSecurity() {
         <section className="glass-card rounded-3xl p-6">
           <h2 className="flex items-center gap-2 text-xl font-extrabold"><KeyRound className="h-5 w-5 text-blue-600" /> Password</h2>
           <div className="mt-5 space-y-3">
-            <input type="password" className={inputClass} value={passwords.current_password} onChange={(event) => setPasswords({ ...passwords, current_password: event.target.value })} placeholder="Current password" />
-            <input type="password" className={inputClass} value={passwords.new_password} onChange={(event) => setPasswords({ ...passwords, new_password: event.target.value })} placeholder="New strong password" />
+            <input name="current_password" aria-label="Current password" autoComplete="current-password" type="password" className={inputClass} value={passwords.current_password} onChange={(event) => setPasswords({ ...passwords, current_password: event.target.value })} placeholder="Current password" />
+            <input name="new_password" aria-label="New password" autoComplete="new-password" type="password" className={inputClass} value={passwords.new_password} onChange={(event) => setPasswords({ ...passwords, new_password: event.target.value })} placeholder="New strong password" />
             <p className="text-xs leading-5 text-slate-500">At least 12 characters with upper/lowercase letters, a number, and a symbol.</p>
             <button disabled={!passwords.current_password || !passwords.new_password} onClick={changePassword} className="h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-50">Change password</button>
           </div>
@@ -153,14 +153,14 @@ export default function AccountSecurity() {
               <div className="mt-3 space-y-3">
                 <p>Add this secret to your authenticator application:</p>
                 <code className="block break-all rounded-lg bg-white p-3 text-xs text-slate-900">{mfaEnrollment.secret}</code>
-                <input value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Current 6-digit code" className={inputClass} />
+                <input name="mfa_confirmation_code" aria-label="MFA confirmation code" autoComplete="one-time-code" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Current 6-digit code" className={inputClass} />
                 <button disabled={mfaCode.length !== 6} onClick={async () => { await confirmMFA(mfaCode); setMfaEnrollment(null); setMfaCode(""); await load(); }} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Confirm and enable</button>
               </div>
             )}
             {Boolean(profile.mfa_enabled) && (
               <div className="mt-3 grid gap-2">
-                <input type="password" value={mfaPassword} onChange={(event) => setMfaPassword(event.target.value)} placeholder="Password to disable MFA" className={inputClass} />
-                <input value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Current 6-digit code" className={inputClass} />
+                <input name="mfa_disable_password" aria-label="Password to disable MFA" autoComplete="current-password" type="password" value={mfaPassword} onChange={(event) => setMfaPassword(event.target.value)} placeholder="Password to disable MFA" className={inputClass} />
+                <input name="mfa_disable_code" aria-label="MFA code to disable MFA" autoComplete="one-time-code" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Current 6-digit code" className={inputClass} />
                 <button disabled={!mfaPassword || mfaCode.length !== 6} onClick={async () => { await disableMFA(mfaPassword, mfaCode); setMfaPassword(""); setMfaCode(""); await load(); }} className="w-fit rounded-lg border border-red-300 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Disable MFA</button>
               </div>
             )}

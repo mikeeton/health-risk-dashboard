@@ -68,13 +68,13 @@ export default function PatientTimelineDatabase({
 
       {canAddEvent && (
         <div className="mb-5 grid gap-3 md:grid-cols-3">
-          <input
+          <input name="timeline_event_type" aria-label="Timeline event type"
             value={eventType}
             onChange={(event) => setEventType(event.target.value)}
             className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
           />
 
-          <input
+          <input name="timeline_event_title" aria-label="Timeline event title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"

@@ -336,9 +336,9 @@ export default function CareWorkspace() {
             <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
               <Panel title={isPatient ? "Request appointment" : "Schedule appointment"} icon={Plus}>
                 <div className="space-y-3">
-                  <input type="datetime-local" className={inputClass} value={appointmentForm.starts_at} onChange={(event) => setAppointmentForm({ ...appointmentForm, starts_at: event.target.value })} />
-                  <input className={inputClass} value={appointmentForm.appointment_type} onChange={(event) => setAppointmentForm({ ...appointmentForm, appointment_type: event.target.value })} placeholder="Appointment type" />
-                  <textarea className={textareaClass} value={appointmentForm.reason} onChange={(event) => setAppointmentForm({ ...appointmentForm, reason: event.target.value })} placeholder="Reason" />
+                  <input id="appointment-starts-at" name="appointment_starts_at" aria-label="Appointment date and time" type="datetime-local" className={inputClass} value={appointmentForm.starts_at} onChange={(event) => setAppointmentForm({ ...appointmentForm, starts_at: event.target.value })} />
+                  <input id="appointment-type" name="appointment_type" aria-label="Appointment type" className={inputClass} value={appointmentForm.appointment_type} onChange={(event) => setAppointmentForm({ ...appointmentForm, appointment_type: event.target.value })} placeholder="Appointment type" />
+                  <textarea id="appointment-reason" name="appointment_reason" aria-label="Appointment reason" className={textareaClass} value={appointmentForm.reason} onChange={(event) => setAppointmentForm({ ...appointmentForm, reason: event.target.value })} placeholder="Reason" />
                   <button className={primaryButton} onClick={() => perform(() => createAppointment({ patient_id: patientId, ...appointmentForm }), "Appointment saved.")}>
                     <CalendarDays className="h-4 w-4" /> {isPatient ? "Request" : "Schedule"}
                   </button>
@@ -377,12 +377,12 @@ export default function CareWorkspace() {
             <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
               <Panel title="New secure message" icon={MessageSquareText}>
                 <div className="space-y-3">
-                  <select className={inputClass} value={messageForm.recipient_user_id} onChange={(event) => setMessageForm({ ...messageForm, recipient_user_id: event.target.value })}>
+                  <select id="message-recipient" name="message_recipient" aria-label="Message recipient" className={inputClass} value={messageForm.recipient_user_id} onChange={(event) => setMessageForm({ ...messageForm, recipient_user_id: event.target.value })}>
                     <option value="">Select recipient</option>
                     {otherTeam.map((member) => <option key={member.id} value={member.id}>{member.full_name} · {member.role}</option>)}
                   </select>
-                  <input className={inputClass} value={messageForm.subject} onChange={(event) => setMessageForm({ ...messageForm, subject: event.target.value })} placeholder="Subject" />
-                  <textarea className={textareaClass} value={messageForm.body} onChange={(event) => setMessageForm({ ...messageForm, body: event.target.value })} placeholder="Message" />
+                  <input id="message-subject" name="message_subject" aria-label="Message subject" className={inputClass} value={messageForm.subject} onChange={(event) => setMessageForm({ ...messageForm, subject: event.target.value })} placeholder="Subject" />
+                  <textarea id="message-body" name="message_body" aria-label="Message body" className={textareaClass} value={messageForm.body} onChange={(event) => setMessageForm({ ...messageForm, body: event.target.value })} placeholder="Message" />
                   <button disabled={!messageForm.recipient_user_id || !messageForm.subject || !messageForm.body} className={primaryButton} onClick={() => perform(() => sendCareMessage({ patient_id: patientId, ...messageForm, recipient_user_id: Number(messageForm.recipient_user_id) }), "Secure message sent.")}>
                     <MessageSquareText className="h-4 w-4" /> Send securely
                   </button>
@@ -407,13 +407,13 @@ export default function CareWorkspace() {
               {(isDoctor || isNurse) && (
                 <Panel title="Assign care task" icon={ClipboardList}>
                   <div className="space-y-3">
-                    <select className={inputClass} value={taskForm.assigned_to_user_id} onChange={(event) => setTaskForm({ ...taskForm, assigned_to_user_id: event.target.value })}>
+                    <select id="task-assignee" name="task_assignee" aria-label="Task assignee" className={inputClass} value={taskForm.assigned_to_user_id} onChange={(event) => setTaskForm({ ...taskForm, assigned_to_user_id: event.target.value })}>
                       <option value="">Select assignee</option>
                       {team.map((member) => <option key={member.id} value={member.id}>{member.full_name} · {member.role}</option>)}
                     </select>
-                    <input className={inputClass} value={taskForm.title} onChange={(event) => setTaskForm({ ...taskForm, title: event.target.value })} placeholder="Task title" />
-                    <select className={inputClass} value={taskForm.priority} onChange={(event) => setTaskForm({ ...taskForm, priority: event.target.value })}><option>low</option><option>medium</option><option>high</option><option>critical</option></select>
-                    <input type="datetime-local" className={inputClass} value={taskForm.due_at} onChange={(event) => setTaskForm({ ...taskForm, due_at: event.target.value })} />
+                    <input id="task-title" name="task_title" aria-label="Task title" className={inputClass} value={taskForm.title} onChange={(event) => setTaskForm({ ...taskForm, title: event.target.value })} placeholder="Task title" />
+                    <select id="task-priority" name="task_priority" aria-label="Task priority" className={inputClass} value={taskForm.priority} onChange={(event) => setTaskForm({ ...taskForm, priority: event.target.value })}><option>low</option><option>medium</option><option>high</option><option>critical</option></select>
+                    <input id="task-due-at" name="task_due_at" aria-label="Task due date and time" type="datetime-local" className={inputClass} value={taskForm.due_at} onChange={(event) => setTaskForm({ ...taskForm, due_at: event.target.value })} />
                     <button disabled={!taskForm.assigned_to_user_id || !taskForm.title} className={primaryButton} onClick={() => perform(() => createCareTask({ patient_id: patientId, ...taskForm, assigned_to_user_id: Number(taskForm.assigned_to_user_id), due_at: taskForm.due_at || null }), "Task assigned.")}><Plus className="h-4 w-4" /> Assign task</button>
                   </div>
                 </Panel>
@@ -438,11 +438,11 @@ export default function CareWorkspace() {
               {(isDoctor || isNurse) && (
                 <Panel title="Structured clinical document" icon={FileSignature}>
                   <div className="space-y-3">
-                    <select className={inputClass} value={documentForm.document_type} onChange={(event) => setDocumentForm({ ...documentForm, document_type: event.target.value })}><option>SOAP Note</option><option>Diagnosis</option><option>Care Plan</option><option>Report</option><option>Handover</option></select>
-                    <input className={inputClass} value={documentForm.title} onChange={(event) => setDocumentForm({ ...documentForm, title: event.target.value })} placeholder="Title" />
-                    {(["subjective", "objective", "assessment", "plan"] as const).map((field) => <textarea key={field} className={textareaClass} value={documentForm[field]} onChange={(event) => setDocumentForm({ ...documentForm, [field]: event.target.value })} placeholder={field[0].toUpperCase() + field.slice(1)} />)}
-                    <div className="grid grid-cols-2 gap-2"><select className={inputClass} value={documentForm.terminology_system} onChange={(event) => setDocumentForm({ ...documentForm, terminology_system: event.target.value })}><option value="">Terminology</option><option>SNOMED CT</option><option>ICD-10</option><option>LOINC</option><option>dm+d</option></select><input className={inputClass} value={documentForm.terminology_code} onChange={(event) => setDocumentForm({ ...documentForm, terminology_code: event.target.value })} placeholder="Code" /></div>
-                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={documentForm.patient_visible} onChange={(event) => setDocumentForm({ ...documentForm, patient_visible: event.target.checked })} /> Share after doctor signs</label>
+                    <select name="document_type" aria-label="Document type" className={inputClass} value={documentForm.document_type} onChange={(event) => setDocumentForm({ ...documentForm, document_type: event.target.value })}><option>SOAP Note</option><option>Diagnosis</option><option>Care Plan</option><option>Report</option><option>Handover</option></select>
+                    <input name="document_title" aria-label="Document title" className={inputClass} value={documentForm.title} onChange={(event) => setDocumentForm({ ...documentForm, title: event.target.value })} placeholder="Title" />
+                    {(["subjective", "objective", "assessment", "plan"] as const).map((field) => <textarea key={field} name={`document_${field}`} aria-label={`Document ${field}`} className={textareaClass} value={documentForm[field]} onChange={(event) => setDocumentForm({ ...documentForm, [field]: event.target.value })} placeholder={field[0].toUpperCase() + field.slice(1)} />)}
+                    <div className="grid grid-cols-2 gap-2"><select name="terminology_system" aria-label="Terminology system" className={inputClass} value={documentForm.terminology_system} onChange={(event) => setDocumentForm({ ...documentForm, terminology_system: event.target.value })}><option value="">Terminology</option><option>SNOMED CT</option><option>ICD-10</option><option>LOINC</option><option>dm+d</option></select><input name="terminology_code" aria-label="Terminology code" className={inputClass} value={documentForm.terminology_code} onChange={(event) => setDocumentForm({ ...documentForm, terminology_code: event.target.value })} placeholder="Code" /></div>
+                    <label className="flex items-center gap-2 text-sm"><input name="patient_visible" aria-label="Share after doctor signs" type="checkbox" checked={documentForm.patient_visible} onChange={(event) => setDocumentForm({ ...documentForm, patient_visible: event.target.checked })} /> Share after doctor signs</label>
                     <button disabled={!documentForm.title} className={primaryButton} onClick={() => perform(() => createClinicalDocument({ patient_id: patientId, ...documentForm, terminology_system: documentForm.terminology_system || null, terminology_code: documentForm.terminology_code || null }), "Draft clinical document saved.")}><FileSignature className="h-4 w-4" /> Save versioned draft</button>
                   </div>
                 </Panel>
@@ -470,8 +470,8 @@ export default function CareWorkspace() {
                 <Panel title="Investigations and results" icon={Stethoscope}>
                   {isDoctor && (
                     <div className="mb-5 grid gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900 md:grid-cols-2">
-                      <input className={inputClass} value={clinicalForm.investigation_type} onChange={(event) => setClinicalForm({ ...clinicalForm, investigation_type: event.target.value })} placeholder="Investigation e.g. Full blood count" />
-                      <input className={inputClass} value={clinicalForm.code} onChange={(event) => setClinicalForm({ ...clinicalForm, code: event.target.value })} placeholder="LOINC code (optional)" />
+                      <input name="investigation_type" aria-label="Investigation type" className={inputClass} value={clinicalForm.investigation_type} onChange={(event) => setClinicalForm({ ...clinicalForm, investigation_type: event.target.value })} placeholder="Investigation e.g. Full blood count" />
+                      <input name="investigation_code" aria-label="Investigation code" className={inputClass} value={clinicalForm.code} onChange={(event) => setClinicalForm({ ...clinicalForm, code: event.target.value })} placeholder="LOINC code (optional)" />
                       <button disabled={!clinicalForm.investigation_type} className={primaryButton} onClick={() => perform(() => orderInvestigation({ patient_id: patientId, investigation_type: clinicalForm.investigation_type, code: clinicalForm.code || null, code_system: clinicalForm.code ? "LOINC" : null, priority: "routine" }), "Investigation ordered.")}><Plus className="h-4 w-4" /> Order investigation</button>
                     </div>
                   )}
@@ -495,10 +495,10 @@ export default function CareWorkspace() {
                 <Panel title="Medication administration record" icon={ClipboardList}>
                   {isNurse && (
                     <div className="mb-5 space-y-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
-                      <select className={inputClass} value={clinicalForm.medication_id} onChange={(event) => setClinicalForm({ ...clinicalForm, medication_id: event.target.value })}><option value="">Select medication</option>{medications.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.name)} · {String(item.dosage)}</option>)}</select>
-                      <input type="datetime-local" className={inputClass} value={clinicalForm.medication_scheduled_at} onChange={(event) => setClinicalForm({ ...clinicalForm, medication_scheduled_at: event.target.value })} />
-                      <select className={inputClass} value={clinicalForm.medication_status} onChange={(event) => setClinicalForm({ ...clinicalForm, medication_status: event.target.value })}><option>administered</option><option>missed</option><option>refused</option><option>delayed</option><option>unavailable</option></select>
-                      {clinicalForm.medication_status !== "administered" && <textarea className={textareaClass} value={clinicalForm.medication_reason} onChange={(event) => setClinicalForm({ ...clinicalForm, medication_reason: event.target.value })} placeholder="Mandatory exception reason" />}
+                      <select name="medication_id" aria-label="Medication" className={inputClass} value={clinicalForm.medication_id} onChange={(event) => setClinicalForm({ ...clinicalForm, medication_id: event.target.value })}><option value="">Select medication</option>{medications.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.name)} · {String(item.dosage)}</option>)}</select>
+                      <input name="medication_scheduled_at" aria-label="Scheduled medication time" type="datetime-local" className={inputClass} value={clinicalForm.medication_scheduled_at} onChange={(event) => setClinicalForm({ ...clinicalForm, medication_scheduled_at: event.target.value })} />
+                      <select name="medication_status" aria-label="Medication administration status" className={inputClass} value={clinicalForm.medication_status} onChange={(event) => setClinicalForm({ ...clinicalForm, medication_status: event.target.value })}><option>administered</option><option>missed</option><option>refused</option><option>delayed</option><option>unavailable</option></select>
+                      {clinicalForm.medication_status !== "administered" && <textarea name="medication_reason" aria-label="Medication exception reason" className={textareaClass} value={clinicalForm.medication_reason} onChange={(event) => setClinicalForm({ ...clinicalForm, medication_reason: event.target.value })} placeholder="Mandatory exception reason" />}
                       <button disabled={!clinicalForm.medication_id || !clinicalForm.medication_scheduled_at || (clinicalForm.medication_status !== "administered" && !clinicalForm.medication_reason)} className={primaryButton} onClick={() => perform(() => recordMedicationAdministration({ patient_id: patientId, medication_id: Number(clinicalForm.medication_id), scheduled_at: clinicalForm.medication_scheduled_at, status: clinicalForm.medication_status, reason: clinicalForm.medication_reason || null }), "Medication administration recorded.")}>Record administration</button>
                     </div>
                   )}
@@ -510,10 +510,10 @@ export default function CareWorkspace() {
                 <Panel title="Observation schedules" icon={CalendarDays}>
                   {(isDoctor || isNurse) && (
                     <div className="mb-5 grid gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900 md:grid-cols-2">
-                      <input className={inputClass} value={clinicalForm.metric} onChange={(event) => setClinicalForm({ ...clinicalForm, metric: event.target.value })} placeholder="Observation" />
-                      <select className={inputClass} value={clinicalForm.assigned_to_user_id} onChange={(event) => setClinicalForm({ ...clinicalForm, assigned_to_user_id: event.target.value })}><option value="">Assigned clinician</option>{team.filter((member) => member.role === "nurse" || member.role === "doctor").map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select>
-                      <input type="number" className={inputClass} value={clinicalForm.frequency_minutes} onChange={(event) => setClinicalForm({ ...clinicalForm, frequency_minutes: event.target.value })} placeholder="Frequency minutes" />
-                      <input type="datetime-local" className={inputClass} value={clinicalForm.next_due_at} onChange={(event) => setClinicalForm({ ...clinicalForm, next_due_at: event.target.value })} />
+                      <input name="observation_metric" aria-label="Observation type" className={inputClass} value={clinicalForm.metric} onChange={(event) => setClinicalForm({ ...clinicalForm, metric: event.target.value })} placeholder="Observation" />
+                      <select name="observation_assignee" aria-label="Assigned clinician" className={inputClass} value={clinicalForm.assigned_to_user_id} onChange={(event) => setClinicalForm({ ...clinicalForm, assigned_to_user_id: event.target.value })}><option value="">Assigned clinician</option>{team.filter((member) => member.role === "nurse" || member.role === "doctor").map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select>
+                      <input name="observation_frequency_minutes" aria-label="Observation frequency in minutes" type="number" className={inputClass} value={clinicalForm.frequency_minutes} onChange={(event) => setClinicalForm({ ...clinicalForm, frequency_minutes: event.target.value })} placeholder="Frequency minutes" />
+                      <input name="observation_next_due_at" aria-label="Next observation due date and time" type="datetime-local" className={inputClass} value={clinicalForm.next_due_at} onChange={(event) => setClinicalForm({ ...clinicalForm, next_due_at: event.target.value })} />
                       <button disabled={!clinicalForm.assigned_to_user_id || !clinicalForm.next_due_at} className={primaryButton} onClick={() => perform(() => createObservationSchedule({ patient_id: patientId, assigned_to_user_id: Number(clinicalForm.assigned_to_user_id), metric: clinicalForm.metric, frequency_minutes: Number(clinicalForm.frequency_minutes), next_due_at: clinicalForm.next_due_at, escalation_minutes: 30 }), "Observation schedule created.")}>Schedule observations</button>
                     </div>
                   )}
@@ -523,9 +523,9 @@ export default function CareWorkspace() {
                 <Panel title="Nursing assessments" icon={ClipboardList}>
                   {isNurse && (
                     <div className="mb-5 space-y-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
-                      <select className={inputClass} value={clinicalForm.assessment_type} onChange={(event) => setClinicalForm({ ...clinicalForm, assessment_type: event.target.value })}><option>NEWS2</option><option>pain</option><option>falls</option><option>mobility</option><option>wound</option><option>fluid balance</option><option>general</option></select>
-                      <input type="number" className={inputClass} value={clinicalForm.score} onChange={(event) => setClinicalForm({ ...clinicalForm, score: event.target.value })} placeholder="Score" />
-                      <textarea className={textareaClass} value={clinicalForm.findings} onChange={(event) => setClinicalForm({ ...clinicalForm, findings: event.target.value })} placeholder="Structured findings summary" />
+                      <select name="assessment_type" aria-label="Assessment type" className={inputClass} value={clinicalForm.assessment_type} onChange={(event) => setClinicalForm({ ...clinicalForm, assessment_type: event.target.value })}><option>NEWS2</option><option>pain</option><option>falls</option><option>mobility</option><option>wound</option><option>fluid balance</option><option>general</option></select>
+                      <input name="assessment_score" aria-label="Assessment score" type="number" className={inputClass} value={clinicalForm.score} onChange={(event) => setClinicalForm({ ...clinicalForm, score: event.target.value })} placeholder="Score" />
+                      <textarea name="assessment_findings" aria-label="Assessment findings" className={textareaClass} value={clinicalForm.findings} onChange={(event) => setClinicalForm({ ...clinicalForm, findings: event.target.value })} placeholder="Structured findings summary" />
                       <button disabled={!clinicalForm.findings} className={primaryButton} onClick={() => perform(() => createNursingAssessment({ patient_id: patientId, assessment_type: clinicalForm.assessment_type, score: Number(clinicalForm.score), findings: { summary: clinicalForm.findings }, escalation_required: Number(clinicalForm.score) >= 5 }), "Nursing assessment saved.")}>Save assessment</button>
                     </div>
                   )}
@@ -567,10 +567,10 @@ export default function CareWorkspace() {
               <Panel title={isPatient ? "Symptom diary and outcomes" : "Patient-reported outcomes"} icon={RefreshCw}>
                 {isPatient && (
                   <div className="mb-5 space-y-3">
-                    <select className={inputClass} value={outcomeForm.outcome_type} onChange={(event) => setOutcomeForm({ ...outcomeForm, outcome_type: event.target.value })}><option>symptom diary</option><option>questionnaire</option><option>side effect</option><option>pain score</option><option>wellbeing</option></select>
-                    <input type="range" min="0" max="10" value={outcomeForm.severity} onChange={(event) => setOutcomeForm({ ...outcomeForm, severity: event.target.value })} className="w-full" />
+                    <select name="outcome_type" aria-label="Patient outcome type" className={inputClass} value={outcomeForm.outcome_type} onChange={(event) => setOutcomeForm({ ...outcomeForm, outcome_type: event.target.value })}><option>symptom diary</option><option>questionnaire</option><option>side effect</option><option>pain score</option><option>wellbeing</option></select>
+                    <input name="outcome_severity" aria-label="Symptom severity" type="range" min="0" max="10" value={outcomeForm.severity} onChange={(event) => setOutcomeForm({ ...outcomeForm, severity: event.target.value })} className="w-full" />
                     <p className="text-xs text-slate-500">Severity {outcomeForm.severity}/10</p>
-                    <textarea className={textareaClass} value={outcomeForm.response} onChange={(event) => setOutcomeForm({ ...outcomeForm, response: event.target.value })} placeholder="Describe symptoms, side effects, or wellbeing" />
+                    <textarea name="outcome_response" aria-label="Symptoms, side effects, or wellbeing" className={textareaClass} value={outcomeForm.response} onChange={(event) => setOutcomeForm({ ...outcomeForm, response: event.target.value })} placeholder="Describe symptoms, side effects, or wellbeing" />
                     <button disabled={!outcomeForm.response} className={primaryButton} onClick={() => perform(() => createPatientOutcome({ patient_id: patientId, ...outcomeForm, severity: Number(outcomeForm.severity) }), "Outcome shared with your care team.")}>Submit outcome</button>
                   </div>
                 )}

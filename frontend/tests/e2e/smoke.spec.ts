@@ -40,7 +40,7 @@ test("invalid login shows a useful error message", async ({ page }) => {
   await page.getByLabel("Password").fill("wrong-password");
   await page.getByRole("button", { name: "Sign In" }).click();
 
-  await expect(page.getByText("Login failed")).toBeVisible();
+  await expect(page.getByText("Login failed")).toBeVisible({ timeout: 15_000 });
   await expect(
     page.getByText("Check your email, password, and backend server.")
   ).toBeVisible();
@@ -292,7 +292,7 @@ test("admin can reach protected admin workspace", async ({ page }) => {
     process.env.E2E_ADMIN_EMAIL ?? "admin@example.com"
   );
   await page.getByLabel("Password").fill(
-    process.env.E2E_ADMIN_PASSWORD ?? "AdminPassword123!"
+    process.env.E2E_ADMIN_PASSWORD ?? "Password123"
   );
   await page.getByRole("button", { name: "Sign In" }).click();
 

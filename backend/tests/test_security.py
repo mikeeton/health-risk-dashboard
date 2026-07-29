@@ -1161,3 +1161,288 @@ def test_patient_creation_handles_multiple_active_nurses(client, db, cleanup):
     assert response.status_code == 200
     cleanup["patient_ids"].append(response.json()["id"])
     assert response.json()["assigned_nurse_id"] is not None
+
+
+def test_complete_extended_care_workspace_workflow(client, db, cleanup):
+    admin = create_user(db, cleanup, "admin")
+    doctor = create_user(db, cleanup, "doctor")
+    nurse = create_user(db, cleanup, "nurse")
+    patient_user = create_user(db, cleanup, "patient")
+    patient = create_patient(
+        db,
+        cleanup,
+        name=f"Extended Workflow {uuid4().hex[:8]}",
+        doctor_id=doctor.id,
+        nurse_id=nurse.id,
+        user_id=patient_user.id,
+    )
+    medication = models.Medication(
+        patient_id=patient.id,
+        name="Workflow Tablet",
+        dosage="10 mg",
+        schedule_time="09:00",
+        status="Due",
+        notes="Extended workflow",
+    )
+    alert = models.ReviewCase(
+        patient_id=patient.id,
+        patient_name=patient.name,
+        risk_level="High",
+        risk_score=8,
+        status="Open",
+        note="Extended workflow alert",
+        created_at=datetime.now().isoformat(),
+    )
+    db.add_all([medication, alert])
+    db.commit()
+    db.refresh(medication)
+    db.refresh(alert)
+
+    def headers(user):
+        return auth_header(
+            create_access_token(
+                {"sub": user.email, "role": user.role, "user_id": user.id}
+            )
+        )
+
+    admin_headers = headers(admin)
+    doctor_headers = headers(doctor)
+    nurse_headers = headers(nurse)
+    patient_headers = headers(patient_user)
+
+    team = client.get(f"/care/team/{patient.id}", headers=doctor_headers)
+    assert team.status_code == 200
+    assert {item["role"] for item in team.json()} == {"doctor", "nurse", "patient"}
+
+    appointment = client.post(
+        "/care/appointments",
+        headers=patient_headers,
+        json={
+            "patient_id": patient.id,
+            "starts_at": "2026-08-10T09:30:00",
+            "appointment_type": "Monitoring review",
+            "reason": "Discuss current readings",
+        },
+    )
+    assert appointment.status_code == 200
+    assert client.patch(
+        f"/care/appointments/{appointment.json()['id']}",
+        headers=doctor_headers,
+        json={"status": "confirmed"},
+    ).status_code == 200
+
+    message = client.post(
+        "/care/messages",
+        headers=patient_headers,
+        json={
+            "patient_id": patient.id,
+            "recipient_user_id": doctor.id,
+            "subject": "Monitoring question",
+            "body": "Please review the latest readings.",
+        },
+    )
+    assert message.status_code == 200
+    assert client.patch(
+        f"/care/messages/{message.json()['id']}/read",
+        headers=doctor_headers,
+    ).status_code == 200
+
+    task = client.post(
+        "/care/tasks",
+        headers=doctor_headers,
+        json={
+            "patient_id": patient.id,
+            "assigned_to_user_id": nurse.id,
+            "title": "Repeat observations",
+            "priority": "high",
+            "due_at": "2026-08-10T10:00:00",
+        },
+    )
+    assert task.status_code == 200
+    assert client.patch(
+        f"/care/tasks/{task.json()['id']}",
+        headers=nurse_headers,
+        json={"status": "completed", "completion_note": "Observations repeated"},
+    ).status_code == 200
+    assert client.post(
+        "/care/tasks",
+        headers=patient_headers,
+        json={
+            "patient_id": patient.id,
+            "assigned_to_user_id": patient_user.id,
+            "title": "Forbidden self-created task",
+            "priority": "low",
+        },
+    ).status_code == 403
+
+    consent = client.post(
+        "/care/consents",
+        headers=patient_headers,
+        json={
+            "patient_id": patient.id,
+            "consent_type": "ai_processing",
+            "granted": True,
+            "policy_version": "2026-07",
+        },
+    )
+    assert consent.status_code == 200
+
+    outcome = client.post(
+        "/care/outcomes",
+        headers=patient_headers,
+        json={
+            "patient_id": patient.id,
+            "outcome_type": "pain score",
+            "severity": 4,
+            "response": "Mild intermittent discomfort.",
+        },
+    )
+    assert outcome.status_code == 200
+
+    document = client.post(
+        "/care/documents",
+        headers=doctor_headers,
+        json={
+            "patient_id": patient.id,
+            "document_type": "SOAP Note",
+            "title": "Extended workflow note",
+            "subjective": "Patient reports mild discomfort.",
+            "objective": "Reviewed observations.",
+            "assessment": "Continue monitoring.",
+            "plan": "Repeat observations.",
+            "patient_visible": True,
+        },
+    )
+    assert document.status_code == 200
+    assert client.post(
+        f"/care/documents/{document.json()['id']}/sign",
+        headers=doctor_headers,
+    ).status_code == 200
+    patient_documents = client.get(
+        f"/care/documents/{patient.id}",
+        headers=patient_headers,
+    )
+    assert patient_documents.status_code == 200
+    assert patient_documents.json()[0]["status"] == "signed"
+
+    administration = client.post(
+        "/care/medication-administrations",
+        headers=nurse_headers,
+        json={
+            "patient_id": patient.id,
+            "medication_id": medication.id,
+            "scheduled_at": "2026-08-10T09:00:00",
+            "status": "refused",
+            "reason": "Patient declined after explanation",
+        },
+    )
+    assert administration.status_code == 200
+    assert client.post(
+        "/care/medication-administrations",
+        headers=nurse_headers,
+        json={
+            "patient_id": patient.id,
+            "medication_id": medication.id,
+            "scheduled_at": "2026-08-10T12:00:00",
+            "status": "missed",
+        },
+    ).status_code == 422
+
+    investigation = client.post(
+        "/care/investigations",
+        headers=doctor_headers,
+        json={
+            "patient_id": patient.id,
+            "investigation_type": "Full blood count",
+            "code": "58410-2",
+            "code_system": "LOINC",
+            "priority": "routine",
+        },
+    )
+    assert investigation.status_code == 200
+    assert client.patch(
+        f"/care/investigations/{investigation.json()['id']}/result",
+        headers=doctor_headers,
+        json={
+            "result": "Within stated reference range",
+            "reference_range": "Local laboratory range",
+            "abnormal_flag": "normal",
+        },
+    ).status_code == 200
+    assert client.post(
+        "/care/investigations",
+        headers=nurse_headers,
+        json={
+            "patient_id": patient.id,
+            "investigation_type": "Nurse cannot order",
+        },
+    ).status_code == 403
+
+    assessment = client.post(
+        "/care/nursing-assessments",
+        headers=nurse_headers,
+        json={
+            "patient_id": patient.id,
+            "assessment_type": "NEWS2",
+            "score": 2,
+            "findings": {"summary": "Low score; continue routine monitoring"},
+            "escalation_required": False,
+        },
+    )
+    assert assessment.status_code == 200
+
+    schedule = client.post(
+        "/care/observation-schedules",
+        headers=doctor_headers,
+        json={
+            "patient_id": patient.id,
+            "assigned_to_user_id": nurse.id,
+            "metric": "Blood pressure",
+            "frequency_minutes": 240,
+            "next_due_at": "2026-08-10T12:00:00",
+            "escalation_minutes": 30,
+        },
+    )
+    assert schedule.status_code == 200
+
+    assert client.patch(
+        f"/care/alerts/{alert.id}",
+        headers=nurse_headers,
+        json={"action": "acknowledge", "owner_user_id": nurse.id},
+    ).status_code == 200
+    resolved = client.patch(
+        f"/care/alerts/{alert.id}",
+        headers=doctor_headers,
+        json={"action": "resolve", "resolution_reason": "Reviewed and closed"},
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["status"] == "Resolved"
+
+    data_request = client.post(
+        "/care/data-requests",
+        headers=patient_headers,
+        json={
+            "patient_id": patient.id,
+            "request_type": "correction",
+            "details": "Please verify one demographic entry.",
+        },
+    )
+    assert data_request.status_code == 200
+    assert client.patch(
+        f"/care/data-requests/{data_request.json()['id']}",
+        headers=admin_headers,
+        json={
+            "status": "fulfilled",
+            "resolution_note": "Demographic entry verified.",
+        },
+    ).status_code == 200
+
+    record_export = client.get(
+        f"/care/export/{patient.id}",
+        headers=patient_headers,
+    )
+    assert record_export.status_code == 200
+    assert record_export.json()["patient"]["id"] == patient.id
+    operations = client.get("/care/admin/operations", headers=admin_headers)
+    assert operations.status_code == 200
+    assert operations.json()["services"]["database"] is True

@@ -70,6 +70,7 @@ export default function Login() {
             </label>
             <input
               id="login-mfa"
+              name="mfa_code"
               inputMode="numeric"
               autoComplete="one-time-code"
               value={mfaCode}
@@ -110,6 +111,7 @@ export default function Login() {
             </label>
             <input
               id="login-email"
+              name="email"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
