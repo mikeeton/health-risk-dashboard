@@ -8,7 +8,7 @@ access-control helpers.
 
 from database import Base
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import Boolean, Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint, Text
 
 
 def utc_now_naive():
@@ -29,6 +29,14 @@ class User(Base):
     password_hash = Column(String, nullable=False)
 
     status = Column(String, default="active")
+    phone = Column(String, nullable=True)
+    job_title = Column(String, nullable=True)
+    department = Column(String, nullable=True)
+    organisation = Column(String, nullable=True)
+    mfa_enabled = Column(Boolean, default=False, nullable=False)
+    mfa_secret_encrypted = Column(String, nullable=True)
+    hospital_id = Column(Integer, nullable=True)
+    last_login_at = Column(DateTime, nullable=True)
 
 
 class AuthSession(Base):
@@ -46,6 +54,20 @@ class AuthSession(Base):
     refresh_jti_hash = Column(String, nullable=False, unique=True, index=True)
     expires_at = Column(DateTime, nullable=False)
     revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class PasswordResetToken(Base):
+    """Single-use, short-lived password-reset token stored only as a hash."""
+
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String, nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    requested_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
 
@@ -68,6 +90,16 @@ class Patient(Base):
     condition = Column(String, nullable=False)
     risk_level = Column(String, default="Low")
     last_checkup = Column(String, nullable=True)
+    date_of_birth = Column(String, nullable=True)
+    gender = Column(String, nullable=True)
+    address = Column(Text, nullable=True)
+    phone = Column(String, nullable=True)
+    emergency_contact_name = Column(String, nullable=True)
+    emergency_contact_phone = Column(String, nullable=True)
+    gp_name = Column(String, nullable=True)
+    gp_practice = Column(String, nullable=True)
+    allergies = Column(Text, nullable=True)
+    hospital_id = Column(Integer, nullable=True)
 
 
 class PatientStaffAssignment(Base):
@@ -110,6 +142,9 @@ class Vital(Base):
     activity_state = Column(String, nullable=False)
     source = Column(String, default="manual", nullable=False)
     external_id = Column(String, unique=True, nullable=True, index=True)
+    verification_status = Column(String, default="unverified", nullable=False)
+    recorded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    corrected_from_id = Column(Integer, ForeignKey("vitals.id"), nullable=True)
 
 
 class WithingsConnection(Base):
@@ -150,6 +185,11 @@ class ReviewCase(Base):
     note = Column(String, nullable=True)
     created_at = Column(String, nullable=False)
     updated_at = Column(String, nullable=True)
+    owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    acknowledged_at = Column(String, nullable=True)
+    resolved_at = Column(String, nullable=True)
+    resolution_reason = Column(Text, nullable=True)
+    escalation_due_at = Column(String, nullable=True)
 
 
 class AuditLog(Base):
@@ -177,6 +217,11 @@ class Medication(Base):
     schedule_time = Column(String, nullable=False)
     status = Column(String, default="Due")
     notes = Column(String, nullable=True)
+    prescriber_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    start_date = Column(String, nullable=True)
+    end_date = Column(String, nullable=True)
+    route = Column(String, nullable=True)
+    active = Column(Boolean, default=True, nullable=False)
 
 
 class PatientEvent(Base):
@@ -235,6 +280,47 @@ class NotificationRead(Base):
     )
     user_email = Column(String, nullable=False, index=True)
     read_at = Column(String, nullable=False)
+
+
+class AIConversationMemory(Base):
+    """Encrypted, patient- and user-scoped assistant conversation memory."""
+
+    __tablename__ = "ai_conversation_memories"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "patient_id",
+            name="uq_ai_memory_user_patient",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    patient_id = Column(
+        Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False
+    )
+    encrypted_history = Column(Text, nullable=False)
+    updated_at = Column(String, nullable=False)
+
+
+class AIFeedback(Base):
+    """Human feedback metadata without storing the clinical answer itself."""
+
+    __tablename__ = "ai_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    patient_id = Column(
+        Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False
+    )
+    response_id = Column(String, nullable=False, index=True)
+    rating = Column(String, nullable=False)
+    comment = Column(String, nullable=True)
+    created_at = Column(String, nullable=False)
 
 
 class RegistrationRequest(Base):
@@ -297,3 +383,253 @@ class ReferralRequest(Base):
     requested_at = Column(String, nullable=False)
     reviewed_at = Column(String, nullable=True)
     reviewed_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    specialist_response = Column(Text, nullable=True)
+    outcome = Column(Text, nullable=True)
+    completed_at = Column(String, nullable=True)
+
+
+class Appointment(Base):
+    """Patient-visible appointment with controlled scheduling lifecycle."""
+
+    __tablename__ = "appointments"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    clinician_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    starts_at = Column(DateTime, nullable=False, index=True)
+    duration_minutes = Column(Integer, default=30, nullable=False)
+    appointment_type = Column(String, nullable=False)
+    location = Column(String, nullable=True)
+    status = Column(String, default="scheduled", nullable=False)
+    reason = Column(Text, nullable=True)
+    cancellation_reason = Column(Text, nullable=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class CareMessage(Base):
+    """Patient-scoped secure message; recipients must belong to the care relationship."""
+
+    __tablename__ = "care_messages"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    sender_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    recipient_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    subject = Column(String, nullable=False)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    read_at = Column(DateTime, nullable=True)
+
+
+class CareTask(Base):
+    """Assigned clinical/patient task with due date and escalation state."""
+
+    __tablename__ = "care_tasks"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    assigned_to_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String, default="general", nullable=False)
+    priority = Column(String, default="medium", nullable=False)
+    due_at = Column(DateTime, nullable=True)
+    status = Column(String, default="open", nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+    completion_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class ConsentRecord(Base):
+    """Versioned consent/privacy preference for patient data use."""
+
+    __tablename__ = "consent_records"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    consent_type = Column(String, nullable=False)
+    granted = Column(Boolean, nullable=False)
+    policy_version = Column(String, nullable=False)
+    recorded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    recorded_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    withdrawn_at = Column(DateTime, nullable=True)
+
+
+class ClinicalDocument(Base):
+    """Versioned structured note/report with signing and amendment support."""
+
+    __tablename__ = "clinical_documents"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    document_type = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    subjective = Column(Text, nullable=True)
+    objective = Column(Text, nullable=True)
+    assessment = Column(Text, nullable=True)
+    plan = Column(Text, nullable=True)
+    terminology_code = Column(String, nullable=True)
+    terminology_system = Column(String, nullable=True)
+    version = Column(Integer, default=1, nullable=False)
+    parent_document_id = Column(Integer, ForeignKey("clinical_documents.id"), nullable=True)
+    status = Column(String, default="draft", nullable=False)
+    signed_at = Column(DateTime, nullable=True)
+    cosigned_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    patient_visible = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class MedicationAdministration(Base):
+    """Medication administration record with exception and witness capture."""
+
+    __tablename__ = "medication_administrations"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    medication_id = Column(Integer, ForeignKey("medications.id", ondelete="CASCADE"), nullable=False)
+    administered_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    witness_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    scheduled_at = Column(DateTime, nullable=False)
+    administered_at = Column(DateTime, nullable=True)
+    status = Column(String, nullable=False)
+    reason = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+
+
+class PatientReportedOutcome(Base):
+    """Symptom diary, questionnaire response, or patient-reported measure."""
+
+    __tablename__ = "patient_reported_outcomes"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    outcome_type = Column(String, nullable=False)
+    severity = Column(Integer, nullable=True)
+    response = Column(Text, nullable=False)
+    recorded_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class DataRightsRequest(Base):
+    """Auditable patient access, correction, export, or deletion request."""
+
+    __tablename__ = "data_rights_requests"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    request_type = Column(String, nullable=False)
+    details = Column(Text, nullable=True)
+    status = Column(String, default="submitted", nullable=False)
+    submitted_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    resolved_at = Column(DateTime, nullable=True)
+    resolution_note = Column(Text, nullable=True)
+
+
+class SystemIncident(Base):
+    """Operational/clinical safety incident managed by administrators."""
+
+    __tablename__ = "system_incidents"
+
+    id = Column(Integer, primary_key=True)
+    incident_type = Column(String, nullable=False)
+    severity = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    status = Column(String, default="open", nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    resolved_at = Column(DateTime, nullable=True)
+
+
+class InvestigationOrder(Base):
+    """Laboratory or diagnostic investigation with reviewed result."""
+
+    __tablename__ = "investigation_orders"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    ordered_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    investigation_type = Column(String, nullable=False)
+    code = Column(String, nullable=True)
+    code_system = Column(String, nullable=True)
+    priority = Column(String, default="routine", nullable=False)
+    status = Column(String, default="ordered", nullable=False)
+    instructions = Column(Text, nullable=True)
+    result = Column(Text, nullable=True)
+    reference_range = Column(String, nullable=True)
+    abnormal_flag = Column(String, nullable=True)
+    ordered_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    resulted_at = Column(DateTime, nullable=True)
+
+
+class NursingAssessment(Base):
+    """Structured nursing assessment represented as validated JSON text."""
+
+    __tablename__ = "nursing_assessments"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    nurse_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assessment_type = Column(String, nullable=False)
+    score = Column(Float, nullable=True)
+    findings_json = Column(Text, nullable=False)
+    escalation_required = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class ObservationSchedule(Base):
+    """Due-time schedule for repeat observations and overdue escalation."""
+
+    __tablename__ = "observation_schedules"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    assigned_to_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    metric = Column(String, nullable=False)
+    frequency_minutes = Column(Integer, nullable=False)
+    next_due_at = Column(DateTime, nullable=False)
+    escalation_minutes = Column(Integer, default=30, nullable=False)
+    active = Column(Boolean, default=True, nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+
+class OrganisationUnit(Base):
+    """Organisation/facility/ward hierarchy for administrative scoping."""
+
+    __tablename__ = "organisation_units"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    unit_type = Column(String, nullable=False)
+    parent_id = Column(Integer, ForeignKey("organisation_units.id"), nullable=True)
+    active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class RolePermission(Base):
+    """Fine-grained permission override layered beneath the fixed role."""
+
+    __tablename__ = "role_permissions"
+    __table_args__ = (UniqueConstraint("role", "permission", name="uq_role_permission"),)
+
+    id = Column(Integer, primary_key=True)
+    role = Column(String, nullable=False)
+    permission = Column(String, nullable=False)
+    enabled = Column(Boolean, default=True, nullable=False)
+
+
+class NotificationRule(Base):
+    """Configurable notification/escalation policy."""
+
+    __tablename__ = "notification_rules"
+
+    id = Column(Integer, primary_key=True)
+    event_type = Column(String, nullable=False)
+    severity = Column(String, nullable=False)
+    escalation_minutes = Column(Integer, nullable=False)
+    target_role = Column(String, nullable=False)
+    template = Column(Text, nullable=False)
+    active = Column(Boolean, default=True, nullable=False)

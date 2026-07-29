@@ -17,7 +17,7 @@ const cards = [
   {
     title: "My Reports",
     subtitle: "Clinician PDF summaries",
-    path: "/reports",
+    path: "/care?tab=documents",
     icon: FileText,
   },
   {

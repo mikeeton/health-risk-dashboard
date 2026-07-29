@@ -66,6 +66,32 @@ services:
         value: false
       - key: AI_MODEL
         value: llama-3.1-8b-instant
+      - key: AI_MAX_RETRIES
+        value: 1
+      - key: AI_MAX_TOKENS
+        value: 700
+      - key: AI_DAILY_REQUEST_LIMIT
+        value: 200
+      - key: AI_CIRCUIT_FAILURE_THRESHOLD
+        value: 3
+      - key: AI_CIRCUIT_RESET_SECONDS
+        value: 60
+      - key: AI_DATA_STALE_HOURS
+        value: 24
+      - key: AI_MEMORY_ENCRYPTION_KEY
+        generateValue: true
+      - key: AI_DATA_CLASSIFICATION
+        value: real
+      - key: AI_PROVIDER_DPA_APPROVED
+        value: false
+      - key: AI_RETENTION_REVIEWED
+        value: false
+      - key: AI_REGIONAL_PROCESSING_APPROVED
+        value: false
+      - key: AI_AUDIT_ENABLED
+        value: true
+      - key: AI_CLINICAL_APPROVAL
+        value: false
       - key: FRONTEND_URL
         sync: false
       - key: WITHINGS_CLIENT_ID

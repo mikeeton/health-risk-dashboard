@@ -15,6 +15,7 @@ export default function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
@@ -23,7 +24,7 @@ export default function Login() {
     try {
       setLoading(true);
 
-      await login(email, password);
+      await login(email, password, mfaCode);
       navigate("/", { replace: true });
 
       showToast({
@@ -61,6 +62,21 @@ export default function Login() {
             <p className="mt-5 max-w-md text-base leading-7 text-blue-50/80">
               Real-time patient monitoring and AI-assisted insight in one secure clinical workspace.
             </p>
+          </div>
+
+          <div>
+            <label htmlFor="login-mfa" className="text-sm font-semibold">
+              Authenticator code <span className="font-normal text-slate-500">(if enabled)</span>
+            </label>
+            <input
+              id="login-mfa"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={mfaCode}
+              onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="6-digit code"
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 tracking-[0.3em] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950/80"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">

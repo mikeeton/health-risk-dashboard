@@ -23,7 +23,7 @@ const cards = [
   {
     title: "Tasks",
     subtitle: "Clinical task checklist",
-    path: "/ai-assistant",
+    path: "/care?tab=tasks",
     icon: ClipboardCheck,
   },
 ];

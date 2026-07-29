@@ -1,5 +1,10 @@
-import { createContext, useContext, useState } from "react";
-import { loginUser, logoutUser } from "../services/api";
+import { createContext, useContext, useEffect, useState } from "react";
+import {
+  AUTH_EXPIRED_EVENT,
+  AUTH_TOKEN_REFRESHED_EVENT,
+  loginUser,
+  logoutUser,
+} from "../services/api";
 
 type UserRole = "admin" | "doctor" | "patient" | "nurse";
 
@@ -13,7 +18,7 @@ type AuthUser = {
 type AuthContextType = {
   user: AuthUser | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, mfaCode?: string) => Promise<void>;
   logout: () => void;
   isDoctor: boolean;
   isAdmin: boolean;
@@ -33,10 +38,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [token, setToken] = useState<string | null>(savedToken);
 
-  const login = async (email: string, password: string) => {
+  useEffect(() => {
+    const handleExpired = () => {
+      setUser(null);
+      setToken(null);
+    };
+    const handleRefreshed = (event: Event) => {
+      const accessToken = (event as CustomEvent<{ accessToken: string }>).detail
+        ?.accessToken;
+      if (accessToken) setToken(accessToken);
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+    window.addEventListener(AUTH_TOKEN_REFRESHED_EVENT, handleRefreshed);
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+      window.removeEventListener(AUTH_TOKEN_REFRESHED_EVENT, handleRefreshed);
+    };
+  }, []);
+
+  const login = async (email: string, password: string, mfaCode?: string) => {
     const data = await loginUser({
       email,
       password,
+      mfa_code: mfaCode || null,
     });
 
     setUser(data.user);

@@ -81,11 +81,13 @@ alembic current
 The current migration chain ends with:
 
 ```text
-20260728_0008
+20260729_0014
 ```
 
 The latest migrations include rotating refresh-token sessions, encrypted
-Withings connections, and private per-user notification read receipts.
+Withings connections, private per-user notification read receipts, encrypted
+AI memory and MFA secrets, care workflows, structured clinical operations,
+granular administration, and single-use password reset links.
 
 ## 4. Backend Service
 

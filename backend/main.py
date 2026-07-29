@@ -34,6 +34,7 @@ from routes import patients, vitals, auth, reviews, audit
 from routes import notifications
 from routes import wearables
 from routes import integrations_withings
+from routes import care_workflows
 
 settings = get_settings()
 initialize_error_reporting()
@@ -252,6 +253,7 @@ app.include_router(notifications.router)
 app.include_router(registration_requests.router)
 app.include_router(referrals.router)
 app.include_router(live_simulator.router)
+app.include_router(care_workflows.router)
 
 @app.get("/")
 def root():

@@ -44,10 +44,18 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    mfa_code: str | None = Field(default=None, min_length=6, max_length=8)
 
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(min_length=32, max_length=300)
+    new_password: str = Field(min_length=12, max_length=128)
+
+    _strong_password = field_validator("new_password")(validate_password_strength)
 
 
 class UserResponse(BaseModel):

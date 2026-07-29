@@ -1,4 +1,7 @@
 import uuid
+import hashlib
+import secrets
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -10,6 +13,8 @@ from auth_utils import get_current_user, verify_password
 from auth_utils import hash_password
 from database import get_db
 from routes.audit import write_audit_log
+from config import get_settings
+from models import utc_now_naive
 
 router = APIRouter(
     prefix="/admin/users",
@@ -17,10 +22,50 @@ router = APIRouter(
 )
 
 ALLOWED_ROLES = ["admin", "doctor", "nurse", "patient"]
+settings = get_settings()
 
 
 def make_public_id():
     return f"USR-{uuid.uuid4().hex[:8].upper()}"
+
+
+@router.post("/{user_id}/password-reset-link")
+def create_password_reset_link(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    target = db.query(models.User).filter(models.User.id == user_id).first()
+    if not target:
+        raise HTTPException(404, "User not found")
+    raw_token = secrets.token_urlsafe(48)
+    db.query(models.PasswordResetToken).filter(
+        models.PasswordResetToken.user_id == target.id,
+        models.PasswordResetToken.used_at.is_(None),
+    ).update({"used_at": utc_now_naive()}, synchronize_session=False)
+    record = models.PasswordResetToken(
+        user_id=target.id,
+        token_hash=hashlib.sha256(raw_token.encode()).hexdigest(),
+        expires_at=utc_now_naive() + timedelta(minutes=30),
+        requested_by_user_id=current_user.id,
+        created_at=utc_now_naive(),
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    write_audit_log(
+        db=db,
+        action="CREATE_PASSWORD_RESET_LINK",
+        entity="User",
+        entity_id=str(target.id),
+        user_email=current_user.email,
+    )
+    return {
+        "expires_at": record.expires_at,
+        "reset_url": f"{settings.frontend_url}/reset-password?token={raw_token}",
+        "delivery": "Copy once and deliver through an approved secure channel.",
+    }
 
 
 def serialize_user(user: models.User):

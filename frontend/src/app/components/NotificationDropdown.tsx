@@ -23,6 +23,7 @@ import {
   announceNotificationsChanged,
   subscribeToNotificationChanges,
 } from "../services/notificationEvents";
+import { useAuth } from "../context/AuthContext";
 function notificationIcon(type: string) {
   if (["critical", "alert", "escalation"].includes(type)) return ShieldAlert;
   if (["warning", "referral", "assignment"].includes(type)) return AlertTriangle;
@@ -32,22 +33,27 @@ function notificationIcon(type: string) {
 
 export default function NotificationDropdown() {
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [socketEnabled, setSocketEnabled] = useState(false);
 
   async function loadNotifications() {
     if (!getAuthToken()) {
       setNotifications([]);
       setLoading(false);
+      setSocketEnabled(false);
       return;
     }
     try {
       setError("");
       setNotifications(await getNotifications({ status: "unread" }));
+      setSocketEnabled(true);
     } catch {
       setError("Live notifications are temporarily unavailable.");
+      setSocketEnabled(false);
     } finally {
       setLoading(false);
     }
@@ -63,11 +69,10 @@ export default function NotificationDropdown() {
       unsubscribe();
       window.clearInterval(interval);
     };
-  }, []);
+  }, [token]);
 
   useEffect(() => {
-    const token = getAuthToken();
-    if (!token) return;
+    if (!token || !socketEnabled) return;
 
     let socket: WebSocket | null = null;
     let cancelled = false;
@@ -87,7 +92,7 @@ export default function NotificationDropdown() {
       window.clearTimeout(connectTimer);
       if (socket?.readyState === WebSocket.OPEN) socket.close();
     };
-  }, []);
+  }, [socketEnabled, token]);
 
   async function markRead(notification: AppNotification, openLink = false) {
     setNotifications((items) => items.filter((item) => item.id !== notification.id));

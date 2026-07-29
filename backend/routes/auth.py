@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 import secrets
+import pyotp
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from auth_utils import (
     create_refresh_token,
     decode_access_token,
     password_needs_rehash,
+    decrypt_mfa_secret,
 )
 from routes.audit import write_audit_log
 
@@ -89,12 +91,26 @@ def login_user(
             detail="Invalid email or password"
         )
 
+    if user.mfa_enabled:
+        secret = decrypt_mfa_secret(user.mfa_secret_encrypted)
+        if (
+            not secret
+            or not login.mfa_code
+            or not pyotp.TOTP(secret).verify(login.mfa_code, valid_window=1)
+        ):
+            raise HTTPException(
+                status_code=401,
+                detail="A valid MFA code is required",
+            )
+
     if getattr(user, "status", "active") != "active":
         raise HTTPException(status_code=403, detail="User account is not active")
 
     if password_needs_rehash(user.password_hash):
         user.password_hash = hash_password(login.password)
-        db.commit()
+
+    user.last_login_at = utc_now_naive()
+    db.commit()
 
     payload = {
         "sub": user.email,
@@ -202,3 +218,34 @@ def logout(request: schemas.RefreshTokenRequest, db: Session = Depends(get_db)):
         if session and session.revoked_at is None:
             session.revoked_at = utc_now_naive()
             db.commit()
+
+
+@router.post("/password-reset/confirm", status_code=204)
+def confirm_password_reset(
+    request: schemas.PasswordResetConfirm,
+    db: Session = Depends(get_db),
+):
+    token_hash = hashlib.sha256(request.token.encode()).hexdigest()
+    record = db.query(models.PasswordResetToken).filter(
+        models.PasswordResetToken.token_hash == token_hash,
+        models.PasswordResetToken.used_at.is_(None),
+    ).first()
+    if not record or record.expires_at <= utc_now_naive():
+        raise HTTPException(400, "Password reset link is invalid or expired")
+    user = db.query(models.User).filter(models.User.id == record.user_id).first()
+    if not user or user.status != "active":
+        raise HTTPException(400, "Account is unavailable")
+    user.password_hash = hash_password(request.new_password)
+    record.used_at = utc_now_naive()
+    db.query(models.AuthSession).filter(
+        models.AuthSession.user_id == user.id,
+        models.AuthSession.revoked_at.is_(None),
+    ).update({"revoked_at": utc_now_naive()}, synchronize_session=False)
+    db.commit()
+    write_audit_log(
+        db=db,
+        action="CONFIRM_PASSWORD_RESET",
+        entity="User",
+        entity_id=str(user.id),
+        user_email=user.email,
+    )

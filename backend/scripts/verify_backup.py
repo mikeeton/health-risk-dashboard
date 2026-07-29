@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 
 import boto3
-from cryptography.fernet import Fernet
+from backup_crypto import decrypt_file
 
 
 def required(name: str) -> str:
@@ -35,10 +35,10 @@ def main() -> None:
         encrypted_path = Path(temporary) / "database.dump.enc"
         dump_path = Path(temporary) / "database.dump"
         client.download_file(bucket, newest["Key"], str(encrypted_path))
-        dump_path.write_bytes(
-            Fernet(required("BACKUP_ENCRYPTION_KEY").encode()).decrypt(
-                encrypted_path.read_bytes()
-            )
+        decrypt_file(
+            encrypted_path,
+            dump_path,
+            required("BACKUP_ENCRYPTION_KEY"),
         )
         encrypted_path.unlink()
         result = subprocess.run(

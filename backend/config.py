@@ -66,6 +66,31 @@ class Settings:
     ai_enabled = os.getenv("AI_ENABLED", "false").lower() == "true"
     ai_model = os.getenv("AI_MODEL", "llama-3.1-8b-instant")
     ai_timeout_seconds = float(os.getenv("AI_TIMEOUT_SECONDS", "12"))
+    ai_max_retries = int(os.getenv("AI_MAX_RETRIES", "1"))
+    ai_max_tokens = int(os.getenv("AI_MAX_TOKENS", "700"))
+    ai_daily_request_limit = int(os.getenv("AI_DAILY_REQUEST_LIMIT", "200"))
+    ai_circuit_failure_threshold = int(
+        os.getenv("AI_CIRCUIT_FAILURE_THRESHOLD", "3")
+    )
+    ai_circuit_reset_seconds = int(os.getenv("AI_CIRCUIT_RESET_SECONDS", "60"))
+    ai_data_stale_hours = int(os.getenv("AI_DATA_STALE_HOURS", "24"))
+    ai_memory_encryption_key = os.getenv("AI_MEMORY_ENCRYPTION_KEY", "")
+    ai_data_classification = os.getenv(
+        "AI_DATA_CLASSIFICATION", "synthetic"
+    ).strip().lower()
+    ai_provider_dpa_approved = (
+        os.getenv("AI_PROVIDER_DPA_APPROVED", "false").lower() == "true"
+    )
+    ai_retention_reviewed = (
+        os.getenv("AI_RETENTION_REVIEWED", "false").lower() == "true"
+    )
+    ai_regional_processing_approved = (
+        os.getenv("AI_REGIONAL_PROCESSING_APPROVED", "false").lower() == "true"
+    )
+    ai_audit_enabled = os.getenv("AI_AUDIT_ENABLED", "true").lower() == "true"
+    ai_clinical_approval = (
+        os.getenv("AI_CLINICAL_APPROVAL", "false").lower() == "true"
+    )
     frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:5173").rstrip("/")
     withings_client_id = os.getenv("WITHINGS_CLIENT_ID", "")
     withings_client_secret = os.getenv("WITHINGS_CLIENT_SECRET", "")
@@ -125,6 +150,23 @@ class Settings:
                 raise RuntimeError("REDIS_URL must use redis:// or rediss://.")
             if self.ai_enabled and not os.getenv("GROQ_API_KEY", "").strip():
                 raise RuntimeError("GROQ_API_KEY is required when AI_ENABLED=true.")
+            if self.ai_enabled and self.ai_data_classification == "real":
+                governance = (
+                    self.ai_provider_dpa_approved,
+                    self.ai_retention_reviewed,
+                    self.ai_regional_processing_approved,
+                    self.ai_audit_enabled,
+                    self.ai_clinical_approval,
+                )
+                if not all(governance):
+                    raise RuntimeError(
+                        "Real-data AI requires provider DPA, retention, regional "
+                        "processing, audit, and clinical approvals."
+                    )
+                if not self.ai_memory_encryption_key:
+                    raise RuntimeError(
+                        "AI_MEMORY_ENCRYPTION_KEY is required for real-data AI."
+                    )
             if self.require_sentry and not self.sentry_dsn:
                 raise RuntimeError("SENTRY_DSN is required when REQUIRE_SENTRY=true.")
 
@@ -132,6 +174,14 @@ class Settings:
             raise RuntimeError("MAX_REQUEST_BYTES must be between 1 KiB and 10 MiB.")
         if self.ai_timeout_seconds <= 0 or self.ai_timeout_seconds > 60:
             raise RuntimeError("AI_TIMEOUT_SECONDS must be between 0 and 60.")
+        if self.ai_max_retries < 0 or self.ai_max_retries > 3:
+            raise RuntimeError("AI_MAX_RETRIES must be between 0 and 3.")
+        if self.ai_max_tokens < 200 or self.ai_max_tokens > 2000:
+            raise RuntimeError("AI_MAX_TOKENS must be between 200 and 2000.")
+        if self.ai_daily_request_limit < 1:
+            raise RuntimeError("AI_DAILY_REQUEST_LIMIT must be positive.")
+        if self.ai_data_classification not in {"synthetic", "real"}:
+            raise RuntimeError("AI_DATA_CLASSIFICATION must be synthetic or real.")
         if self.database_pool_size < 1 or self.database_pool_size > 50:
             raise RuntimeError("DATABASE_POOL_SIZE must be between 1 and 50.")
         if self.database_max_overflow < 0 or self.database_max_overflow > 100:

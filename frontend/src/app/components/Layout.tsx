@@ -132,6 +132,12 @@ export default function Layout() {
       show: isAdmin,
     },
     {
+      label: "Operations",
+      path: "/admin/operations",
+      icon: Activity,
+      show: isAdmin,
+    },
+    {
       label: "Analytics",
       path: "/analytics",
       icon: LineChart,
@@ -155,6 +161,12 @@ export default function Layout() {
       path: "/upload",
       icon: Upload,
       show: isDoctor || isNurse,
+    },
+    {
+      label: isPatient ? "My Care" : "Care Workspace",
+      path: "/care",
+      icon: HeartHandshake,
+      show: isDoctor || isNurse || isPatient,
     },
     {
       label: "Review Cases",
@@ -190,12 +202,18 @@ export default function Layout() {
       label: "AI Assistant",
       path: "/ai-assistant",
       icon: Bot,
-      show: isDoctor || isNurse,
+      show: isDoctor || isNurse || isPatient,
     },
     {
       label: "Notifications",
       path: "/notifications",
       icon: BellRing,
+      show: Boolean(user),
+    },
+    {
+      label: "Profile & Security",
+      path: "/account",
+      icon: User,
       show: Boolean(user),
     },
   ];

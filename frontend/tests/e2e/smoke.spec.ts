@@ -120,25 +120,25 @@ test("all four roles receive the correct protected workspace navigation", async 
       role: "doctor",
       path: "/",
       workspace: "Doctor Workspace",
-      links: ["Dashboard", "Reports", "Notifications"],
+      links: ["Dashboard", "Care Workspace", "Reports", "Notifications", "Profile & Security"],
     },
     {
       role: "nurse",
       path: "/",
       workspace: "Nurse Workspace",
-      links: ["Dashboard", "Nurse", "Notifications"],
+      links: ["Dashboard", "Care Workspace", "Nurse", "Notifications", "Profile & Security"],
     },
     {
       role: "patient",
       path: "/",
       workspace: "Patient Workspace",
-      links: ["Dashboard", "Patient", "Notifications"],
+      links: ["Dashboard", "My Care", "Patient", "AI Assistant", "Notifications", "Profile & Security"],
     },
     {
       role: "admin",
       path: "/admin",
       workspace: "Admin Workspace",
-      links: ["User Management", "Audit Logs", "Notifications"],
+      links: ["User Management", "Operations", "Audit Logs", "Notifications", "Profile & Security"],
     },
   ];
 
@@ -167,10 +167,117 @@ test("all four roles receive the correct protected workspace navigation", async 
       page.getByText(definition.workspace, { exact: true })
     ).toBeVisible();
     for (const link of definition.links) {
-      await expect(page.getByRole("link", { name: link })).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: link, exact: true })
+      ).toBeVisible();
     }
     await context.close();
   }
+});
+
+test("assigned clinicians can switch patients and the selection persists", async ({
+  page,
+}) => {
+  const assignedPatients = [
+    {
+      id: 71,
+      name: "Assigned Alpha",
+      age: 50,
+      condition: "Hypertension",
+      risk_level: "Medium",
+      last_checkup: "2026-07-20",
+    },
+    {
+      id: 72,
+      name: "Assigned Beta",
+      age: 64,
+      condition: "COPD",
+      risk_level: "High",
+      last_checkup: "2026-07-21",
+    },
+  ];
+  await page.route("**/patients", (route) => route.fulfill({ json: assignedPatients }));
+  await page.route("**/patients/", (route) => route.fulfill({ json: assignedPatients }));
+  await page.route("**/vitals/**", (route) => route.fulfill({ json: [] }));
+  await page.route("**/medications/**", (route) => route.fulfill({ json: [] }));
+  await page.route("**/notifications/**", (route) => route.fulfill({ json: [] }));
+  await page.route("**/care/**", (route) => route.fulfill({ json: [] }));
+  await page.addInitScript(() => {
+    sessionStorage.setItem(
+      "health-auth-user",
+      JSON.stringify({
+        id: 44,
+        email: "assigned.doctor@example.com",
+        full_name: "Assigned Doctor",
+        role: "doctor",
+      })
+    );
+    sessionStorage.setItem("health-auth-token", "assigned-doctor-token");
+  });
+
+  await page.goto("/care");
+  const switcher = page.getByLabel("Switch assigned patient");
+  await expect(switcher).toHaveValue("71");
+  await switcher.selectOption("72");
+  await expect(switcher).toHaveValue("72");
+  await page.reload();
+  await expect(page.getByLabel("Switch assigned patient")).toHaveValue("72");
+});
+
+test("an expired session refreshes once and redirects cleanly when renewal fails", async ({
+  page,
+}) => {
+  let refreshCalls = 0;
+  await page.route("**/auth/refresh", async (route) => {
+    refreshCalls += 1;
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Invalid refresh token" }),
+    });
+  });
+  await page.route("**/patients*", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Authentication required" }),
+    })
+  );
+  await page.route("**/notifications/**", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Authentication required" }),
+    })
+  );
+  await page.addInitScript(() => {
+    sessionStorage.setItem(
+      "health-auth-user",
+      JSON.stringify({
+        id: 1,
+        email: "doctor@example.com",
+        full_name: "Expired Doctor",
+        role: "doctor",
+      })
+    );
+    sessionStorage.setItem("health-auth-token", "expired-access-token");
+    sessionStorage.setItem("health-refresh-token", "expired-refresh-token");
+  });
+
+  await page.goto("/");
+
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Welcome Back" })).toBeVisible();
+  expect(refreshCalls).toBe(1);
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        user: sessionStorage.getItem("health-auth-user"),
+        access: sessionStorage.getItem("health-auth-token"),
+        refresh: sessionStorage.getItem("health-refresh-token"),
+      }))
+    )
+    .toEqual({ user: null, access: null, refresh: null });
 });
 
 test("admin can reach protected admin workspace", async ({ page }) => {

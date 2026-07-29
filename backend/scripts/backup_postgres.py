@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 
 import boto3
-from cryptography.fernet import Fernet
+from backup_crypto import encrypt_file
 
 
 def required(name: str) -> str:
@@ -43,9 +43,7 @@ def main() -> None:
             ],
             check=True,
         )
-        encrypted_path.write_bytes(
-            Fernet(encryption_key.encode()).encrypt(dump_path.read_bytes())
-        )
+        encrypt_file(dump_path, encrypted_path, encryption_key)
         dump_path.unlink()
 
         client = boto3.client(

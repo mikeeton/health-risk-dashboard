@@ -2,10 +2,11 @@ from datetime import datetime
 from uuid import uuid4
 
 import pytest
+import pyotp
 from fastapi.testclient import TestClient
 
 import models
-from auth_utils import create_access_token, hash_password
+from auth_utils import create_access_token, hash_password, verify_password
 from database import SessionLocal
 from main import app
 
@@ -336,11 +337,12 @@ def test_complete_role_based_clinical_workflow(
 
         monkeypatch.setattr(
             assistant_routes,
-            "ask_groq",
-            lambda _prompt: {
-                "model": "deployment-test-model",
-                "answer": "Synthetic workflow summary for human review.",
-            },
+            "request_structured_ai",
+            lambda **kwargs: (
+                assistant_routes.deterministic_output(kwargs["context"]),
+                "deployment-test-model",
+                "available",
+            ),
         )
         summary = client.get(
             f"/assistant/patient-summary/{patient.id}",
@@ -422,6 +424,74 @@ def test_complete_role_based_clinical_workflow(
         ).delete(synchronize_session=False)
         db.query(models.Vital).filter(
             models.Vital.patient_id == patient.id
+        ).delete(synchronize_session=False)
+        db.commit()
+
+
+def test_notification_commit_publishes_cross_instance_invalidation(
+    db, monkeypatch
+):
+    import notification_broadcast
+
+    published: list[tuple[str, str]] = []
+
+    class FakeRedis:
+        def publish(self, channel: str, message: str):
+            published.append((channel, message))
+
+    monkeypatch.setattr(
+        notification_broadcast,
+        "_get_sync_client",
+        lambda: FakeRedis(),
+    )
+    notification_broadcast.queue_notification_broadcast(db)
+    db.commit()
+
+    assert published == [
+        (notification_broadcast.CHANNEL, "changed")
+    ]
+
+
+def test_ai_memory_is_encrypted_and_isolated_by_patient(db, cleanup):
+    from routes import assistant as assistant_routes
+
+    doctor = create_user(db, cleanup, "doctor")
+    first_patient = create_patient(
+        db,
+        cleanup,
+        name=f"Memory Patient A {uuid4().hex[:6]}",
+        doctor_id=doctor.id,
+    )
+    second_patient = create_patient(
+        db,
+        cleanup,
+        name=f"Memory Patient B {uuid4().hex[:6]}",
+        doctor_id=doctor.id,
+    )
+    secret_text = "patient-a-private-conversation"
+    try:
+        assistant_routes.save_memory(
+            db,
+            doctor.id,
+            first_patient.id,
+            [{"role": "user", "content": secret_text}],
+        )
+        row = (
+            db.query(models.AIConversationMemory)
+            .filter(models.AIConversationMemory.user_id == doctor.id)
+            .filter(models.AIConversationMemory.patient_id == first_patient.id)
+            .one()
+        )
+        assert secret_text not in row.encrypted_history
+        assert assistant_routes.load_memory(
+            db, doctor.id, first_patient.id
+        )[0]["content"] == secret_text
+        assert assistant_routes.load_memory(
+            db, doctor.id, second_patient.id
+        ) == []
+    finally:
+        db.query(models.AIConversationMemory).filter(
+            models.AIConversationMemory.user_id == doctor.id
         ).delete(synchronize_session=False)
         db.commit()
 
@@ -856,6 +926,220 @@ def test_withings_connection_requires_complete_server_configuration(
         headers=auth_header(token),
     )
     assert response.status_code == 503
+
+
+def test_care_workflows_enforce_assigned_patient_boundaries(client, db, cleanup):
+    assigned_doctor = create_user(db, cleanup, "doctor")
+    unrelated_doctor = create_user(db, cleanup, "doctor")
+    patient_user = create_user(db, cleanup, "patient")
+    patient = create_patient(
+        db,
+        cleanup,
+        name="Care Workflow Patient",
+        doctor_id=assigned_doctor.id,
+        user_id=patient_user.id,
+    )
+    assigned_token = create_access_token({"sub": assigned_doctor.email, "role": "doctor", "user_id": assigned_doctor.id})
+    unrelated_token = create_access_token({"sub": unrelated_doctor.email, "role": "doctor", "user_id": unrelated_doctor.id})
+    patient_token = create_access_token({"sub": patient_user.email, "role": "patient", "user_id": patient_user.id})
+
+    created = client.post(
+        "/care/appointments",
+        json={
+            "patient_id": patient.id,
+            "starts_at": "2026-08-01T10:00:00",
+            "appointment_type": "Clinical review",
+            "reason": "Review monitoring plan",
+        },
+        headers=auth_header(patient_token),
+    )
+    assert created.status_code == 200
+    assert created.json()["status"] == "requested"
+
+    assert client.get(
+        f"/care/appointments/{patient.id}",
+        headers=auth_header(assigned_token),
+    ).status_code == 200
+    assert client.get(
+        f"/care/appointments/{patient.id}",
+        headers=auth_header(unrelated_token),
+    ).status_code == 404
+
+
+def test_secure_messages_require_an_active_care_relationship(client, db, cleanup):
+    doctor = create_user(db, cleanup, "doctor")
+    outsider = create_user(db, cleanup, "nurse")
+    patient_user = create_user(db, cleanup, "patient")
+    patient = create_patient(
+        db,
+        cleanup,
+        name="Secure Message Patient",
+        doctor_id=doctor.id,
+        user_id=patient_user.id,
+    )
+    patient_token = create_access_token({"sub": patient_user.email, "role": "patient", "user_id": patient_user.id})
+
+    allowed = client.post(
+        "/care/messages",
+        json={
+            "patient_id": patient.id,
+            "recipient_user_id": doctor.id,
+            "subject": "Care question",
+            "body": "Please review my latest care instructions.",
+        },
+        headers=auth_header(patient_token),
+    )
+    denied = client.post(
+        "/care/messages",
+        json={
+            "patient_id": patient.id,
+            "recipient_user_id": outsider.id,
+            "subject": "Should not send",
+            "body": "This recipient is not assigned.",
+        },
+        headers=auth_header(patient_token),
+    )
+
+    assert allowed.status_code == 200
+    assert denied.status_code == 400
+
+
+def test_only_signed_shared_documents_are_visible_to_patients(client, db, cleanup):
+    doctor = create_user(db, cleanup, "doctor")
+    patient_user = create_user(db, cleanup, "patient")
+    patient = create_patient(
+        db,
+        cleanup,
+        name="Document Visibility Patient",
+        doctor_id=doctor.id,
+        user_id=patient_user.id,
+    )
+    doctor_token = create_access_token({"sub": doctor.email, "role": "doctor", "user_id": doctor.id})
+    patient_token = create_access_token({"sub": patient_user.email, "role": "patient", "user_id": patient_user.id})
+    draft = client.post(
+        "/care/documents",
+        json={
+            "patient_id": patient.id,
+            "document_type": "Report",
+            "title": "Reviewed monitoring report",
+            "assessment": "Stable based on reviewed observations.",
+            "plan": "Continue the agreed monitoring plan.",
+            "patient_visible": True,
+        },
+        headers=auth_header(doctor_token),
+    )
+    assert draft.status_code == 200
+    assert client.get(
+        f"/care/documents/{patient.id}",
+        headers=auth_header(patient_token),
+    ).json() == []
+
+    signed = client.post(
+        f"/care/documents/{draft.json()['id']}/sign",
+        headers=auth_header(doctor_token),
+    )
+    visible = client.get(
+        f"/care/documents/{patient.id}",
+        headers=auth_header(patient_token),
+    )
+    assert signed.status_code == 200
+    assert len(visible.json()) == 1
+    assert visible.json()[0]["status"] == "signed"
+
+
+def test_patient_controls_consent_and_can_export_only_own_record(client, db, cleanup):
+    doctor = create_user(db, cleanup, "doctor")
+    first_user = create_user(db, cleanup, "patient")
+    second_user = create_user(db, cleanup, "patient")
+    first = create_patient(
+        db,
+        cleanup,
+        name="First Export Patient",
+        doctor_id=doctor.id,
+        user_id=first_user.id,
+    )
+    second = create_patient(
+        db,
+        cleanup,
+        name="Second Export Patient",
+        doctor_id=doctor.id,
+        user_id=second_user.id,
+    )
+    first_token = create_access_token({"sub": first_user.email, "role": "patient", "user_id": first_user.id})
+    consent = client.post(
+        "/care/consents",
+        json={
+            "patient_id": first.id,
+            "consent_type": "ai_processing",
+            "granted": False,
+            "policy_version": "2026-07",
+        },
+        headers=auth_header(first_token),
+    )
+    own_export = client.get(
+        f"/care/export/{first.id}",
+        headers=auth_header(first_token),
+    )
+    other_export = client.get(
+        f"/care/export/{second.id}",
+        headers=auth_header(first_token),
+    )
+    assert consent.status_code == 200
+    assert consent.json()["granted"] is False
+    assert own_export.status_code == 200
+    assert other_export.status_code == 404
+
+
+def test_totp_mfa_secret_is_encrypted_and_requires_confirmation(client, db, cleanup):
+    user = create_user(db, cleanup, "doctor")
+    token = create_access_token({"sub": user.email, "role": user.role, "user_id": user.id})
+    enrolment = client.post(
+        "/care/account/mfa/enrol",
+        headers=auth_header(token),
+    )
+    assert enrolment.status_code == 200
+    secret = enrolment.json()["secret"]
+    db.refresh(user)
+    assert secret not in user.mfa_secret_encrypted
+    assert user.mfa_enabled is False
+
+    confirmation = client.post(
+        "/care/account/mfa/confirm",
+        json={"code": pyotp.TOTP(secret).now()},
+        headers=auth_header(token),
+    )
+    db.refresh(user)
+    assert confirmation.status_code == 204
+    assert user.mfa_enabled is True
+
+
+def test_admin_password_reset_link_is_single_use_and_revokes_sessions(
+    client, db, cleanup
+):
+    admin = create_user(db, cleanup, "admin")
+    target = create_user(db, cleanup, "nurse")
+    admin_token = create_access_token(
+        {"sub": admin.email, "role": admin.role, "user_id": admin.id}
+    )
+    created = client.post(
+        f"/admin/users/{target.id}/password-reset-link",
+        headers=auth_header(admin_token),
+    )
+    assert created.status_code == 200
+    raw_token = created.json()["reset_url"].split("token=", 1)[1]
+    new_password = "ChangedSecurePassword987!"
+    confirmed = client.post(
+        "/auth/password-reset/confirm",
+        json={"token": raw_token, "new_password": new_password},
+    )
+    replay = client.post(
+        "/auth/password-reset/confirm",
+        json={"token": raw_token, "new_password": "AnotherSecurePassword987!"},
+    )
+    db.refresh(target)
+    assert confirmed.status_code == 204
+    assert replay.status_code == 400
+    assert verify_password(new_password, target.password_hash)
 
 
 def test_patient_creation_handles_multiple_active_nurses(client, db, cleanup):

@@ -97,13 +97,20 @@ export function HealthDataProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { token, isAdmin } = useAuth();
+  const { token, isAdmin, user } = useAuth();
 
   const [healthData, setHealthData] = useState<HealthData[]>([]);
 
   const [patients, setPatients] = useState<Patient[]>([]);
 
   const [selectedPatientId, setSelectedPatientId] = useState<number>(1);
+
+  const selectPatient = (id: number) => {
+    setSelectedPatientId(id);
+    if (user?.id) {
+      sessionStorage.setItem(`health-selected-patient-${user.id}`, String(id));
+    }
+  };
 
   const [loading, setLoading] = useState(true);
 
@@ -148,11 +155,19 @@ export function HealthDataProvider({
 
       try {
         const backendPatients = await getPatients();
-        const mappedPatients = backendPatients.map(mapBackendPatient);
+        const mappedPatients: Patient[] = (backendPatients as BackendPatient[]).map(
+          mapBackendPatient
+        );
 
         if (mappedPatients.length > 0) {
           setPatients(mappedPatients);
-          setSelectedPatientId(mappedPatients[0].id);
+          const savedId = Number(
+            sessionStorage.getItem(`health-selected-patient-${user?.id}`) ?? 0
+          );
+          const nextId = mappedPatients.some((patient) => patient.id === savedId)
+            ? savedId
+            : mappedPatients[0].id;
+          setSelectedPatientId(nextId);
         } else {
           setPatients([]);
           setSelectedPatientId(0);
@@ -166,7 +181,7 @@ export function HealthDataProvider({
     }
 
     loadPatients();
-  }, [token, isAdmin]);
+  }, [token, isAdmin, user?.id]);
 
   useEffect(() => {
     if (!token || isAdmin || patients.length === 0) return;
@@ -182,7 +197,7 @@ export function HealthDataProvider({
         patients,
         selectedPatient,
         hasPatients: patients.length > 0,
-        setSelectedPatientId,
+        setSelectedPatientId: selectPatient,
         loading,
         refreshVitals,
       }}

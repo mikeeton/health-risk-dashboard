@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+import base64
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
@@ -8,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt, JWTError
+from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.orm import Session
 
 from config import get_settings
@@ -67,6 +69,27 @@ def password_needs_rehash(stored_password: str) -> bool:
         return password_hasher.check_needs_rehash(stored_password)
     except InvalidHashError:
         return True
+
+
+def _mfa_cipher() -> Fernet:
+    configured = settings.integration_encryption_key.strip()
+    if configured:
+        return Fernet(configured.encode())
+    derived = hashlib.sha256(f"{settings.secret_key}:mfa".encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(derived))
+
+
+def encrypt_mfa_secret(value: str) -> str:
+    return _mfa_cipher().encrypt(value.encode()).decode()
+
+
+def decrypt_mfa_secret(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        return _mfa_cipher().decrypt(value.encode()).decode()
+    except (InvalidToken, ValueError):
+        return None
 
 
 def create_token(

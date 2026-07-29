@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { KeyRound, Loader2, RefreshCw, UserCog, Users } from "lucide-react";
 
-import PasswordField from "../components/PasswordField";
 import {
   activateAdminUser,
+  createAdminPasswordResetLink,
   getAdminUsers,
-  resetAdminUserPassword,
   suspendAdminUser,
 } from "../services/api";
 
@@ -21,9 +20,7 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [resetUserId, setResetUserId] = useState<number | null>(null);
-  const [adminPassword, setAdminPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
+  const [resetLink, setResetLink] = useState("");
 
   async function loadUsers() {
     try {
@@ -51,18 +48,13 @@ export default function AdminUsers() {
     }
   }
 
-  async function resetPassword(user: UserRecord) {
+  async function createResetLink(user: UserRecord) {
     try {
-      await resetAdminUserPassword(user.id, {
-        admin_password: adminPassword,
-        new_password: newPassword,
-      });
-      setMessage(`Password reset for ${user.full_name}.`);
-      setResetUserId(null);
-      setAdminPassword("");
-      setNewPassword("");
+      const result = await createAdminPasswordResetLink(user.id);
+      setResetLink(result.reset_url);
+      setMessage(`Single-use reset link created for ${user.full_name}; it expires in 30 minutes.`);
     } catch {
-      setMessage("Could not reset password. Check admin verification and password length.");
+      setMessage("Could not create a password reset link.");
     }
   }
 
@@ -166,11 +158,11 @@ export default function AdminUsers() {
                   <td className="px-6 py-4 text-right">
                     <div className="flex flex-wrap justify-end gap-2">
                       <button
-                        onClick={() => setResetUserId(user.id)}
+                        onClick={() => createResetLink(user)}
                         className="inline-flex items-center gap-2 rounded-xl border border-blue-200 px-4 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300 dark:hover:bg-blue-950/30"
                       >
                         <KeyRound className="h-4 w-4" />
-                        Reset Password
+                        Create Reset Link
                       </button>
                       <button
                         onClick={() => toggleUserStatus(user)}
@@ -196,59 +188,30 @@ export default function AdminUsers() {
         </div>
       </section>
 
-      {resetUserId && (
+      {resetLink && (
         <section className="glass-card rounded-3xl p-6">
           <div className="mb-5 flex items-center gap-3">
             <KeyRound className="h-6 w-6 text-blue-600" />
             <div>
-              <h2 className="text-xl font-bold">Admin-Verified Password Reset</h2>
+              <h2 className="text-xl font-bold">Single-use password reset link</h2>
               <p className="text-sm text-slate-500">
-                Enter your admin password before changing this user's password.
+                Share this once through an approved secure channel. It expires in 30 minutes.
               </p>
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block text-sm font-bold">
-              Admin Password
-              <div className="mt-2">
-                <PasswordField
-                  value={adminPassword}
-                  onChange={(event) => setAdminPassword(event.target.value)}
-                  className="px-3 py-2"
-                />
-              </div>
-            </label>
-
-            <label className="block text-sm font-bold">
-              New User Password
-              <div className="mt-2">
-                <PasswordField
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  minLength={8}
-                  className="px-3 py-2"
-                />
-              </div>
-            </label>
-          </div>
+          <code className="block break-all rounded-xl bg-slate-100 p-4 text-xs dark:bg-slate-900">{resetLink}</code>
 
           <div className="mt-5 flex flex-wrap gap-2">
             <button
-              onClick={() => {
-                const user = users.find((item) => item.id === resetUserId);
-                if (user) resetPassword(user);
-              }}
-              disabled={adminPassword.length < 8 || newPassword.length < 8}
+              onClick={() => navigator.clipboard.writeText(resetLink)}
               className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              Confirm Password Reset
+              Copy secure link
             </button>
             <button
               onClick={() => {
-                setResetUserId(null);
-                setAdminPassword("");
-                setNewPassword("");
+                setResetLink("");
               }}
               className="rounded-lg border border-slate-200 px-4 py-3 text-sm font-bold hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
             >
