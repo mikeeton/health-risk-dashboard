@@ -11,13 +11,28 @@ permissions:
 jobs:
   health-check:
     runs-on: ubuntu-latest
+    env:
+      # Repository variables can override these defaults when custom domains
+      # are introduced. Keeping the deployed service URLs here prevents the
+      # monitor from failing before it has contacted either service.
+      PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL || 'https://health-risk-dashboard-api.onrender.com' }}
+      PRODUCTION_FRONTEND_URL: ${{ vars.PRODUCTION_FRONTEND_URL || 'https://health-risk-dashboard-iwumos1e9-mikeetons-projects.vercel.app' }}
     steps:
       - name: Verify configuration
-        if: ${{ vars.PRODUCTION_API_URL == '' || vars.PRODUCTION_FRONTEND_URL == '' }}
         run: |
-          echo "Set PRODUCTION_API_URL and PRODUCTION_FRONTEND_URL repository variables."
-          exit 1
+          test -n "$PRODUCTION_API_URL"
+          test -n "$PRODUCTION_FRONTEND_URL"
+          echo "Backend: $PRODUCTION_API_URL"
+          echo "Frontend: $PRODUCTION_FRONTEND_URL"
       - name: Check backend readiness
-        run: curl --fail --silent --show-error --max-time 20 "${{ vars.PRODUCTION_API_URL }}/health/ready"
+        run: |
+          curl --fail --silent --show-error \
+            --retry 5 --retry-delay 5 --retry-all-errors \
+            --connect-timeout 15 --max-time 45 \
+            "$PRODUCTION_API_URL/health/ready"
       - name: Check frontend
-        run: curl --fail --silent --show-error --max-time 20 --output /dev/null "${{ vars.PRODUCTION_FRONTEND_URL }}"
+        run: |
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 3 --retry-all-errors \
+            --connect-timeout 15 --max-time 30 \
+            --output /dev/null "$PRODUCTION_FRONTEND_URL"
