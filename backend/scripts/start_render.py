@@ -14,9 +14,7 @@ import subprocess
 import sys
 
 
-FRONTEND_URL = (
-    "https://health-risk-dashboard-iwumos1e9-mikeetons-projects.vercel.app"
-)
+FRONTEND_URL = "https://aihealthcaredashboard.vercel.app"
 API_HOST = "health-risk-dashboard-api.onrender.com"
 
 

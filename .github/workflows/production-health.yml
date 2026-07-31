@@ -19,7 +19,7 @@ jobs:
       # are introduced. Keeping the deployed service URLs here prevents the
       # monitor from failing before it has contacted either service.
       PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL || 'https://health-risk-dashboard-api.onrender.com' }}
-      PRODUCTION_FRONTEND_URL: ${{ vars.PRODUCTION_FRONTEND_URL || 'https://health-risk-dashboard-iwumos1e9-mikeetons-projects.vercel.app' }}
+      PRODUCTION_FRONTEND_URL: ${{ vars.PRODUCTION_FRONTEND_URL || 'https://aihealthcaredashboard.vercel.app' }}
     steps:
       - name: Verify configuration
         run: |

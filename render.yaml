@@ -37,7 +37,7 @@ services:
       - key: REFRESH_TOKEN_EXPIRE_DAYS
         value: 7
       - key: CORS_ORIGINS
-        value: https://health-risk-dashboard-iwumos1e9-mikeetons-projects.vercel.app
+        value: https://aihealthcaredashboard.vercel.app
       - key: APP_ENV
         value: production
       - key: FORCE_HTTPS
@@ -93,7 +93,7 @@ services:
       - key: AI_CLINICAL_APPROVAL
         value: false
       - key: FRONTEND_URL
-        value: https://health-risk-dashboard-iwumos1e9-mikeetons-projects.vercel.app
+        value: https://aihealthcaredashboard.vercel.app
       - key: WITHINGS_CLIENT_ID
         sync: false
       - key: WITHINGS_CLIENT_SECRET

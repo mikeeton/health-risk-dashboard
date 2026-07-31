@@ -22,7 +22,7 @@ def _normalise_render_environment() -> None:
         return
 
     frontend_url = (
-        "https://health-risk-dashboard-iwumos1e9-mikeetons-projects.vercel.app"
+        "https://aihealthcaredashboard.vercel.app"
     )
     defaults = {
         "FRONTEND_URL": frontend_url,
