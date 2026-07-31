@@ -4,6 +4,7 @@ import { predictDeteriorationRisk } from "../utils/predictiveRisk";
 import PredictiveRiskPanel from "../components/PredictiveRiskPanel";
 import PatientTimeline from "../components/PatientTimeline";
 import MedicationPanel from "../components/MedicationPanel";
+import ModelEvaluationPanel from "../components/ModelEvaluationPanel";
 
 export default function AdvancedAnalytics() {
   const { healthData, selectedPatient } = useHealthData();
@@ -32,6 +33,8 @@ export default function AdvancedAnalytics() {
         <PredictiveRiskPanel prediction={prediction} />
         <MedicationPanel patientId={selectedPatient.id} />
       </div>
+
+      <ModelEvaluationPanel />
 
       <PatientTimeline records={patientData} />
     </div>

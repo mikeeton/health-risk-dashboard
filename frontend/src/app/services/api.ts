@@ -618,6 +618,33 @@ export async function generateLiveSimulatorVital(patientId: number) {
   return response.json();
 }
 
+export type ModelEvaluation = {
+  available: boolean;
+  reason?: string;
+  model_version?: string;
+  created_at?: string;
+  dataset?: { name: string; source_url: string; sha256: string };
+  outcome_definition?: string;
+  selected_model?: string;
+  records?: { total: number; train: number; validation: number; test: number };
+  test_metrics?: Record<string, number | null | object>;
+  fairness?: Record<string, unknown>;
+  external_validation?: Record<string, unknown> | null;
+  limitations?: string[];
+};
+
+export async function getModelEvaluation(): Promise<ModelEvaluation> {
+  const response = await apiFetch(`${API_BASE_URL}/ml/evaluation`);
+  if (!response.ok) throw new Error("Failed to fetch model evaluation");
+  return response.json();
+}
+
+export async function getUsabilityProtocol() {
+  const response = await apiFetch(`${API_BASE_URL}/ml/usability-protocol`);
+  if (!response.ok) throw new Error("Failed to fetch usability protocol");
+  return response.json() as Promise<Record<string, unknown>>;
+}
+
 export async function getWithingsStatus(patientId: number) {
   const response = await apiFetch(
     `${API_BASE_URL}/integrations/withings/status/${patientId}`

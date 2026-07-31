@@ -329,10 +329,10 @@ export default function Layout() {
     <div className="app-canvas text-slate-900 dark:text-white">
       <motion.aside
         animate={{
-          width: sidebarOpen ? 260 : 88,
+          width: sidebarOpen ? 236 : 76,
         }}
         transition={{ type: "spring", stiffness: 280, damping: 30 }}
-        className="premium-sidebar fixed left-0 top-0 z-50 hidden h-screen flex-col border-r border-[var(--panel-border)] px-5 py-6 lg:flex"
+        className="premium-sidebar fixed left-0 top-0 z-50 hidden h-screen flex-col border-r border-[var(--panel-border)] px-4 py-5 lg:flex"
       >
         <SidebarContent />
       </motion.aside>
@@ -360,7 +360,7 @@ export default function Layout() {
 
       <motion.div
         animate={{
-          marginLeft: isDesktopShell ? (sidebarOpen ? 260 : 88) : 0,
+          marginLeft: isDesktopShell ? (sidebarOpen ? 236 : 76) : 0,
         }}
         transition={{ type: "spring", stiffness: 280, damping: 30 }}
         className="min-h-screen lg:block"
@@ -438,7 +438,7 @@ export default function Layout() {
           </div>
         </header>
 
-        <main className="px-4 pb-8 sm:px-8">
+        <main className="pb-8">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 10 }}

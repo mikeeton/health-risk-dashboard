@@ -8,6 +8,11 @@ type MLPrediction = {
   prediction_level: string;
   confidence: number;
   message: string;
+  source?: string;
+  model_version?: string;
+  anomaly_detected?: boolean;
+  anomaly_score?: number;
+  explanations?: Array<{ feature: string; value: number; contribution: number; method: string }>;
 };
 
 type Props = {
@@ -41,7 +46,7 @@ export default function MLPredictionPanel({ patientId }: Props) {
         <div>
           <h2 className="text-xl font-bold">Scikit-Learn Prediction</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Random Forest deterioration model
+            Versioned prediction with deterministic safety override
           </p>
         </div>
       </div>
@@ -67,6 +72,25 @@ export default function MLPredictionPanel({ patientId }: Props) {
           <p className="mt-3 text-xs text-slate-400">
             Confidence: {(prediction.confidence * 100).toFixed(0)}%
           </p>
+
+          <p className="mt-1 text-xs text-slate-400">
+            Source: {prediction.source?.replaceAll("_", " ") ?? "unknown"}
+            {prediction.model_version ? ` · model ${prediction.model_version}` : ""}
+          </p>
+
+          {prediction.explanations && prediction.explanations.length > 0 && (
+            <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-800">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Leading evidence</p>
+              <ul className="mt-3 space-y-2 text-sm">
+                {prediction.explanations.slice(0, 5).map((item) => (
+                  <li key={item.feature} className="flex justify-between gap-3">
+                    <span>{item.feature.replaceAll("_", " ")}</span>
+                    <span className={item.contribution >= 0 ? "text-rose-600" : "text-emerald-600"}>{item.contribution >= 0 ? "+" : ""}{item.contribution.toFixed(3)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <button
             onClick={loadPrediction}

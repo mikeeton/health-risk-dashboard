@@ -5,14 +5,14 @@
 :root {
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-display: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --page-bg: #f4f7fb;
-  --page-text: #17233b;
+  --page-bg: #f8fafc;
+  --page-text: #0f172a;
   --muted-text: #64748b;
-  --panel-bg: rgba(255, 255, 255, 0.88);
+  --panel-bg: #ffffff;
   --field-bg: #ffffff;
-  --panel-border: rgba(148, 163, 184, 0.25);
+  --panel-border: #e2e8f0;
   --field-border: #cbd5e1;
-  --panel-shadow: 0 1px 2px rgba(30, 64, 175, 0.03), 0 14px 38px rgba(30, 64, 175, 0.055);
+  --panel-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
   --focus-ring: 0 0 0 4px rgba(37, 99, 235, 0.16);
   --brand: #2563eb;
   color-scheme: light;
@@ -44,10 +44,7 @@ html {
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background:
-    radial-gradient(circle at 78% -10%, rgba(59, 130, 246, 0.1), transparent 31rem),
-    radial-gradient(circle at 5% 35%, rgba(14, 165, 233, 0.05), transparent 26rem),
-    var(--page-bg);
+  background: var(--page-bg);
   color: var(--page-text);
   font-synthesis: none;
   line-height: 1.5;
@@ -132,10 +129,10 @@ textarea:focus-visible {
 .glass-card {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 20px !important;
+  border-radius: 14px !important;
   box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .dark .glass-card {
@@ -146,9 +143,9 @@ textarea:focus-visible {
 
 .dashboard-shell {
   width: 100%;
-  max-width: 1550px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 26px 20px 48px;
+  padding: 28px 24px 52px;
 }
 
 .dashboard-grid {
@@ -166,9 +163,9 @@ textarea:focus-visible {
 }
 
 .card-hover:hover {
-  border-color: rgba(37, 99, 235, 0.3);
-  box-shadow: 0 18px 46px rgba(30, 64, 175, 0.1);
-  transform: translateY(-3px);
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.055);
+  transform: translateY(-2px);
 }
 
 .live-pulse {
@@ -233,18 +230,13 @@ textarea:focus-visible {
   z-index: -1;
   pointer-events: none;
   content: "";
-  opacity: 0.32;
-  background-image:
-    linear-gradient(rgba(82, 125, 127, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(82, 125, 127, 0.055) 1px, transparent 1px);
-  background-size: 32px 32px;
-  mask-image: linear-gradient(to bottom, black, transparent 70%);
+  opacity: 0;
 }
 
 .premium-sidebar {
-  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(246,249,255,.95));
-  box-shadow: 18px 0 48px rgba(30, 64, 175, 0.05);
-  backdrop-filter: blur(22px);
+  background: #ffffff;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .dark .premium-sidebar {
@@ -254,18 +246,12 @@ textarea:focus-visible {
 .brand-mark {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.28);
+  color: #2563eb;
+  background: #eff6ff;
+  box-shadow: none;
 }
 
-.brand-mark::after {
-  position: absolute;
-  inset: -50%;
-  content: "";
-  background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.35) 50%, transparent 65%);
-  transform: translateX(-55%);
-  animation: brand-sheen 6s ease-in-out infinite;
-}
+.brand-mark::after { display: none; }
 
 .nav-item { position: relative; overflow: hidden; }
 .nav-item::before {
@@ -280,18 +266,18 @@ textarea:focus-visible {
 }
 
 .nav-item-active {
-  color: #fff;
-  background: linear-gradient(110deg, #2563eb, #1d4ed8);
-  box-shadow: 0 10px 26px rgba(37, 99, 235, .2);
+  color: #1d4ed8;
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1px #dbeafe;
 }
 
 .nav-item-active::before { height: 50%; }
 
 .premium-header {
   border-color: var(--panel-border);
-  background: color-mix(in srgb, var(--page-bg) 76%, transparent);
-  box-shadow: 0 1px 0 rgba(255,255,255,.55);
-  backdrop-filter: blur(22px) saturate(150%);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: none;
+  backdrop-filter: blur(12px);
 }
 
 .control-deck {
@@ -302,7 +288,7 @@ textarea:focus-visible {
 .control-deck::before {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 4px;
+  width: 3px;
   content: "";
   background: linear-gradient(#60a5fa, #2563eb);
 }
@@ -333,9 +319,9 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(203, 213, 225, .8);
-  border-radius: 12px;
+  border-radius: 999px;
   background: rgba(255, 255, 255, .88);
-  box-shadow: 0 2px 7px rgba(15, 23, 42, .06);
+  box-shadow: none;
   transition: transform .2s ease, border-color .2s ease, background-color .2s ease, box-shadow .2s ease;
 }
 
@@ -362,7 +348,7 @@ textarea:focus-visible {
 }
 
 .dashboard-shell > section {
-  animation: section-reveal .65s cubic-bezier(.2,.8,.2,1) both;
+  animation: section-reveal .42s cubic-bezier(.2,.8,.2,1) both;
 }
 .dashboard-shell > section:nth-child(2) { animation-delay: 45ms; }
 .dashboard-shell > section:nth-child(3) { animation-delay: 90ms; }

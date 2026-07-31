@@ -26,3 +26,8 @@ frontend/playwright-report/
 frontend/test-results/
 .coverage
 htmlcov/
+
+# Versioned ML artefacts and local research datasets are generated in CI or
+# deployment storage; their metadata remains in evaluation.json outside git.
+backend/artifacts/ml/
+backend/data/

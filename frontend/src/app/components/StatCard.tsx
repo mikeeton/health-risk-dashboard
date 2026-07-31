@@ -25,18 +25,18 @@ export default function StatCard({
   };
 
   return (
-    <Card className="relative min-h-[168px] overflow-hidden p-6">
-      <span className={`absolute left-0 top-7 h-10 w-1 rounded-r-full ${status ? statusAccent[status] : "bg-blue-500"}`} />
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+    <Card className="relative min-h-[132px] overflow-hidden p-5">
+      <span className={`absolute inset-x-0 top-0 h-0.5 ${status ? statusAccent[status] : "bg-blue-500"}`} />
+      <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
         {title}
       </p>
 
-      <p className="mt-5 font-[var(--font-display)] text-3xl font-extrabold tracking-[-0.04em] text-slate-950 dark:text-white">
+      <p className="mt-3 font-[var(--font-display)] text-[1.7rem] font-bold tracking-[-0.035em] text-slate-950 dark:text-white">
         {value}
       </p>
 
       <p
-        className={`mt-4 flex items-center gap-2 text-xs font-semibold ${
+        className={`mt-2.5 flex items-center gap-1.5 text-[11px] font-medium ${
           status ? statusColor[status] : "text-gray-500 dark:text-slate-400"
         }`}
       >

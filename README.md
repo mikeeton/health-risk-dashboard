@@ -25,6 +25,9 @@ python scripts/reset_admin.py \
 ## Stack
 
 - Backend: FastAPI, SQLAlchemy, Pydantic, PostgreSQL, Alembic, JWT auth
+- ML research layer: patient-grouped training, longitudinal feature engineering,
+  calibrated classification, Isolation Forest anomaly detection, SHAP evidence,
+  fairness reporting, and optional external validation
 - Frontend: React, TypeScript, Vite, React Router, Tailwind CSS, Recharts
 - AI: Groq API integration when `GROQ_API_KEY` is configured
 - Tests: Pytest, FastAPI TestClient, and Playwright browser tests

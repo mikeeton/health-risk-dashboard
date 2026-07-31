@@ -66,16 +66,16 @@ export default function Reports() {
 
   return (
     <div className="dashboard-shell space-y-8">
-      <section className="glass-card rounded-3xl p-6">
+      <section className="glass-card rounded-3xl p-6 sm:p-7">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/25">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300">
               <FileText className="h-7 w-7" />
             </div>
 
             <div>
-              <h1 className="text-3xl font-extrabold text-slate-950 dark:text-white">
-                Clinical Reports
+              <h1 className="text-3xl font-bold text-slate-950 dark:text-white">
+                Reports & Export
               </h1>
               <p className="mt-1 text-slate-500 dark:text-slate-400">
                 Review the current risk picture and export a clinician-ready PDF.

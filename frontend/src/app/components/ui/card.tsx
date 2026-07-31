@@ -8,7 +8,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "glass-card card-hover rounded-[20px] text-slate-900 dark:text-white",
+        "glass-card card-hover rounded-[14px] text-slate-900 dark:text-white",
         className
       )}
       {...props}

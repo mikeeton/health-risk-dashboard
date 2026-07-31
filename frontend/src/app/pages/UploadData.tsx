@@ -130,10 +130,10 @@ export default function UploadData() {
   };
 
   return (
-    <div className="mx-auto max-w-[1200px] space-y-6 px-4 py-6 sm:p-6">
+    <div className="dashboard-shell max-w-[1200px] space-y-7">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white sm:text-3xl">
-          Upload Data
+        <h1 className="text-2xl font-bold text-gray-950 dark:text-white sm:text-3xl">
+          Upload Health Dataset
         </h1>
 
         <p className="mt-2 text-gray-600 dark:text-slate-400">
@@ -142,9 +142,11 @@ export default function UploadData() {
         </p>
       </div>
 
-      <Card className="p-4 sm:p-8">
-        <div className="rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-5 text-center dark:border-slate-700 dark:bg-slate-800 sm:p-10">
-          <Upload className="mx-auto mb-4 h-12 w-12 text-blue-600" />
+      <Card className="p-5 sm:p-7">
+        <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/30 p-6 text-center dark:border-blue-900 dark:bg-blue-950/20 sm:p-10">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
+            <Upload className="h-8 w-8" />
+          </div>
 
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Upload health dataset
@@ -173,7 +175,7 @@ export default function UploadData() {
               className="hidden"
             />
 
-            <span className="inline-flex cursor-pointer items-center justify-center rounded-md bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700">
+            <span className="clinical-button inline-flex cursor-pointer items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
               Choose CSV File
             </span>
           </label>
@@ -196,7 +198,7 @@ export default function UploadData() {
           </h2>
         </div>
 
-        <div className="overflow-x-auto rounded-xl bg-gray-100 p-4 font-mono text-sm dark:bg-slate-800">
+        <div className="overflow-x-auto rounded-lg bg-slate-50 p-4 font-mono text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
           patientId,timestamp,heartRate,spo2,systolicBP,diastolicBP,steps,sleepHours,activeMinutes,calories,activityState
         </div>
 
