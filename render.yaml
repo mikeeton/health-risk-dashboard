@@ -6,7 +6,7 @@ services:
     plan: starter
     region: frankfurt
     buildCommand: pip install -r requirements.txt
-    startCommand: bash -lc "python scripts/wait_for_database.py && alembic upgrade head && python scripts/preflight.py && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    startCommand: python scripts/start_render.py
     healthCheckPath: /health/ready
     envVars:
       - key: DATABASE_URL
