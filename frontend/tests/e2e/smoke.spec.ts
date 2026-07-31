@@ -175,6 +175,38 @@ test("all four roles receive the correct protected workspace navigation", async 
   }
 });
 
+test("admin navigation highlights exactly one current section", async ({ page }) => {
+  await page.route("http://127.0.0.1:8000/**", (route) =>
+    route.fulfill({ json: [] })
+  );
+  await page.addInitScript(() => {
+    sessionStorage.setItem(
+      "health-auth-user",
+      JSON.stringify({
+        id: 1,
+        email: "admin@example.com",
+        full_name: "System Admin",
+        role: "admin",
+      })
+    );
+    sessionStorage.setItem("health-auth-token", "admin-navigation-token");
+  });
+
+  const sections = [
+    ["/admin", "Admin"],
+    ["/admin/users", "User Management"],
+    ["/admin/approvals", "Approvals"],
+  ] as const;
+
+  for (const [path, label] of sections) {
+    await page.goto(path);
+    await expect(page.getByRole("link", { name: label, exact: true })).toHaveClass(
+      /nav-item-active/
+    );
+    await expect(page.locator("nav .nav-item-active")).toHaveCount(1);
+  }
+});
+
 test("assigned clinicians can switch patients and the selection persists", async ({
   page,
 }) => {

@@ -10,17 +10,18 @@ import {
   GitPullRequest,
   HeartHandshake,
   LineChart,
+  LayoutDashboard,
   LogOut,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Shield,
-  ShieldCheck,
+  ClipboardCheck,
   UserPlus,
   Stethoscope,
   Upload,
   User,
-  UserCog,
+  Users,
   UserRound,
   X,
 } from "lucide-react";
@@ -98,19 +99,19 @@ export default function Layout() {
     {
       label: "Admin",
       path: "/admin",
-      icon: UserCog,
+      icon: LayoutDashboard,
       show: isAdmin,
     },
     {
       label: "User Management",
       path: "/admin/users",
-      icon: UserCog,
+      icon: Users,
       show: isAdmin,
     },
     {
       label: "Approvals",
       path: "/admin/approvals",
-      icon: ShieldCheck,
+      icon: ClipboardCheck,
       show: isAdmin,
     },
     {
@@ -288,6 +289,7 @@ export default function Layout() {
               <NavLink
                 key={item.path}
                 to={item.path}
+                end={item.path === "/admin" || item.path === "/"}
                 title={item.label}
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
