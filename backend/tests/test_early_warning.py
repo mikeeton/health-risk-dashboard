@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 
 import models
 from database import Base
-from early_warning import _critical_reasons, _trend_reasons, evaluate_new_vital
+from early_warning import _critical_reasons, _trend_reasons, _patient_threshold, _data_quality, evaluate_new_vital
 
 
 def make_vital(patient_id, index, *, spo2=97, heart=75, systolic=120, risk=2):
@@ -33,6 +33,18 @@ def test_critical_and_developing_trend_detection():
     reasons = _trend_reasons(recent_desc)
     assert any("oxygen saturation declined" in item for item in reasons)
     assert any("blood pressure rose" in item for item in reasons)
+
+
+def test_patient_specific_threshold_and_data_quality_are_explicit():
+    high = models.Patient(name="High", age=80, condition="Monitoring", risk_level="High")
+    low = models.Patient(name="Low", age=30, condition="Monitoring", risk_level="Low")
+    governance = {"threshold": 0.2, "false_positive_cost": 1, "false_negative_cost": 8}
+    assert _patient_threshold(high, governance, 0.5) < _patient_threshold(low, governance, 0.5)
+    vital = make_vital(1, 1)
+    vital.source = "withings"
+    quality = _data_quality(vital)
+    assert quality["source"] == "withings"
+    assert quality["complete"] is True
 
 
 def test_urgent_alert_is_deduplicated_and_only_assigned_clinician_is_notified():

@@ -2,19 +2,90 @@
 from __future__ import annotations
 
 import logging
+import json
 from datetime import datetime, timedelta, timezone
 
 import models
 from ml_engine.registry import model_status, predict
 from notification_utils import create_notification
+from observability import component_tracker
 
 logger = logging.getLogger(__name__)
 COOLDOWN_HOURS = 6
 MARKER = "[PREEMPTIVE:{kind}]"
+DEFAULT_GOVERNANCE = {
+    "enabled": True,
+    "mode": "shadow",
+    "threshold": None,
+    "false_negative_cost": 8,
+    "false_positive_cost": 1,
+    "require_consecutive": 2,
+    "require_trend_confirmation": True,
+    "drift_threshold": 3.0,
+    "auto_suspend": True,
+    "active_model_version": "physionet-critical-v1",
+    "retirement_reason": None,
+}
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def get_model_governance(db) -> dict:
+    row = db.query(models.SystemSetting).filter(models.SystemSetting.key == "model_governance").first()
+    if not row:
+        return dict(DEFAULT_GOVERNANCE)
+    try:
+        return {**DEFAULT_GOVERNANCE, **json.loads(row.value)}
+    except (TypeError, ValueError):
+        return dict(DEFAULT_GOVERNANCE)
+
+
+def _patient_threshold(patient, governance: dict, base: float) -> float:
+    configured = governance.get("threshold")
+    threshold = float(configured) if configured is not None else base
+    # Higher-risk clinical groups receive a slightly more sensitive threshold;
+    # this policy is visible and admin-controlled rather than hidden in the model.
+    if patient.risk_level in {"High", "Critical"}:
+        threshold *= 0.85
+    elif patient.risk_level == "Low":
+        threshold *= 1.1
+    cost_ratio = max(0.25, min(4.0, float(governance.get("false_positive_cost", 1)) / max(1, float(governance.get("false_negative_cost", 8)))))
+    threshold *= cost_ratio ** 0.15
+    return max(0.001, min(0.95, threshold))
+
+
+def _data_quality(vital) -> dict:
+    fields = ("heart_rate", "spo2", "systolic_bp", "diastolic_bp")
+    missing = [name for name in fields if getattr(vital, name, None) is None]
+    return {
+        "source": getattr(vital, "source", "unknown"),
+        "verification_status": getattr(vital, "verification_status", "unverified"),
+        "missing_fields": missing,
+        "complete": not missing,
+    }
+
+
+def _reconcile_predictions(db, vital, critical: bool) -> None:
+    now = _now().replace(tzinfo=None)
+    pending = (
+        db.query(models.ModelPredictionRecord)
+        .filter(
+            models.ModelPredictionRecord.patient_id == vital.patient_id,
+            models.ModelPredictionRecord.outcome_observed.is_(None),
+        )
+        .all()
+    )
+    for record in pending:
+        if critical and record.window_end >= now:
+            record.outcome_observed = True
+            record.outcome_recorded_at = now
+            record.classification = "TP" if record.predicted_positive else "FN"
+        elif record.window_end < now:
+            record.outcome_observed = False
+            record.outcome_recorded_at = now
+            record.classification = "FP" if record.predicted_positive else "TN"
 
 
 def _critical_reasons(vital) -> list[str]:
@@ -103,6 +174,8 @@ def _create_or_update(
     probability: float | None = None,
     confidence: float | None = None,
     model_version: str | None = None,
+    prediction=None,
+    data_quality: dict | None = None,
 ):
     marker = MARKER.format(kind=kind)
     evidence = "; ".join(reasons)
@@ -121,6 +194,7 @@ def _create_or_update(
         existing.risk_score = max(existing.risk_score, score)
         existing.note = note
         existing.updated_at = _now().isoformat()
+        existing.duplicate_updates = (existing.duplicate_updates or 0) + 1
         case = existing
     else:
         case = models.ReviewCase(
@@ -132,6 +206,18 @@ def _create_or_update(
             note=note,
             created_at=_now().isoformat(),
             escalation_due_at=(_now() + timedelta(hours=1 if kind == "urgent" else 4)).isoformat(),
+            alert_type="urgent_deterministic" if kind == "urgent" else "early_clinical_review",
+            predicted_risk_level=level if probability is not None else None,
+            probability=probability,
+            confidence=confidence,
+            prediction_window_hours=6 if probability is not None else None,
+            model_version=model_version,
+            evidence_json=json.dumps([{"timestamp": vital.timestamp, "observation": item} for item in reasons]),
+            shap_json=json.dumps((prediction or {}).get("explanations", [])),
+            data_quality_json=json.dumps(data_quality or _data_quality(vital)),
+            missing_information_json=json.dumps((data_quality or {}).get("missing_fields", [])),
+            recommended_checks_json=json.dumps(["Repeat and verify the measurement", "Review recent trends", "Assess current symptoms", "Document the clinical decision"]),
+            escalation_conditions_json=json.dumps(["SpO2 below 90%", "Heart rate below 40 or above 140 bpm", "Blood pressure at or above 180/120 mmHg"]),
         )
         db.add(case)
         db.flush()
@@ -169,6 +255,7 @@ def evaluate_new_vital(db, vital):
         if not patient:
             return None
         critical = _critical_reasons(vital)
+        _reconcile_predictions(db, vital, bool(critical))
         if critical:
             return _create_or_update(
                 db, patient=patient, kind="urgent", level="Critical", score=10,
@@ -182,27 +269,94 @@ def evaluate_new_vital(db, vital):
             .all()
         )
         trends = _trend_reasons(vitals)
-        prediction = predict(vitals, patient.id) if len(vitals) >= 5 and model_status().get("available") else None
-        predicted = bool(prediction and prediction.get("prediction_level") in {"High", "Critical"})
-        if not trends and not predicted:
+        governance = get_model_governance(db)
+        status = model_status()
+        prediction = predict(vitals, patient.id) if governance.get("enabled") and len(vitals) >= 5 and status.get("available") else None
+        threshold = _patient_threshold(patient, governance, float(status.get("operating_threshold", 0.5)))
+        probability = prediction.get("probability") if prediction else None
+        drift = (prediction or {}).get("drift", {})
+        drift_score = float(drift.get("score", 0))
+        active_version = governance.get("active_model_version")
+        if prediction and active_version and prediction.get("model_version") != active_version:
+            logger.warning("Inactive model version rejected: %s", prediction.get("model_version"))
+            prediction = None
+            probability = None
+        if prediction and drift_score > float(governance.get("drift_threshold", 3.0)):
+            recent_drift = (
+                db.query(models.ModelPredictionRecord)
+                .filter(models.ModelPredictionRecord.patient_id == patient.id)
+                .order_by(models.ModelPredictionRecord.id.desc()).limit(2).all()
+            )
+            if governance.get("auto_suspend") and len(recent_drift) == 2 and all(
+                (item.drift_score or 0) > float(governance.get("drift_threshold", 3.0)) for item in recent_drift
+            ):
+                setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "model_governance").first()
+                suspended = {**governance, "enabled": False, "retirement_reason": "Automatic suspension after three consecutive out-of-distribution predictions"}
+                if setting:
+                    setting.value = json.dumps(suspended)
+                else:
+                    db.add(models.SystemSetting(key="model_governance", value=json.dumps(suspended)))
+                db.add(models.ModelGovernanceEvent(action="automatic_suspension", reason=suspended["retirement_reason"], settings_json=json.dumps(suspended), created_at=_now().replace(tzinfo=None)))
+                component_tracker.increment("ml_drift_suspensions_total")
+        predicted = probability is not None and probability >= threshold
+        previous = (
+            db.query(models.ModelPredictionRecord)
+            .filter(models.ModelPredictionRecord.patient_id == patient.id)
+            .order_by(models.ModelPredictionRecord.id.desc())
+            .first()
+        )
+        consecutive = (previous.consecutive_positive_count if previous and previous.predicted_positive else 0) + 1 if predicted else 0
+        prediction_record = None
+        if prediction:
+            prediction_record = models.ModelPredictionRecord(
+                patient_id=patient.id,
+                vital_id=vital.id,
+                created_at=_now().replace(tzinfo=None),
+                window_end=(_now() + timedelta(hours=6)).replace(tzinfo=None),
+                probability=probability,
+                threshold=threshold,
+                predicted_positive=predicted,
+                consecutive_positive_count=consecutive,
+                mode=governance.get("mode", "shadow"),
+                model_version=prediction.get("model_version", "unknown"),
+                shap_json=json.dumps(prediction.get("explanations", [])),
+                data_quality_json=json.dumps(_data_quality(vital)),
+                drift_score=drift_score,
+                notified=False,
+            )
+            db.add(prediction_record)
+            db.flush()
+        confirmed = predicted and consecutive >= int(governance.get("require_consecutive", 2))
+        if governance.get("require_trend_confirmation", True):
+            confirmed = confirmed and bool(trends)
+        if governance.get("mode", "shadow") == "shadow":
+            db.commit()
+            return None
+        if not trends and not confirmed:
+            db.commit()
             return None
         reasons = list(trends)
-        if predicted:
+        if confirmed:
             reasons.append("the predictive model estimates increased risk of a defined critical vital event within six hours")
-        probability = prediction.get("probability") if prediction else None
         confidence = prediction.get("confidence") if prediction else None
-        return _create_or_update(
+        case = _create_or_update(
             db,
             patient=patient,
             kind="early",
-            level="High" if predicted else "Moderate",
-            score=7 if predicted else 5,
+            level="High" if confirmed else "Moderate",
+            score=7 if confirmed else 5,
             reasons=reasons,
             vital=vital,
             probability=probability,
             confidence=confidence,
             model_version=prediction.get("model_version") if prediction else None,
+            prediction=prediction,
+            data_quality=_data_quality(vital),
         )
+        if prediction_record:
+            prediction_record.notified = True
+            db.commit()
+        return case
     except Exception:
         logger.exception("Pre-emptive alert evaluation failed", extra={"vital_id": getattr(vital, "id", None)})
         db.rollback()

@@ -190,6 +190,21 @@ class ReviewCase(Base):
     resolved_at = Column(String, nullable=True)
     resolution_reason = Column(Text, nullable=True)
     escalation_due_at = Column(String, nullable=True)
+    alert_type = Column(String, default="clinical_review", nullable=False)
+    predicted_risk_level = Column(String, nullable=True)
+    probability = Column(Float, nullable=True)
+    confidence = Column(Float, nullable=True)
+    prediction_window_hours = Column(Integer, nullable=True)
+    model_version = Column(String, nullable=True)
+    evidence_json = Column(Text, nullable=True)
+    shap_json = Column(Text, nullable=True)
+    data_quality_json = Column(Text, nullable=True)
+    missing_information_json = Column(Text, nullable=True)
+    recommended_checks_json = Column(Text, nullable=True)
+    escalation_conditions_json = Column(Text, nullable=True)
+    contact_status = Column(String, default="not_contacted", nullable=False)
+    intervention = Column(Text, nullable=True)
+    duplicate_updates = Column(Integer, default=0, nullable=False)
 
 
 class AuditLog(Base):
@@ -633,3 +648,54 @@ class NotificationRule(Base):
     target_role = Column(String, nullable=False)
     template = Column(Text, nullable=False)
     active = Column(Boolean, default=True, nullable=False)
+
+
+class SystemSetting(Base):
+    """Persisted administrator-controlled operational feature setting."""
+
+    __tablename__ = "system_settings"
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String, nullable=False, unique=True, index=True)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+
+class ModelPredictionRecord(Base):
+    """Immutable-at-creation prediction later reconciled with observed outcomes."""
+
+    __tablename__ = "model_prediction_records"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    vital_id = Column(Integer, ForeignKey("vitals.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False, index=True)
+    window_end = Column(DateTime, nullable=False, index=True)
+    probability = Column(Float, nullable=False)
+    threshold = Column(Float, nullable=False)
+    predicted_positive = Column(Boolean, nullable=False)
+    consecutive_positive_count = Column(Integer, default=0, nullable=False)
+    mode = Column(String, nullable=False)
+    model_version = Column(String, nullable=False)
+    shap_json = Column(Text, nullable=True)
+    data_quality_json = Column(Text, nullable=True)
+    drift_score = Column(Float, nullable=True)
+    outcome_observed = Column(Boolean, nullable=True)
+    outcome_recorded_at = Column(DateTime, nullable=True)
+    classification = Column(String, nullable=True)
+    notified = Column(Boolean, default=False, nullable=False)
+
+
+class ModelGovernanceEvent(Base):
+    """Approval, activation, suspension, rollback, and retirement evidence."""
+
+    __tablename__ = "model_governance_events"
+
+    id = Column(Integer, primary_key=True)
+    action = Column(String, nullable=False)
+    model_version = Column(String, nullable=True)
+    reason = Column(Text, nullable=False)
+    settings_json = Column(Text, nullable=True)
+    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)

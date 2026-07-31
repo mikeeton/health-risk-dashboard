@@ -45,3 +45,34 @@ class RequestTracker:
 
 
 request_tracker = RequestTracker()
+
+
+class ComponentTracker:
+    """Small process-local telemetry store; external monitoring should scrape /metrics."""
+
+    def __init__(self):
+        self._lock = Lock()
+        self._values = {
+            "ml_predictions_total": 0,
+            "ml_prediction_failures_total": 0,
+            "ml_prediction_ms_last": 0.0,
+            "ml_shap_ms_last": 0.0,
+            "ml_drift_suspensions_total": 0,
+            "overdue_monitor_last_run": None,
+            "overdue_monitor_last_error": None,
+        }
+
+    def set(self, **values):
+        with self._lock:
+            self._values.update(values)
+
+    def increment(self, key: str, amount: int = 1):
+        with self._lock:
+            self._values[key] = int(self._values.get(key, 0)) + amount
+
+    def snapshot(self):
+        with self._lock:
+            return dict(self._values)
+
+
+component_tracker = ComponentTracker()

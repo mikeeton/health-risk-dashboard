@@ -1,6 +1,8 @@
 import asyncio
+import json
 import os
 import random
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -22,10 +24,11 @@ from middleware import (
     RequestSizeLimitMiddleware,
     EnforceHTTPSMiddleware,
 )
-from observability import request_tracker
+from observability import request_tracker, component_tracker
 from monitoring import initialize_error_reporting
 from notification_broadcast import redis_healthcheck
 from ml_engine.registry import model_status
+from early_warning import evaluate_overdue_observations
 from live_updates import subscribe, unsubscribe
 from routes import analytics, assistant, admin_assignments, admin_users, referrals
 from routes import registration_requests
@@ -39,6 +42,43 @@ from routes import care_workflows
 
 settings = get_settings()
 initialize_error_reporting()
+_monitor_task = None
+
+
+async def preemptive_monitor_loop():
+    """Run inside the existing API service; the database switch defaults off."""
+    elapsed_minutes = 0
+    while True:
+        await asyncio.sleep(60)
+        db = SessionLocal()
+        try:
+            row = db.query(models.SystemSetting).filter(models.SystemSetting.key == "preemptive_monitoring").first()
+            value = json.loads(row.value) if row else {"enabled": False, "interval_minutes": 5}
+            if not value.get("enabled"):
+                elapsed_minutes = 0
+                continue
+            elapsed_minutes += 1
+            interval = max(1, min(60, int(value.get("interval_minutes", 5))))
+            if elapsed_minutes >= interval:
+                evaluate_overdue_observations(db)
+                elapsed_minutes = 0
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global _monitor_task
+    _monitor_task = asyncio.create_task(preemptive_monitor_loop())
+    try:
+        yield
+    finally:
+        if _monitor_task:
+            _monitor_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await _monitor_task
 
 
 def ensure_database_schema():
@@ -219,6 +259,7 @@ app = FastAPI(
     docs_url="/docs" if settings.public_api_docs else None,
     redoc_url=None,
     openapi_url="/openapi.json" if settings.public_api_docs else None,
+    lifespan=lifespan,
 )
 
 app.add_middleware(RequestMetricsMiddleware)
@@ -309,6 +350,7 @@ def metrics(current_user: models.User = Depends(get_current_user)):
     return {
         "process_id": os.getpid(),
         **request_tracker.snapshot(),
+        "components": component_tracker.snapshot(),
     }
 
 

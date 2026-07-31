@@ -1,13 +1,13 @@
 {
   "schema_version": "wearable-risk-v1",
   "model_version": "physionet-critical-v1",
-  "created_at": "2026-07-31T16:37:03.792678+00:00",
+  "created_at": "2026-07-31T18:19:46.766899+00:00",
   "dataset": {
     "name": "PhysioNet/CinC Challenge 2012 Set A v1.0.0",
     "source_url": "https://physionet.org/content/challenge-2012/1.0.0/",
     "sha256": "652277811730940d89322714ab315dc972a044c295556c9fc14e27e3014bda92"
   },
-  "outcome_definition": "Critical vital event in the following six-hour window: SpO2 below 90%, heart rate below 40 or above 140 bpm, systolic blood pressure at least 180 mmHg, or diastolic blood pressure at least 120 mmHg",
+  "outcome_definition": "Critical vital event in the following six-hour window",
   "selected_model": "logistic_regression",
   "records": {
     "total": 28000,
@@ -305,6 +305,158 @@
           "observed": 0.09071428571428572
         }
       ]
+    }
+  },
+  "reference_profile": {
+    "heart_rate": {
+      "mean": 86.38234624145785,
+      "std": 17.75297160684185,
+      "missing_rate": 0.020089285714285716
+    },
+    "systolic_bp": {
+      "mean": 120.17350948123683,
+      "std": 22.59215034497989,
+      "missing_rate": 0.020033482142857145
+    },
+    "diastolic_bp": {
+      "mean": 59.114913729286485,
+      "std": 13.596483248442883,
+      "missing_rate": 0.020033482142857145
+    },
+    "heart_rate_mean_3": {
+      "mean": 86.47407934700075,
+      "std": 16.643293036716155,
+      "missing_rate": 0.020089285714285716
+    },
+    "heart_rate_std_3": {
+      "mean": 5.908359568047169,
+      "std": 5.86215064430648,
+      "missing_rate": 0.0
+    },
+    "heart_rate_delta": {
+      "mean": -0.08571428571428572,
+      "std": 11.096244612635397,
+      "missing_rate": 0.0
+    },
+    "heart_rate_slope_5": {
+      "mean": -0.1636662946428624,
+      "std": 6.559179670075336,
+      "missing_rate": 0.0
+    },
+    "spo2_std_3": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "spo2_delta": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "spo2_slope_5": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "systolic_bp_mean_3": {
+      "mean": 119.53298027826816,
+      "std": 19.995068811266222,
+      "missing_rate": 0.020033482142857145
+    },
+    "systolic_bp_std_3": {
+      "mean": 10.088546323917578,
+      "std": 9.748731796305337,
+      "missing_rate": 0.0
+    },
+    "systolic_bp_delta": {
+      "mean": 0.6800223214285714,
+      "std": 18.880589470183896,
+      "missing_rate": 0.0
+    },
+    "systolic_bp_slope_5": {
+      "mean": 0.7294308035714213,
+      "std": 11.466995122092639,
+      "missing_rate": 0.0
+    },
+    "diastolic_bp_mean_3": {
+      "mean": 59.03392935102405,
+      "std": 11.896010713366396,
+      "missing_rate": 0.020033482142857145
+    },
+    "diastolic_bp_std_3": {
+      "mean": 5.976010957601139,
+      "std": 5.579774833052134,
+      "missing_rate": 0.0
+    },
+    "diastolic_bp_delta": {
+      "mean": 0.07098214285714285,
+      "std": 11.259119514285793,
+      "missing_rate": 0.0
+    },
+    "diastolic_bp_slope_5": {
+      "mean": -0.04059709821428928,
+      "std": 6.2120302213985745,
+      "missing_rate": 0.0
+    },
+    "steps_std_3": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "steps_delta": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "steps_slope_5": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "sleep_hours_std_3": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "sleep_hours_delta": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "sleep_hours_slope_5": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "active_minutes_std_3": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "active_minutes_delta": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "active_minutes_slope_5": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "calories_std_3": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "calories_delta": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
+    },
+    "calories_slope_5": {
+      "mean": 0.0,
+      "std": 0.0,
+      "missing_rate": 0.0
     }
   },
   "limitations": [

@@ -129,6 +129,15 @@ def run(args):
         "test_metrics": classification_metrics(test["target"], test_probability, operating_threshold),
         "fairness": {},
         "external_validation": None,
+        "reference_profile": {
+            feature: {
+                "mean": float(train[feature].dropna().mean()),
+                "std": float(train[feature].dropna().std() or 0),
+                "missing_rate": float(train[feature].isna().mean()),
+            }
+            for feature in ENGINEERED_FEATURES
+            if not train[feature].dropna().empty
+        },
         "limitations": [
             "Performance applies only to the documented outcome and dataset population.",
             "Subgroup estimates with small samples are unstable.",

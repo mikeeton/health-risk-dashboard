@@ -7,7 +7,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 import models
@@ -237,6 +237,28 @@ class AlertWorkflowUpdate(BaseModel):
     owner_user_id: int | None = None
     resolution_reason: str | None = Field(default=None, max_length=2000)
     escalation_due_at: str | None = Field(default=None, max_length=80)
+    contact_status: Literal["not_contacted", "attempted", "contacted"] | None = None
+    intervention: str | None = Field(default=None, max_length=2000)
+
+
+class PreemptiveMonitoringUpdate(BaseModel):
+    enabled: bool
+    interval_minutes: int = Field(default=5, ge=1, le=60)
+
+
+class ModelGovernanceUpdate(BaseModel):
+    enabled: bool
+    mode: Literal["shadow", "live"]
+    threshold: float | None = Field(default=None, ge=0.001, le=0.95)
+    false_negative_cost: float = Field(default=8, ge=1, le=100)
+    false_positive_cost: float = Field(default=1, ge=1, le=100)
+    require_consecutive: int = Field(default=2, ge=1, le=5)
+    require_trend_confirmation: bool = True
+    drift_threshold: float = Field(default=3, ge=1, le=10)
+    auto_suspend: bool = True
+    active_model_version: str = Field(min_length=3, max_length=120)
+    retirement_reason: str | None = Field(default=None, max_length=2000)
+    reason: str = Field(min_length=5, max_length=2000)
 
 
 class OrganisationCreate(BaseModel):
@@ -782,7 +804,7 @@ def create_observation_schedule(payload: ObservationScheduleCreate, db: Session 
     return row_dict(item, SCHEDULE_FIELDS)
 
 
-ALERT_FIELDS = ("id", "patient_id", "patient_name", "risk_level", "risk_score", "status", "note", "created_at", "updated_at", "owner_user_id", "acknowledged_at", "resolved_at", "resolution_reason", "escalation_due_at")
+ALERT_FIELDS = ("id", "patient_id", "patient_name", "risk_level", "risk_score", "status", "note", "created_at", "updated_at", "owner_user_id", "acknowledged_at", "resolved_at", "resolution_reason", "escalation_due_at", "alert_type", "predicted_risk_level", "probability", "confidence", "prediction_window_hours", "model_version", "evidence_json", "shap_json", "data_quality_json", "missing_information_json", "recommended_checks_json", "escalation_conditions_json", "contact_status", "intervention", "duplicate_updates")
 
 
 @router.get("/alerts/{patient_id}")
@@ -820,6 +842,10 @@ def update_alert_workflow(alert_id: int, payload: AlertWorkflowUpdate, db: Sessi
         item.status = "Open"; item.resolved_at = None; item.resolution_reason = None
     if payload.escalation_due_at is not None:
         item.escalation_due_at = payload.escalation_due_at
+    if payload.contact_status is not None:
+        item.contact_status = payload.contact_status
+    if payload.intervention is not None:
+        item.intervention = payload.intervention
     item.updated_at = now().isoformat()
     notify_alert_status_change(db, item, user)
     db.commit(); db.refresh(item)
@@ -872,6 +898,97 @@ def admin_operations(db: Session = Depends(get_db), user: models.User = Depends(
             "ai_feedback": db.query(models.AIFeedback).count(),
         },
         "backup": {"latest_verified_at": latest_backup, "status": "external_monitor_required"},
+    }
+
+
+@router.get("/admin/preemptive-monitoring")
+def get_preemptive_monitoring(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_admin(user)
+    row = db.query(models.SystemSetting).filter(models.SystemSetting.key == "preemptive_monitoring").first()
+    value = json.loads(row.value) if row else {"enabled": False, "interval_minutes": 5}
+    return {**value, "updated_at": row.updated_at if row else None}
+
+
+@router.put("/admin/preemptive-monitoring")
+def set_preemptive_monitoring(payload: PreemptiveMonitoringUpdate, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_admin(user)
+    row = db.query(models.SystemSetting).filter(models.SystemSetting.key == "preemptive_monitoring").first()
+    if not row:
+        row = models.SystemSetting(key="preemptive_monitoring", value="{}")
+        db.add(row)
+    row.value = payload.model_dump_json()
+    row.updated_at = now()
+    row.updated_by_user_id = user.id
+    db.commit(); db.refresh(row)
+    audit(db, user, "UPDATE_PREEMPTIVE_MONITORING", "SystemSetting", row.id)
+    return {**payload.model_dump(), "updated_at": row.updated_at}
+
+
+@router.get("/admin/model-governance")
+def get_model_governance_settings(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_admin(user)
+    from early_warning import get_model_governance
+    return get_model_governance(db)
+
+
+@router.put("/admin/model-governance")
+def update_model_governance(payload: ModelGovernanceUpdate, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_admin(user)
+    settings_payload = payload.model_dump(exclude={"reason"})
+    row = db.query(models.SystemSetting).filter(models.SystemSetting.key == "model_governance").first()
+    if not row:
+        row = models.SystemSetting(key="model_governance", value="{}")
+        db.add(row)
+    row.value = json.dumps(settings_payload)
+    row.updated_at = now(); row.updated_by_user_id = user.id
+    action = "MODEL_SUSPENDED" if not payload.enabled else "MODEL_MODE_CHANGED"
+    db.add(models.ModelGovernanceEvent(action=action, model_version=payload.active_model_version, reason=payload.reason, settings_json=row.value, actor_user_id=user.id, created_at=now()))
+    db.commit(); db.refresh(row)
+    audit(db, user, action, "SystemSetting", row.id)
+    return settings_payload
+
+
+@router.get("/admin/model-quality")
+def model_quality_dashboard(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_admin(user)
+    predictions = db.query(models.ModelPredictionRecord).all()
+    cases = db.query(models.ReviewCase).all()
+    classifications = {name: sum(1 for row in predictions if row.classification == name) for name in ("TP", "FP", "TN", "FN")}
+    tp, fp, tn, fn = (classifications[name] for name in ("TP", "FP", "TN", "FN"))
+    patient_count = max(1, db.query(models.Patient).count())
+    acknowledged_seconds = []
+    resolved_seconds = []
+    now_utc = now()
+    breaches = 0
+    for case in cases:
+        try:
+            created = datetime.fromisoformat(case.created_at).replace(tzinfo=None)
+            if case.acknowledged_at:
+                acknowledged_seconds.append((datetime.fromisoformat(case.acknowledged_at).replace(tzinfo=None) - created).total_seconds())
+            if case.resolved_at:
+                resolved_seconds.append((datetime.fromisoformat(case.resolved_at).replace(tzinfo=None) - created).total_seconds())
+            if case.escalation_due_at and case.status not in {"Resolved", "Dismissed"} and datetime.fromisoformat(case.escalation_due_at).replace(tzinfo=None) < now_utc:
+                breaches += 1
+        except ValueError:
+            continue
+    return {
+        "predictions": len(predictions),
+        "classifications": classifications,
+        "live_sensitivity": tp / (tp + fn) if tp + fn else None,
+        "live_specificity": tn / (tn + fp) if tn + fp else None,
+        "live_precision": tp / (tp + fp) if tp + fp else None,
+        "alerts_per_100_patients": len(cases) / patient_count * 100,
+        "duplicate_alerts_suppressed": sum(case.duplicate_updates or 0 for case in cases),
+        "average_acknowledgement_minutes": sum(acknowledged_seconds) / len(acknowledged_seconds) / 60 if acknowledged_seconds else None,
+        "average_resolution_minutes": sum(resolved_seconds) / len(resolved_seconds) / 60 if resolved_seconds else None,
+        "escalation_breaches": breaches,
+        "false_positive_reviews": fp,
+        "false_negatives": fn,
+        "intervention_rate": sum(1 for case in cases if case.intervention) / len(cases) if cases else None,
+        "by_patient": [{"patient_id": patient_id, "alerts": count} for patient_id, count in db.query(models.ReviewCase.patient_id, func.count(models.ReviewCase.id)).group_by(models.ReviewCase.patient_id).all()],
+        "by_clinician": [{"clinician_user_id": user_id, "alerts": count} for user_id, count in db.query(models.ReviewCase.owner_user_id, func.count(models.ReviewCase.id)).filter(models.ReviewCase.owner_user_id.isnot(None)).group_by(models.ReviewCase.owner_user_id).all()],
+        "by_day": [{"day": day, "alerts": count} for day, count in db.query(func.substr(models.ReviewCase.created_at, 1, 10), func.count(models.ReviewCase.id)).group_by(func.substr(models.ReviewCase.created_at, 1, 10)).order_by(func.substr(models.ReviewCase.created_at, 1, 10)).all()],
+        "governance_history": [row_dict(item, ("id", "action", "model_version", "reason", "created_at")) for item in db.query(models.ModelGovernanceEvent).order_by(models.ModelGovernanceEvent.id.desc()).limit(20).all()],
     }
 
 

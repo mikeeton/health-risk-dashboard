@@ -158,28 +158,6 @@ services:
       - key: AWS_DEFAULT_REGION
         value: eu-west-2
 
-  - type: cron
-    name: health-risk-dashboard-overdue-monitor
-    runtime: python
-    rootDir: backend
-    plan: starter
-    region: frankfurt
-    schedule: "*/5 * * * *"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python scripts/monitor_overdue_observations.py
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: health-risk-dashboard-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: health-risk-dashboard-events
-          property: connectionString
-      - key: ML_ARTIFACT_DIR
-        value: artifacts/ml
-
 databases:
   - name: health-risk-dashboard-db
     plan: basic-256mb

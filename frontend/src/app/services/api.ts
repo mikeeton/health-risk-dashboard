@@ -873,6 +873,21 @@ export const getMedicationSafety = (patientId: number) =>
   careRequest<Record<string, unknown>>(`/medication-safety/${patientId}`);
 export const getAdminOperations = () =>
   careRequest<Record<string, unknown>>("/admin/operations");
+export const getPreemptiveMonitoring = () =>
+  careRequest<{ enabled: boolean; interval_minutes: number; updated_at?: string | null }>("/admin/preemptive-monitoring");
+export const setPreemptiveMonitoring = (payload: { enabled: boolean; interval_minutes: number }) =>
+  careRequest<{ enabled: boolean; interval_minutes: number; updated_at?: string | null }>("/admin/preemptive-monitoring", { method: "PUT", body: JSON.stringify(payload) });
+export type ModelGovernanceSettings = {
+  enabled: boolean; mode: "shadow" | "live"; threshold: number | null;
+  false_negative_cost: number; false_positive_cost: number;
+  require_consecutive: number; require_trend_confirmation: boolean;
+  drift_threshold: number; auto_suspend: boolean; active_model_version: string;
+  retirement_reason?: string | null;
+};
+export const getModelGovernance = () => careRequest<ModelGovernanceSettings>("/admin/model-governance");
+export const setModelGovernance = (payload: ModelGovernanceSettings & { reason: string }) =>
+  careRequest<ModelGovernanceSettings>("/admin/model-governance", { method: "PUT", body: JSON.stringify(payload) });
+export const getModelQuality = () => careRequest<Record<string, unknown>>("/admin/model-quality");
 export const getSystemIncidents = () =>
   careRequest<Array<Record<string, unknown>>>("/admin/incidents");
 export const getOrganisationUnits = () =>

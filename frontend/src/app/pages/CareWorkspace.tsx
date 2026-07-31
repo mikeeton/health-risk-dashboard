@@ -54,6 +54,7 @@ import {
   type ClinicalDocument,
   type ConsentRecord,
 } from "../services/api";
+import StructuredAlertCard from "../components/StructuredAlertCard";
 
 type TeamMember = {
   id: number;
@@ -535,7 +536,7 @@ export default function CareWorkspace() {
 
               <Panel title="Alert ownership and escalation" icon={RefreshCw}>
                 <div className="space-y-3">
-                  {alerts.map((item) => <article key={String(item.id)} className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800"><div className="flex flex-wrap justify-between gap-3"><div><strong>{String(item.patient_name)} · {String(item.risk_level)}</strong><p className="mt-1 whitespace-pre-line text-sm text-slate-500">{String(item.note ?? "")}</p></div><span className="capitalize">{String(item.status)}</span></div>{(isDoctor || isNurse) && !["Resolved", "Dismissed"].includes(String(item.status)) && <div className="mt-3 flex flex-wrap gap-3"><button className="text-xs font-bold text-blue-700" onClick={() => perform(() => updateAlertWorkflow(Number(item.id), { action: "acknowledge", owner_user_id: user?.id }), "Alert acknowledged and owned.")}>Acknowledge & own</button><button className="text-xs font-bold text-amber-700" onClick={() => perform(() => updateAlertWorkflow(Number(item.id), { action: "under_review", owner_user_id: user?.id }), "Alert marked under review.")}>Mark under review</button><button className="text-xs font-bold text-emerald-700" onClick={() => perform(() => updateAlertWorkflow(Number(item.id), { action: "resolve", resolution_reason: "Reviewed and action completed" }), "Alert resolved with reason.")}>Resolve</button></div>}</article>)}
+                  {alerts.map((item) => <StructuredAlertCard key={String(item.id)} item={item} canAct={Boolean(isDoctor || isNurse)} onAction={(action, payload = {}) => perform(() => updateAlertWorkflow(Number(item.id), { action: action === "contacted" ? "under_review" : action, owner_user_id: user?.id, ...payload }), `Alert updated: ${action.replaceAll("_", " ")}.`)} />)}
                   {!alerts.length && <p className="text-sm text-slate-500">No alerts for this patient.</p>}
                 </div>
               </Panel>
