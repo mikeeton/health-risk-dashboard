@@ -113,6 +113,7 @@ export default function Login() {
               id="login-email"
               name="email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
                 className="mt-2 w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950/80 dark:focus:ring-blue-950"
@@ -126,6 +127,8 @@ export default function Login() {
             <div className="mt-2">
               <PasswordField
                 id="login-password"
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
               />

@@ -88,7 +88,7 @@ export default function RegisterAccess() {
         )}
 
         <div className="space-y-4">
-          <input name="full_name" aria-label="Full name"
+          <input name="full_name" aria-label="Full name" autoComplete="name"
             value={form.full_name}
             onChange={(event) =>
               setForm({ ...form, full_name: event.target.value })
@@ -107,6 +107,8 @@ export default function RegisterAccess() {
           />
 
           <PasswordField
+            name="password"
+            aria-label="Password"
             value={form.password}
             onChange={(event) =>
               setForm({ ...form, password: event.target.value })
