@@ -8,6 +8,7 @@ from access_control import get_accessible_patient, require_roles
 from auth_utils import get_current_user
 from database import get_db
 from routes.audit import write_audit_log
+from early_warning import evaluate_new_vital
 
 router = APIRouter(
     prefix="/vitals",
@@ -43,6 +44,7 @@ def create_vital(
     db.add(new_vital)
     db.commit()
     db.refresh(new_vital)
+    evaluate_new_vital(db, new_vital)
 
     write_audit_log(
         db=db,

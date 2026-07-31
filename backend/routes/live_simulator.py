@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 import models
+from early_warning import evaluate_new_vital
 from access_control import get_accessible_patient, require_roles
 from auth_utils import get_current_user
 from database import get_db
@@ -289,6 +290,7 @@ def generate_live_vital(
     db.add(vital)
     db.commit()
     db.refresh(vital)
+    evaluate_new_vital(db, vital)
 
     write_audit_log(
         db=db,

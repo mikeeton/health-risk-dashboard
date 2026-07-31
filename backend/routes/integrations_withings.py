@@ -24,6 +24,7 @@ from database import get_db
 from live_updates import publish
 from routes.audit import write_audit_log
 from routes.live_simulator import calculate_risk_score, get_risk_level
+from early_warning import evaluate_new_vital
 
 
 router = APIRouter(prefix="/integrations/withings", tags=["Withings"])
@@ -337,6 +338,7 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
             db.rollback()
             continue
         db.refresh(vital)
+        evaluate_new_vital(db, vital)
         patient = (
             db.query(models.Patient)
             .filter(models.Patient.id == connection.patient_id)

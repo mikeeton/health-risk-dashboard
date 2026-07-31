@@ -22,6 +22,7 @@ from auth_utils import (
 from config import get_settings
 from database import get_db
 from routes.audit import write_audit_log
+from early_warning import notify_alert_status_change
 
 router = APIRouter(prefix="/care", tags=["Care workflows"])
 settings = get_settings()
@@ -232,7 +233,7 @@ class ObservationScheduleCreate(BaseModel):
 
 
 class AlertWorkflowUpdate(BaseModel):
-    action: Literal["acknowledge", "assign", "resolve", "reopen"]
+    action: Literal["acknowledge", "under_review", "assign", "resolve", "dismiss", "reopen"]
     owner_user_id: int | None = None
     resolution_reason: str | None = Field(default=None, max_length=2000)
     escalation_due_at: str | None = Field(default=None, max_length=80)
@@ -803,20 +804,24 @@ def update_alert_workflow(alert_id: int, payload: AlertWorkflowUpdate, db: Sessi
         item.acknowledged_at = now().isoformat()
         item.owner_user_id = payload.owner_user_id or user.id
         item.status = "Acknowledged"
+    elif payload.action == "under_review":
+        item.status = "Under Review"
+        item.owner_user_id = payload.owner_user_id or user.id
     elif payload.action == "assign":
         if not payload.owner_user_id:
             raise HTTPException(422, "owner_user_id is required")
         item.owner_user_id = payload.owner_user_id
-    elif payload.action == "resolve":
+    elif payload.action in {"resolve", "dismiss"}:
         if not payload.resolution_reason:
             raise HTTPException(422, "resolution_reason is required")
-        item.status = "Resolved"; item.resolved_at = now().isoformat()
+        item.status = "Dismissed" if payload.action == "dismiss" else "Resolved"; item.resolved_at = now().isoformat()
         item.resolution_reason = payload.resolution_reason
     else:
         item.status = "Open"; item.resolved_at = None; item.resolution_reason = None
     if payload.escalation_due_at is not None:
         item.escalation_due_at = payload.escalation_due_at
     item.updated_at = now().isoformat()
+    notify_alert_status_change(db, item, user)
     db.commit(); db.refresh(item)
     audit(db, user, f"{payload.action.upper()}_ALERT", "ReviewCase", item.id)
     return row_dict(item, ALERT_FIELDS)

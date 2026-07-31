@@ -13,6 +13,7 @@ from access_control import (
 )
 from auth_utils import get_current_user
 from database import get_db
+from early_warning import evaluate_new_vital
 
 router = APIRouter(
     prefix="/wearables",
@@ -56,6 +57,8 @@ def receive_watch_data(
 
     db.add(vital)
     db.commit()
+    db.refresh(vital)
+    evaluate_new_vital(db, vital)
 
     return {
         "message": "Watch data received successfully"

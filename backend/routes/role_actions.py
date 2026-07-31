@@ -9,6 +9,7 @@ from auth_utils import get_current_user
 from database import get_db
 from notification_utils import create_notification, notify_role
 from routes.audit import write_audit_log
+from early_warning import evaluate_new_vital
 
 router = APIRouter(
     prefix="/role-actions",
@@ -170,6 +171,7 @@ def nurse_record_vitals(
     db.add(new_vital)
     db.commit()
     db.refresh(new_vital)
+    evaluate_new_vital(db, new_vital)
 
     write_audit_log(
         db=db,
