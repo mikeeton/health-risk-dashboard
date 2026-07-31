@@ -37,13 +37,13 @@ services:
       - key: REFRESH_TOKEN_EXPIRE_DAYS
         value: 7
       - key: CORS_ORIGINS
-        sync: false
+        value: https://health-risk-dashboard-iwumos1e9-mikeetons-projects.vercel.app
       - key: APP_ENV
         value: production
       - key: FORCE_HTTPS
         value: true
       - key: ALLOWED_HOSTS
-        sync: false
+        value: health-risk-dashboard-api.onrender.com
       - key: PUBLIC_API_DOCS
         value: false
       - key: RUN_STARTUP_SCHEMA_CHECK
@@ -93,7 +93,7 @@ services:
       - key: AI_CLINICAL_APPROVAL
         value: false
       - key: FRONTEND_URL
-        sync: false
+        value: https://health-risk-dashboard-iwumos1e9-mikeetons-projects.vercel.app
       - key: WITHINGS_CLIENT_ID
         sync: false
       - key: WITHINGS_CLIENT_SECRET
@@ -103,13 +103,13 @@ services:
       - key: WITHINGS_WEBHOOK_URL
         sync: false
       - key: REQUIRE_WITHINGS
-        value: true
+        value: false
       - key: INTEGRATION_ENCRYPTION_KEY
-        generateValue: true
+        sync: false
       - key: SENTRY_DSN
         sync: false
       - key: REQUIRE_SENTRY
-        value: true
+        value: false
       - key: SENTRY_TRACES_SAMPLE_RATE
         value: 0.1
       - key: RELEASE
