@@ -626,10 +626,13 @@ export type ModelEvaluation = {
   dataset?: { name: string; source_url: string; sha256: string };
   outcome_definition?: string;
   selected_model?: string;
+  operating_threshold?: number;
+  approved_for_inference?: boolean;
   records?: { total: number; train: number; validation: number; test: number };
   test_metrics?: Record<string, number | null | object>;
   fairness?: Record<string, unknown>;
   external_validation?: Record<string, unknown> | null;
+  acceptance_gates?: Record<string, boolean>;
   limitations?: string[];
 };
 

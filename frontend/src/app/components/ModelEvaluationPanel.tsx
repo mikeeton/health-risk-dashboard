@@ -41,6 +41,11 @@ export default function ModelEvaluationPanel() {
         <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">Evaluation available</span>
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">{cards.map(([label, value]) => <div key={String(label)} className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-xl font-bold">{percent(value)}</p></div>)}</div>
+      {typeof metrics.precision === "number" && metrics.precision < 0.1 && (
+        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          Low positive predictive value: this rare-event model intentionally prioritises sensitivity and can produce many false-positive review prompts. It must not replace clinical assessment.
+        </p>
+      )}
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900"><Database className="h-5 w-5 text-blue-600" /><h3 className="mt-3 font-bold">Dataset</h3><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{evaluation.dataset?.name}</p><p className="mt-1 text-xs text-slate-500">{evaluation.records?.total} records · patient-separated test set</p></div>
         <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900"><Scale className="h-5 w-5 text-blue-600" /><h3 className="mt-3 font-bold">Fairness review</h3><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Subgroup results are recorded in the versioned evaluation artifact.</p></div>

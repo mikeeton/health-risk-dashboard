@@ -1,0 +1,322 @@
+{
+  "schema_version": "wearable-risk-v1",
+  "model_version": "physionet-critical-v1",
+  "created_at": "2026-07-31T16:37:03.792678+00:00",
+  "dataset": {
+    "name": "PhysioNet/CinC Challenge 2012 Set A v1.0.0",
+    "source_url": "https://physionet.org/content/challenge-2012/1.0.0/",
+    "sha256": "652277811730940d89322714ab315dc972a044c295556c9fc14e27e3014bda92"
+  },
+  "outcome_definition": "Critical vital event in the following six-hour window: SpO2 below 90%, heart rate below 40 or above 140 bpm, systolic blood pressure at least 180 mmHg, or diastolic blood pressure at least 120 mmHg",
+  "selected_model": "logistic_regression",
+  "records": {
+    "total": 28000,
+    "train": 17920,
+    "validation": 4480,
+    "test": 5600
+  },
+  "candidate_validation": {
+    "logistic_regression": {
+      "accuracy": 0.7526785714285714,
+      "precision": 0.042068361086765996,
+      "recall_sensitivity": 0.7619047619047619,
+      "specificity": 0.7525469775865973,
+      "f1": 0.07973421926910298,
+      "roc_auc": 0.8100736332567892,
+      "pr_auc": 0.07681866153784539,
+      "brier_score": 0.17880255419692337,
+      "threshold": 0.5,
+      "confusion_matrix": {
+        "tn": 3324,
+        "fp": 1093,
+        "fn": 15,
+        "tp": 48
+      },
+      "calibration": [
+        {
+          "predicted": 0.10126227026017119,
+          "observed": 0.004464285714285714
+        },
+        {
+          "predicted": 0.16745795201641017,
+          "observed": 0.0
+        },
+        {
+          "predicted": 0.21413562843426223,
+          "observed": 0.006696428571428571
+        },
+        {
+          "predicted": 0.2586043450801331,
+          "observed": 0.002232142857142857
+        },
+        {
+          "predicted": 0.299595504337952,
+          "observed": 0.002232142857142857
+        },
+        {
+          "predicted": 0.3538700861926733,
+          "observed": 0.006696428571428571
+        },
+        {
+          "predicted": 0.42105468360930853,
+          "observed": 0.008928571428571428
+        },
+        {
+          "predicted": 0.5090546850811279,
+          "observed": 0.013392857142857142
+        },
+        {
+          "predicted": 0.6233717304260721,
+          "observed": 0.022321428571428572
+        },
+        {
+          "predicted": 0.7926178769014918,
+          "observed": 0.07366071428571429
+        }
+      ]
+    },
+    "random_forest": {
+      "accuracy": 0.9845982142857143,
+      "precision": 0.2,
+      "recall_sensitivity": 0.031746031746031744,
+      "specificity": 0.9981888159384198,
+      "f1": 0.0547945205479452,
+      "roc_auc": 0.7905099704963866,
+      "pr_auc": 0.10574096158162756,
+      "brier_score": 0.014956747470123943,
+      "threshold": 0.5,
+      "confusion_matrix": {
+        "tn": 4409,
+        "fp": 8,
+        "fn": 61,
+        "tp": 2
+      },
+      "calibration": [
+        {
+          "predicted": 0.00010438139183928224,
+          "observed": 0.002188183807439825
+        },
+        {
+          "predicted": 0.0027416048044705617,
+          "observed": 0.009070294784580499
+        },
+        {
+          "predicted": 0.004877242109778519,
+          "observed": 0.00437636761487965
+        },
+        {
+          "predicted": 0.00756819644785784,
+          "observed": 0.002288329519450801
+        },
+        {
+          "predicted": 0.010544621575061352,
+          "observed": 0.006696428571428571
+        },
+        {
+          "predicted": 0.014776207565361498,
+          "observed": 0.002232142857142857
+        },
+        {
+          "predicted": 0.02016413215518601,
+          "observed": 0.006696428571428571
+        },
+        {
+          "predicted": 0.03015229629125336,
+          "observed": 0.006696428571428571
+        },
+        {
+          "predicted": 0.057442835750791434,
+          "observed": 0.03571428571428571
+        },
+        {
+          "predicted": 0.18019969710358294,
+          "observed": 0.06473214285714286
+        }
+      ]
+    }
+  },
+  "operating_threshold": 0.014000000000000002,
+  "test_metrics": {
+    "accuracy": 0.7457142857142857,
+    "precision": 0.03772290809327846,
+    "recall_sensitivity": 0.7236842105263158,
+    "specificity": 0.746017378711079,
+    "f1": 0.07170795306388526,
+    "roc_auc": 0.8332467891306833,
+    "pr_auc": 0.16552061977560664,
+    "brier_score": 0.012420411828105772,
+    "threshold": 0.014000000000000002,
+    "confusion_matrix": {
+      "tn": 4121,
+      "fp": 1403,
+      "fn": 21,
+      "tp": 55
+    },
+    "calibration": [
+      {
+        "predicted": 0.0015950504044897722,
+        "observed": 0.0035714285714285713
+      },
+      {
+        "predicted": 0.0027902886960795314,
+        "observed": 0.0
+      },
+      {
+        "predicted": 0.0038019235075441005,
+        "observed": 0.0017857142857142857
+      },
+      {
+        "predicted": 0.004897902871264082,
+        "observed": 0.005357142857142857
+      },
+      {
+        "predicted": 0.0059631178745027085,
+        "observed": 0.005357142857142857
+      },
+      {
+        "predicted": 0.00780481052139873,
+        "observed": 0.0017857142857142857
+      },
+      {
+        "predicted": 0.010381600672029893,
+        "observed": 0.014285714285714285
+      },
+      {
+        "predicted": 0.014693236253917021,
+        "observed": 0.005357142857142857
+      },
+      {
+        "predicted": 0.022415800406375346,
+        "observed": 0.019642857142857142
+      },
+      {
+        "predicted": 0.06639421875960612,
+        "observed": 0.07857142857142857
+      }
+    ]
+  },
+  "fairness": {
+    "gender": {
+      "groups": {
+        "female": {
+          "count": 2464,
+          "positive_prediction_rate": 0.2690746753246753,
+          "recall_sensitivity": 0.8461538461538461,
+          "specificity": 0.7402061855670103
+        },
+        "male": {
+          "count": 3115,
+          "positive_prediction_rate": 0.2532905296950241,
+          "recall_sensitivity": 0.6285714285714286,
+          "specificity": 0.750974025974026
+        },
+        "unknown": {
+          "count": 21,
+          "positive_prediction_rate": 0.2857142857142857,
+          "recall_sensitivity": 0.0,
+          "specificity": 0.6842105263157895
+        }
+      },
+      "max_recall_gap": 0.8461538461538461,
+      "warning": "Subgroup metrics describe this evaluation dataset and do not prove fairness."
+    },
+    "age_group": {
+      "groups": {
+        "18-44": {
+          "count": 777,
+          "positive_prediction_rate": 0.36036036036036034,
+          "recall_sensitivity": 0.7,
+          "specificity": 0.6440677966101694
+        },
+        "45-64": {
+          "count": 1771,
+          "positive_prediction_rate": 0.2478825522303783,
+          "recall_sensitivity": 0.6666666666666666,
+          "specificity": 0.7578706353749285
+        },
+        "65+": {
+          "count": 3052,
+          "positive_prediction_rate": 0.24213630406290956,
+          "recall_sensitivity": 0.7619047619047619,
+          "specificity": 0.7651162790697674
+        }
+      },
+      "max_recall_gap": 0.09523809523809523,
+      "warning": "Subgroup metrics describe this evaluation dataset and do not prove fairness."
+    }
+  },
+  "external_validation": {
+    "dataset": "external.csv",
+    "metrics": {
+      "accuracy": 0.72525,
+      "precision": 0.04707218576476527,
+      "recall_sensitivity": 0.7242718446601941,
+      "specificity": 0.7252683281790068,
+      "f1": 0.08839909941936248,
+      "roc_auc": 0.7853857443866116,
+      "pr_auc": 0.10646968422619789,
+      "brier_score": 0.017323660774014864,
+      "threshold": 0.014000000000000002,
+      "confusion_matrix": {
+        "tn": 19934,
+        "fp": 7551,
+        "fn": 142,
+        "tp": 373
+      },
+      "calibration": [
+        {
+          "predicted": 0.001700603633833969,
+          "observed": 0.008214285714285714
+        },
+        {
+          "predicted": 0.0029192109701719053,
+          "observed": 0.005714285714285714
+        },
+        {
+          "predicted": 0.0039853273973944735,
+          "observed": 0.0035714285714285713
+        },
+        {
+          "predicted": 0.005085681755620249,
+          "observed": 0.004285714285714286
+        },
+        {
+          "predicted": 0.006386204819225172,
+          "observed": 0.0067857142857142855
+        },
+        {
+          "predicted": 0.008381104237732665,
+          "observed": 0.007857142857142858
+        },
+        {
+          "predicted": 0.011300328587957964,
+          "observed": 0.011428571428571429
+        },
+        {
+          "predicted": 0.015934328074409424,
+          "observed": 0.015
+        },
+        {
+          "predicted": 0.024947914368266946,
+          "observed": 0.030357142857142857
+        },
+        {
+          "predicted": 0.07035050521709968,
+          "observed": 0.09071428571428572
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "Performance applies only to the documented outcome and dataset population.",
+    "Subgroup estimates with small samples are unstable.",
+    "Clinical safety thresholds remain deterministic and independent of this model."
+  ],
+  "acceptance_gates": {
+    "test_roc_auc_at_least_0_65": true,
+    "test_sensitivity_at_least_0_60": true,
+    "test_specificity_at_least_0_60": true,
+    "external_roc_auc_at_least_0_60": true
+  },
+  "approved_for_inference": true
+}

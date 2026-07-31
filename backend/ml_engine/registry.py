@@ -24,6 +24,8 @@ def load_bundle():
     bundle = joblib.load(model_path)
     if bundle.get("schema_version") != report.get("schema_version"):
         raise RuntimeError("ML artifact and evaluation schema versions do not match")
+    if not report.get("approved_for_inference", False):
+        return None
     return bundle, report
 
 
@@ -47,11 +49,12 @@ def predict(vitals, patient_id: int) -> dict | None:
     frame = vitals_to_frame(vitals, patient_id)
     latest = frame.iloc[[-1]][ENGINEERED_FEATURES]
     probability = float(bundle["classifier"].predict_proba(latest)[0, 1])
+    threshold = float(report.get("operating_threshold", 0.5))
     anomaly_score = float(-bundle["anomaly_detector"].decision_function(latest)[0])
     explanation = explain(bundle, latest)
     return {
         "prediction_score": round(probability * 10, 2),
-        "prediction_level": "High" if probability >= 0.75 else "Moderate" if probability >= 0.45 else "Low",
+        "prediction_level": "High" if probability >= threshold else "Moderate" if probability >= threshold * 0.7 else "Low",
         "confidence": round(max(probability, 1 - probability), 4),
         "probability": probability,
         "anomaly_score": anomaly_score,

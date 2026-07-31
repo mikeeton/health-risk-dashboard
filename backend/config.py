@@ -105,6 +105,7 @@ class Settings:
     force_https = os.getenv("FORCE_HTTPS", "false").lower() == "true"
     allowed_hosts = _csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver")
     max_request_bytes = int(os.getenv("MAX_REQUEST_BYTES", "1048576"))
+    require_ml_model = os.getenv("REQUIRE_ML_MODEL", "false").lower() == "true"
     ai_enabled = os.getenv("AI_ENABLED", "false").lower() == "true"
     ai_model = os.getenv("AI_MODEL", "llama-3.1-8b-instant")
     ai_timeout_seconds = float(os.getenv("AI_TIMEOUT_SECONDS", "12"))

@@ -25,6 +25,7 @@ from middleware import (
 from observability import request_tracker
 from monitoring import initialize_error_reporting
 from notification_broadcast import redis_healthcheck
+from ml_engine.registry import model_status
 from live_updates import subscribe, unsubscribe
 from routes import analytics, assistant, admin_assignments, admin_users, referrals
 from routes import registration_requests
@@ -285,12 +286,17 @@ async def readiness_check(db: Session = Depends(get_db)):
             redis_status = "unavailable"
     if settings.require_redis and redis_status != "ok":
         raise HTTPException(status_code=503, detail="Redis is unavailable")
+    ml_status = model_status()
+    if settings.require_ml_model and not ml_status.get("available"):
+        raise HTTPException(status_code=503, detail="Approved ML model is unavailable")
 
     return {
         "status": "ready",
         "database": "ok",
         "redis": redis_status,
         "error_reporting": "configured" if settings.sentry_dsn else "disabled",
+        "ml_model": "approved" if ml_status.get("available") else "unavailable",
+        "ml_model_version": ml_status.get("model_version"),
         "process_id": os.getpid(),
     }
 

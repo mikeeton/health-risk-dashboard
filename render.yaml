@@ -48,6 +48,10 @@ services:
         value: false
       - key: RUN_STARTUP_SCHEMA_CHECK
         value: false
+      - key: REQUIRE_ML_MODEL
+        value: true
+      - key: ML_ARTIFACT_DIR
+        value: artifacts/ml
       - key: RATE_LIMIT_ENABLED
         value: true
       - key: RATE_LIMIT_REQUESTS

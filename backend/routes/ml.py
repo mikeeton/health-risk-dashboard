@@ -170,9 +170,12 @@ def get_model_evaluation(
             "selected_model",
             "records",
             "candidate_validation",
+            "operating_threshold",
             "test_metrics",
             "fairness",
             "external_validation",
+            "acceptance_gates",
+            "approved_for_inference",
             "limitations",
         )
     }

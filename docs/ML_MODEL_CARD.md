@@ -1,11 +1,11 @@
 # Health-risk model card and dataset contract
 
-## Intended outcome
+## Selected outcome
 
-The training target must be a binary, prospectively defined outcome. A value of
-`1` must mean that the documented outcome occurred inside the specified time
-horizon. It must not be created from the application's existing risk score,
-because doing so would train the model to reproduce its own rule engine.
+The deployed research artifact predicts a genuinely observed critical vital
+event in the following six-hour window: SpO2 below 90%, heart rate below 40 or
+above 140 bpm, systolic blood pressure at least 180 mmHg, or diastolic blood
+pressure at least 120 mmHg. It is not trained from the application's risk score.
 
 ## Required CSV columns
 
@@ -15,31 +15,27 @@ Optional fairness fields include `gender` and `age_group`. Each patient must
 have multiple chronologically ordered observations. Patients, rather than rows,
 are separated between training, validation, and testing.
 
-## Public datasets
+## Public dataset
 
-The project records the dataset name, canonical source URL, SHA-256 checksum,
-outcome definition, model version, and creation time in every artifact. The
-[UCI MHEALTH dataset](https://archive.ics.uci.edu/dataset/319/mhealth%2Bdataset.)
-is a suitable public wearable-data benchmark for activity-recognition work and
-is licensed CC BY 4.0. It does **not** contain the dashboard's full vital schema
-or a clinical-deterioration outcome, so it must not be silently relabelled or
-used to claim deterioration performance.
+The project uses PhysioNet/CinC Challenge 2012 v1.0.0 Sets A and B. The source
+contains timestamped measurements from adult ICU stays. Set A is used for
+patient-separated training/validation/testing and Set B is an independent
+external check. The project records the source URL, prepared-data SHA-256,
+outcome definition, model version, and creation time in the artifact. Fields not
+present in PhysioNet (steps, sleep, activity, calories) remain missing.
 
-To train the operational model, supply a public dataset that genuinely contains
-the declared outcome and compatible inputs, or an approved mapped extract whose
-missing fields and mapping decisions are documented. This safeguard prevents a
-technically successful but scientifically invalid model.
+Prepare it with `python scripts/prepare_physionet_2012.py`.
 
 ## Training
 
 ```powershell
 cd backend
 .\venv\Scripts\python.exe scripts\train_ml_models.py `
-  --dataset data\wearable_outcomes.csv `
-  --dataset-name "Dataset name and release" `
-  --source-url "https://canonical-public-source.example/dataset" `
-  --outcome-definition "Outcome within N hours" `
-  --external-dataset data\independent_validation.csv `
+  --dataset data\physionet-2012\train.csv `
+  --dataset-name "PhysioNet/CinC Challenge 2012 Set A v1.0.0" `
+  --source-url "https://physionet.org/content/challenge-2012/1.0.0/" `
+  --outcome-definition "Critical vital event in the following six-hour window" `
+  --external-dataset data\physionet-2012\external.csv `
   --output artifacts\ml
 ```
 
@@ -58,4 +54,3 @@ to the named outcome and population. They do not establish clinical efficacy.
 
 Critical SpO2, heart-rate, and blood-pressure readings bypass model inference
 and continue through deterministic escalation rules.
-

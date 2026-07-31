@@ -27,7 +27,6 @@ frontend/test-results/
 .coverage
 htmlcov/
 
-# Versioned ML artefacts and local research datasets are generated in CI or
-# deployment storage; their metadata remains in evaluation.json outside git.
-backend/artifacts/ml/
+# Raw research datasets remain local. The compact, reviewed model artefact and
+# evaluation report may be deployed with the backend release.
 backend/data/

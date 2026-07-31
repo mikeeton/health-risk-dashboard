@@ -14,6 +14,7 @@ from pathlib import Path
 import sys
 
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
@@ -54,15 +55,37 @@ def split(frame):
 def candidates():
     return {
         "logistic_regression": Pipeline([
-            ("imputer", SimpleImputer(strategy="median")),
+            ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
             ("scale", StandardScaler()),
             ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42)),
         ]),
         "random_forest": Pipeline([
-            ("imputer", SimpleImputer(strategy="median")),
+            ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
             ("model", RandomForestClassifier(n_estimators=350, min_samples_leaf=3, class_weight="balanced", random_state=42, n_jobs=-1)),
         ]),
     }
+
+
+def choose_operating_threshold(y_true, probabilities) -> float:
+    """Prefer sensitivity while retaining useful specificity."""
+    best = (float("-inf"), 0.5)
+    y_true = np.asarray(y_true, dtype=int)
+    probabilities = np.asarray(probabilities, dtype=float)
+    candidates = np.unique(
+        np.concatenate((np.linspace(0.001, 0.25, 250), np.quantile(probabilities, np.linspace(0.01, 0.99, 99))))
+    )
+    for threshold in candidates:
+        predicted = probabilities >= threshold
+        tp = int(((predicted == 1) & (y_true == 1)).sum())
+        fn = int(((predicted == 0) & (y_true == 1)).sum())
+        tn = int(((predicted == 0) & (y_true == 0)).sum())
+        fp = int(((predicted == 1) & (y_true == 0)).sum())
+        sensitivity = tp / (tp + fn) if tp + fn else 0
+        specificity = tn / (tn + fp) if tn + fp else 0
+        score = sensitivity + specificity - 1
+        if sensitivity >= 0.7 and score > best[0]:
+            best = (score, float(threshold))
+    return best[1]
 
 
 def run(args):
@@ -83,9 +106,11 @@ def run(args):
     best = trained[best_name]
     calibrated = CalibratedClassifierCV(FrozenEstimator(best), method="sigmoid")
     calibrated.fit(validation[ENGINEERED_FEATURES], validation["target"])
+    validation_probability = calibrated.predict_proba(validation[ENGINEERED_FEATURES])[:, 1]
+    operating_threshold = choose_operating_threshold(validation["target"], validation_probability)
     test_probability = calibrated.predict_proba(test[ENGINEERED_FEATURES])[:, 1]
     anomaly = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
+        ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
         ("scale", StandardScaler()),
         ("model", IsolationForest(n_estimators=300, contamination=args.contamination, random_state=42, n_jobs=-1)),
     ])
@@ -100,7 +125,8 @@ def run(args):
         "selected_model": best_name,
         "records": {"total": len(frame), "train": len(train), "validation": len(validation), "test": len(test)},
         "candidate_validation": results,
-        "test_metrics": classification_metrics(test["target"], test_probability),
+        "operating_threshold": operating_threshold,
+        "test_metrics": classification_metrics(test["target"], test_probability, operating_threshold),
         "fairness": {},
         "external_validation": None,
         "limitations": [
@@ -111,14 +137,24 @@ def run(args):
     }
     for column in args.fairness_columns:
         if column in test:
-            report["fairness"][column] = fairness_metrics(test["target"], test_probability, test[column])
+            report["fairness"][column] = fairness_metrics(test["target"], test_probability, test[column], operating_threshold)
     if args.external_dataset:
         external = engineer_features(pd.read_csv(args.external_dataset))
         external_probability = calibrated.predict_proba(external[ENGINEERED_FEATURES])[:, 1]
         report["external_validation"] = {
             "dataset": str(Path(args.external_dataset).name),
-            "metrics": classification_metrics(external["target"].astype(int), external_probability),
+            "metrics": classification_metrics(external["target"].astype(int), external_probability, operating_threshold),
         }
+    test_metrics = report["test_metrics"]
+    external_metrics = (report["external_validation"] or {}).get("metrics")
+    gates = {
+        "test_roc_auc_at_least_0_65": (test_metrics["roc_auc"] or 0) >= 0.65,
+        "test_sensitivity_at_least_0_60": test_metrics["recall_sensitivity"] >= 0.60,
+        "test_specificity_at_least_0_60": test_metrics["specificity"] >= 0.60,
+        "external_roc_auc_at_least_0_60": external_metrics is None or (external_metrics["roc_auc"] or 0) >= 0.60,
+    }
+    report["acceptance_gates"] = gates
+    report["approved_for_inference"] = all(gates.values())
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     explanation_pipeline = best
