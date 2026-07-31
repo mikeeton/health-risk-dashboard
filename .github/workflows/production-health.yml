@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/production-health.yml"
 
 permissions:
   contents: read
