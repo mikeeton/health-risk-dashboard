@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -31,33 +31,45 @@ function notificationIcon(type: string) {
   return Info;
 }
 
+function relativeTime(value: string) {
+  const timestamp = new Date(value).getTime();
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return "Just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return days < 7 ? `${days}d ago` : new Date(value).toLocaleDateString();
+}
+
+type ConnectionState = "connecting" | "live" | "fallback";
+
 export default function NotificationDropdown() {
   const navigate = useNavigate();
   const { token } = useAuth();
+  const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [socketEnabled, setSocketEnabled] = useState(false);
+  const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
 
-  async function loadNotifications() {
+  const loadNotifications = useCallback(async () => {
     if (!getAuthToken()) {
       setNotifications([]);
       setLoading(false);
-      setSocketEnabled(false);
       return;
     }
     try {
       setError("");
       setNotifications(await getNotifications({ status: "unread" }));
-      setSocketEnabled(true);
     } catch {
       setError("Live notifications are temporarily unavailable.");
-      setSocketEnabled(false);
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void loadNotifications();
@@ -69,30 +81,65 @@ export default function NotificationDropdown() {
       unsubscribe();
       window.clearInterval(interval);
     };
-  }, [token]);
+  }, [loadNotifications, token]);
 
   useEffect(() => {
-    if (!token || !socketEnabled) return;
+    if (!open) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!token) return;
 
     let socket: WebSocket | null = null;
     let cancelled = false;
-    const connectTimer = window.setTimeout(() => {
+    let reconnectTimer: number | undefined;
+    let attempts = 0;
+
+    const connect = () => {
       if (cancelled) return;
+      setConnectionState("connecting");
       socket = new WebSocket(
         getWebSocketUrl(`/notifications/ws?token=${encodeURIComponent(token)}`)
       );
+      socket.addEventListener("open", () => {
+        attempts = 0;
+        setConnectionState("live");
+      });
       socket.addEventListener("message", () => {
         void loadNotifications();
         announceNotificationsChanged();
       });
-    }, 50);
+      socket.addEventListener("close", () => {
+        if (cancelled) return;
+        setConnectionState("fallback");
+        attempts += 1;
+        const delay = Math.min(30000, 1000 * 2 ** Math.min(attempts, 5));
+        reconnectTimer = window.setTimeout(connect, delay);
+      });
+      socket.addEventListener("error", () => socket?.close());
+    };
+
+    const connectTimer = window.setTimeout(connect, 50);
 
     return () => {
       cancelled = true;
       window.clearTimeout(connectTimer);
-      if (socket?.readyState === WebSocket.OPEN) socket.close();
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      socket?.close();
     };
-  }, [socketEnabled, token]);
+  }, [loadNotifications, token]);
 
   async function markRead(notification: AppNotification, openLink = false) {
     setNotifications((items) => items.filter((item) => item.id !== notification.id));
@@ -122,10 +169,10 @@ export default function NotificationDropdown() {
   }
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen((value) => !value)}
-        className="app-icon-button relative text-blue-600"
+          className={`app-icon-button relative text-blue-600 ${notifications.length ? "animate-[pulse_2s_ease-in-out_1]" : ""}`}
         aria-label={`Notifications${notifications.length ? `, ${notifications.length} unread` : ""}`}
         aria-expanded={open}
       >
@@ -147,7 +194,8 @@ export default function NotificationDropdown() {
             <div>
               <h3 className="text-base font-extrabold">Live notifications</h3>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                New clinical and workflow updates
+                <span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${connectionState === "live" ? "bg-emerald-500" : connectionState === "connecting" ? "bg-amber-400" : "bg-slate-400"}`} />
+                {connectionState === "live" ? "Live updates connected" : connectionState === "connecting" ? "Connecting to live updates" : "Reconnecting · 30-second backup refresh active"}
               </p>
             </div>
             {notifications.length > 0 && (
@@ -156,21 +204,23 @@ export default function NotificationDropdown() {
                 className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/40"
               >
                 <CheckCheck className="h-4 w-4" />
-                Clear all
+                Mark all read
               </button>
             )}
           </header>
 
           <div className="max-h-[410px] overflow-y-auto p-3">
+            {error && (
+              <div className="mb-2 flex items-center justify-between gap-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700 dark:bg-red-950/30 dark:text-red-300">
+                <span>{error}</span>
+                <button onClick={() => void loadNotifications()} className="shrink-0 font-extrabold underline">Retry</button>
+              </div>
+            )}
             {loading ? (
               <div className="flex items-center justify-center gap-2 p-8 text-sm text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading live updates…
               </div>
-            ) : error ? (
-              <p className="rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-700 dark:bg-red-950/30 dark:text-red-300">
-                {error}
-              </p>
             ) : notifications.length === 0 ? (
               <div className="p-7 text-center">
                 <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
@@ -199,7 +249,7 @@ export default function NotificationDropdown() {
                           </p>
                           <div className="mt-3 flex items-center justify-between gap-2">
                             <time className="text-[11px] font-medium text-slate-500">
-                              {new Date(notification.created_at).toLocaleString()}
+                              <span title={new Date(notification.created_at).toLocaleString()}>{relativeTime(notification.created_at)}</span>
                             </time>
                             <div className="flex items-center gap-2">
                               <button

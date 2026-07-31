@@ -301,3 +301,60 @@ test("admin can reach protected admin workspace", async ({ page }) => {
   await expect(page.getByText("Admin Workspace")).toBeVisible();
   await expect(page.getByRole("link", { name: /User Management/ })).toBeVisible();
 });
+
+test("notification bell moves read items into persistent history", async ({ page }) => {
+  const notification = {
+    id: 901,
+    user_email: "notification.doctor@example.com",
+    target_role: null,
+    title: "New patient observation",
+    message: "A new oxygen saturation reading is ready for review.",
+    type: "alert",
+    is_read: "false",
+    link: "/care",
+    related_entity: "Vital",
+    related_entity_id: "44",
+    created_at: new Date().toISOString(),
+    read_at: null,
+  };
+  let isRead = false;
+
+  await page.route("**/notifications/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === "PATCH") {
+      isRead = true;
+      await route.fulfill({ json: { ...notification, is_read: "true" } });
+      return;
+    }
+    const status = url.searchParams.get("status");
+    const visible = status === "read" ? isRead : !isRead;
+    await route.fulfill({ json: visible ? [{ ...notification, is_read: isRead ? "true" : "false" }] : [] });
+  });
+  await page.route("**/patients*", (route) => route.fulfill({ json: [] }));
+  await page.addInitScript(() => {
+    sessionStorage.setItem(
+      "health-auth-user",
+      JSON.stringify({
+        id: 90,
+        email: "notification.doctor@example.com",
+        full_name: "Notification Doctor",
+        role: "doctor",
+      })
+    );
+    sessionStorage.setItem("health-auth-token", "notification-test-token");
+  });
+
+  await page.goto("/notifications");
+  await page.getByRole("button", { name: /Notifications, 1 unread/ }).click();
+  await expect(page.getByRole("dialog", { name: "Unread notifications" })).toContainText(
+    "New patient observation"
+  );
+  await page.getByRole("button", { name: "Mark read", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Unread notifications" })).toContainText(
+    "all caught up"
+  );
+  await page.getByRole("button", { name: "Open notification history" }).click();
+  await page.getByRole("tab", { name: /Read history/ }).click();
+  await expect(page.getByText("New patient observation")).toBeVisible();
+});
