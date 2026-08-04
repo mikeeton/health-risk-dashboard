@@ -8,6 +8,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def normalize_database_url(value: str) -> str:
+    """Translate the managed-Postgres URI alias into SQLAlchemy's driver name."""
+    value = (value or "").strip()
+    if value.startswith("postgres://"):
+        return "postgresql://" + value[len("postgres://"):]
+    return value
+
+
 def _normalise_render_environment() -> None:
     """Repair blank values retained by an existing Render service.
 
@@ -64,7 +72,7 @@ class Settings:
     app_name = "AI Health Risk Monitoring API"
     app_version = "0.1.0"
 
-    database_url = os.getenv("DATABASE_URL", "")
+    database_url = normalize_database_url(os.getenv("DATABASE_URL", ""))
 
     environment = os.getenv("APP_ENV", "development").strip().lower()
     secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -84,6 +92,7 @@ class Settings:
     require_redis = os.getenv("REQUIRE_REDIS", "false").lower() == "true"
     database_pool_size = int(os.getenv("DATABASE_POOL_SIZE", "5"))
     database_max_overflow = int(os.getenv("DATABASE_MAX_OVERFLOW", "10"))
+    database_pool_timeout = int(os.getenv("DATABASE_POOL_TIMEOUT", "30"))
     database_pool_recycle_seconds = int(
         os.getenv("DATABASE_POOL_RECYCLE_SECONDS", "300")
     )
