@@ -16,7 +16,7 @@ shap
 numba
 groq
 argon2-cffi
-redis[hiredis]>=5.2,<7
+redis[hiredis]>=8.1.0,<9
 sentry-sdk[fastapi]>=2.20,<3
 boto3>=1.35,<2
 pyotp>=2.9,<3
