@@ -1,0 +1,82 @@
+{
+  "model_version": "physionet-critical-v1",
+  "method": "mean absolute SHAP over deterministic evaluation sample",
+  "features": [
+    {
+      "feature": "systolic_bp_mean_3",
+      "mean_absolute_shap": 0.6827245348751633,
+      "observations": 100
+    },
+    {
+      "feature": "heart_rate",
+      "mean_absolute_shap": 0.5376199930558108,
+      "observations": 100
+    },
+    {
+      "feature": "heart_rate_mean_3",
+      "mean_absolute_shap": 0.11714325541735388,
+      "observations": 100
+    },
+    {
+      "feature": "systolic_bp_delta",
+      "mean_absolute_shap": 0.07834968426691759,
+      "observations": 100
+    },
+    {
+      "feature": "systolic_bp",
+      "mean_absolute_shap": 0.07584185810034841,
+      "observations": 100
+    },
+    {
+      "feature": "diastolic_bp_delta",
+      "mean_absolute_shap": 0.07298739699132673,
+      "observations": 100
+    },
+    {
+      "feature": "diastolic_bp_std_3",
+      "mean_absolute_shap": 0.06677810451031643,
+      "observations": 100
+    },
+    {
+      "feature": "systolic_bp_std_3",
+      "mean_absolute_shap": 0.06198720463460939,
+      "observations": 100
+    },
+    {
+      "feature": "diastolic_bp_mean_3",
+      "mean_absolute_shap": 0.05869707799321163,
+      "observations": 100
+    },
+    {
+      "feature": "heart_rate_slope_5",
+      "mean_absolute_shap": 0.05411263656601041,
+      "observations": 100
+    },
+    {
+      "feature": "heart_rate_std_3",
+      "mean_absolute_shap": 0.047729862411923125,
+      "observations": 100
+    },
+    {
+      "feature": "diastolic_bp",
+      "mean_absolute_shap": 0.0477177487003987,
+      "observations": 100
+    },
+    {
+      "feature": "diastolic_bp_slope_5",
+      "mean_absolute_shap": 0.026803099463062748,
+      "observations": 100
+    },
+    {
+      "feature": "systolic_bp_slope_5",
+      "mean_absolute_shap": 0.02286026385969667,
+      "observations": 100
+    },
+    {
+      "feature": "heart_rate_delta",
+      "mean_absolute_shap": 0.007497819383555422,
+      "observations": 100
+    }
+  ],
+  "warning": "SHAP describes model behaviour, not causation."
+}

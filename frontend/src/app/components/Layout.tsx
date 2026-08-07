@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Shield,
+  FlaskConical,
   ClipboardCheck,
   UserPlus,
   Stethoscope,
@@ -132,12 +133,18 @@ export default function Layout() {
       icon: Shield,
       show: isAdmin,
     },
-    {
-      label: "Operations",
+      {
+        label: "Operations",
       path: "/admin/operations",
       icon: Activity,
-      show: isAdmin,
-    },
+        show: isAdmin,
+      },
+      {
+        label: "Research Evidence",
+        path: "/admin/research",
+        icon: FlaskConical,
+        show: isAdmin,
+      },
     {
       label: "Analytics",
       path: "/analytics",
@@ -228,6 +235,7 @@ export default function Layout() {
             mobile ? setMobileOpen(false) : setSidebarOpen((value) => !value)
           }
           className="brand-mark flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] text-white"
+          aria-label={mobile ? "Close navigation" : sidebarOpen ? "Collapse navigation" : "Expand navigation"}
         >
           <Activity className="h-5 w-5" />
         </motion.button>
@@ -243,7 +251,7 @@ export default function Layout() {
               <div>
                 <h1 className="text-xl font-extrabold tracking-tight">Health AI</h1>
 
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-600 dark:text-slate-300">
                   Monitoring Platform
                 </p>
               </div>
@@ -252,6 +260,7 @@ export default function Layout() {
                 <button
                   onClick={() => setSidebarOpen(false)}
                   className="app-icon-button h-9 w-9 border-0 bg-transparent text-slate-500 shadow-none dark:text-slate-400"
+                  aria-label="Collapse navigation"
                 >
                   <PanelLeftClose className="h-4 w-4" />
                 </button>
@@ -261,6 +270,7 @@ export default function Layout() {
                 <button
                   onClick={() => setMobileOpen(false)}
                   className="app-icon-button h-9 w-9 border-0 bg-transparent text-slate-500 shadow-none dark:text-slate-400"
+                  aria-label="Close navigation"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -273,6 +283,7 @@ export default function Layout() {
           <button
             onClick={() => setSidebarOpen(true)}
             className="app-icon-button h-9 w-9 border-0 bg-transparent text-slate-500 shadow-none dark:text-slate-400"
+            aria-label="Expand navigation"
           >
             <PanelLeftOpen className="h-4 w-4" />
           </button>
@@ -327,6 +338,7 @@ export default function Layout() {
 
   return (
     <div className="app-canvas text-slate-900 dark:text-white">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <motion.aside
         animate={{
           width: sidebarOpen ? 236 : 76,
@@ -438,7 +450,7 @@ export default function Layout() {
           </div>
         </header>
 
-        <main className="pb-8">
+        <main id="main-content" tabIndex={-1} className="pb-8">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 10 }}

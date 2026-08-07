@@ -218,6 +218,25 @@ textarea:focus-visible {
   }
 }
 
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: .75rem;
+  background: #0f172a;
+  color: #fff;
+  padding: .75rem 1rem;
+  font-weight: 700;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+  outline: 3px solid #60a5fa;
+  outline-offset: 3px;
+}
+
 .app-canvas {
   position: relative;
   isolation: isolate;
@@ -235,8 +254,21 @@ textarea:focus-visible {
 
 .premium-sidebar {
   background: #ffffff;
+  color: #0f172a;
   box-shadow: none;
   backdrop-filter: none;
+}
+
+.registration-form input,
+.registration-form select,
+.registration-form textarea {
+  color: #fff;
+  background-color: rgba(255, 255, 255, .12);
+}
+
+.registration-form input::placeholder,
+.registration-form textarea::placeholder {
+  color: #cbd5e1;
 }
 
 .dark .premium-sidebar {

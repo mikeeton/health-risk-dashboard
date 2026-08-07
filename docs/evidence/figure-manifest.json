@@ -1,0 +1,13 @@
+{
+  "model_version": "physionet-critical-v1",
+  "dataset_sha256": "652277811730940d89322714ab315dc972a044c295556c9fc14e27e3014bda92",
+  "generated_files": [
+    "calibration.svg",
+    "confusion-matrix.svg",
+    "fairness-table.json",
+    "figure-manifest.json",
+    "global-shap.json",
+    "global-shap.svg"
+  ],
+  "warning": "Figures describe retrospective research evaluation, not clinical effectiveness."
+}

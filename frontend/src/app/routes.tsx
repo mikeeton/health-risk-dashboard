@@ -26,6 +26,7 @@ const CareWorkspace = lazy(() => import("./pages/CareWorkspace"));
 const AccountSecurity = lazy(() => import("./pages/AccountSecurity"));
 const AdminOperations = lazy(() => import("./pages/AdminOperations"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ResearchWorkspace = lazy(() => import("./pages/ResearchWorkspace"));
 
 function PageLoader() {
   return (
@@ -124,6 +125,14 @@ export const router = createBrowserRouter([
         ),
       },
 
+      {
+        path: "admin/research",
+        element: (
+          <ProtectedRoute allowedRoles={["admin"]}>
+            {lazyPage(<ResearchWorkspace />)}
+          </ProtectedRoute>
+        ),
+      },
       {
         path: "doctor",
         element: (

@@ -1,0 +1,50 @@
+{
+  "gender": {
+    "groups": {
+      "female": {
+        "count": 2464,
+        "positive_prediction_rate": 0.2690746753246753,
+        "recall_sensitivity": 0.8461538461538461,
+        "specificity": 0.7402061855670103
+      },
+      "male": {
+        "count": 3115,
+        "positive_prediction_rate": 0.2532905296950241,
+        "recall_sensitivity": 0.6285714285714286,
+        "specificity": 0.750974025974026
+      },
+      "unknown": {
+        "count": 21,
+        "positive_prediction_rate": 0.2857142857142857,
+        "recall_sensitivity": 0.0,
+        "specificity": 0.6842105263157895
+      }
+    },
+    "max_recall_gap": 0.8461538461538461,
+    "warning": "Subgroup metrics describe this evaluation dataset and do not prove fairness."
+  },
+  "age_group": {
+    "groups": {
+      "18-44": {
+        "count": 777,
+        "positive_prediction_rate": 0.36036036036036034,
+        "recall_sensitivity": 0.7,
+        "specificity": 0.6440677966101694
+      },
+      "45-64": {
+        "count": 1771,
+        "positive_prediction_rate": 0.2478825522303783,
+        "recall_sensitivity": 0.6666666666666666,
+        "specificity": 0.7578706353749285
+      },
+      "65+": {
+        "count": 3052,
+        "positive_prediction_rate": 0.24213630406290956,
+        "recall_sensitivity": 0.7619047619047619,
+        "specificity": 0.7651162790697674
+      }
+    },
+    "max_recall_gap": 0.09523809523809523,
+    "warning": "Subgroup metrics describe this evaluation dataset and do not prove fairness."
+  }
+}

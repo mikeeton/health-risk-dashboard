@@ -52,14 +52,18 @@ export default function HealthCharts({ data, metric }: Props) {
 
   return (
     <>
+      <div className="sr-only">
+        <p id="chart-data-description">The visual charts and this table contain the same sequential health readings.</p>
+        <table><caption>Accessible health chart data</caption><thead><tr><th>Reading</th><th>Risk</th><th>Heart rate</th><th>SpO2</th><th>Blood pressure</th><th>Sleep</th><th>Steps</th></tr></thead><tbody>{chartData.map(row => <tr key={row.name}><th>{row.name}</th><td>{row.riskScore}</td><td>{row.heartRate}</td><td>{row.spo2}</td><td>{row.systolicBP}/{row.diastolicBP}</td><td>{row.sleepHours}</td><td>{row.steps}</td></tr>)}</tbody></table>
+      </div>
       {visibleCharts.risk && (
-        <section className="glass-card chart-card col-span-12 rounded-3xl p-6 xl:col-span-8">
+        <section className="glass-card chart-card col-span-12 rounded-3xl p-6 xl:col-span-8" aria-describedby="chart-data-description">
           <h2 className="mb-1 text-xl font-bold">Risk Trend</h2>
           <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">
             AI-calculated risk score across recent readings.
           </p>
 
-          <ResponsiveContainer width="100%" height={280}>
+          <div role="img" aria-label="Risk score trend across recent readings"><ResponsiveContainer width="100%" height={280}>
             <AreaChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
@@ -72,7 +76,7 @@ export default function HealthCharts({ data, metric }: Props) {
                 fillOpacity={0.2}
               />
             </AreaChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer></div>
         </section>
       )}
 
@@ -83,7 +87,7 @@ export default function HealthCharts({ data, metric }: Props) {
             Beats per minute trend.
           </p>
 
-          <ResponsiveContainer width="100%" height={280}>
+          <div role="img" aria-label="Heart rate in beats per minute across recent readings"><ResponsiveContainer width="100%" height={280}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
@@ -96,7 +100,7 @@ export default function HealthCharts({ data, metric }: Props) {
                 dot={{ r: 3 }}
               />
             </LineChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer></div>
         </section>
       )}
 
@@ -107,7 +111,7 @@ export default function HealthCharts({ data, metric }: Props) {
             SpO2 percentage trend.
           </p>
 
-          <ResponsiveContainer width="100%" height={280}>
+          <div role="img" aria-label="Oxygen saturation percentage across recent readings"><ResponsiveContainer width="100%" height={280}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
@@ -120,7 +124,7 @@ export default function HealthCharts({ data, metric }: Props) {
                 dot={{ r: 3 }}
               />
             </LineChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer></div>
         </section>
       )}
 
@@ -131,7 +135,7 @@ export default function HealthCharts({ data, metric }: Props) {
             Systolic and diastolic readings.
           </p>
 
-          <ResponsiveContainer width="100%" height={280}>
+          <div role="img" aria-label="Systolic and diastolic blood pressure across recent readings"><ResponsiveContainer width="100%" height={280}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
@@ -140,7 +144,7 @@ export default function HealthCharts({ data, metric }: Props) {
               <Line type="monotone" dataKey="systolicBP" strokeWidth={3} />
               <Line type="monotone" dataKey="diastolicBP" strokeWidth={3} />
             </LineChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer></div>
         </section>
       )}
 
@@ -151,7 +155,7 @@ export default function HealthCharts({ data, metric }: Props) {
             Sleep and step activity.
           </p>
 
-          <ResponsiveContainer width="100%" height={280}>
+          <div role="img" aria-label="Sleep hours and step activity across recent readings"><ResponsiveContainer width="100%" height={280}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
@@ -160,7 +164,7 @@ export default function HealthCharts({ data, metric }: Props) {
               {visibleCharts.sleep && <Bar dataKey="sleepHours" />}
               {visibleCharts.steps && <Bar dataKey="steps" />}
             </BarChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer></div>
         </section>
       )}
     </>

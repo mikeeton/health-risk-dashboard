@@ -39,6 +39,7 @@ from routes import notifications
 from routes import wearables
 from routes import integrations_withings
 from routes import care_workflows
+from routes import research
 
 settings = get_settings()
 initialize_error_reporting()
@@ -296,6 +297,7 @@ app.include_router(registration_requests.router)
 app.include_router(referrals.router)
 app.include_router(live_simulator.router)
 app.include_router(care_workflows.router)
+app.include_router(research.router)
 
 @app.get("/")
 def root():

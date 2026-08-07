@@ -154,6 +154,26 @@ def test_medication_evidence_must_reference_controlled_tool_record():
     ) == output
 
 
+def test_ai_cannot_change_evidence_timestamp():
+    context = context_with(vitals=[vital(timestamp="2026-01-01T10:00:00Z")])
+    output = assistant.ClinicalAIOutput(
+        risk_level="Low", summary="Stable reading.",
+        supporting_evidence=[assistant.EvidenceCitation(source_id="vital-1", source_type="vital", timestamp="2025-01-01T10:00:00Z", observation="Copied", relevance="Claim")],
+        missing_information=[], recommended_checks=["Review"], escalation_conditions=["Worsening"], confidence=.8, safety_warning="Human review required."
+    )
+    with pytest.raises(ValueError, match="timestamp"):
+        assistant.validate_output_evidence(output, {"vital-1"}, context)
+
+
+def test_provider_cannot_create_critical_escalation_or_unsupported_confidence():
+    unsupported = assistant.ClinicalAIOutput(risk_level="High", summary="Unsupported", supporting_evidence=[], missing_information=[], recommended_checks=["Review"], escalation_conditions=["Worsening"], confidence=.9, safety_warning="Human review")
+    with pytest.raises(ValueError, match="confidence"):
+        assistant.validate_output_evidence(unsupported, set(), context_with(), allow_critical=False)
+    critical = unsupported.model_copy(update={"risk_level": "Critical", "confidence": .2})
+    with pytest.raises(ValueError, match="deterministic"):
+        assistant.validate_output_evidence(critical, set(), context_with(), allow_critical=False)
+
+
 def test_prompt_injection_in_record_remains_untrusted_data():
     context = context_with(
         events=[

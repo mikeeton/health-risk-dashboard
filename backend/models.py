@@ -699,3 +699,55 @@ class ModelGovernanceEvent(Base):
     settings_json = Column(Text, nullable=True)
     actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class UsabilityStudySession(Base):
+    """Pseudonymous participant task and SUS evidence; never a clinical record."""
+
+    __tablename__ = "usability_study_sessions"
+    id = Column(Integer, primary_key=True)
+    participant_code = Column(String, nullable=False, index=True)
+    participant_role = Column(String, nullable=False)
+    protocol_version = Column(String, nullable=False)
+    consent_confirmed = Column(Boolean, nullable=False)
+    ethics_reference = Column(String, nullable=False)
+    task_results_json = Column(Text, nullable=False)
+    sus_responses_json = Column(Text, nullable=False)
+    sus_score = Column(Float, nullable=False)
+    notes = Column(Text, nullable=True)
+    recorded_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class ProspectiveValidationOutcome(Base):
+    """Adjudicated future outcome linked to a prediction made beforehand."""
+
+    __tablename__ = "prospective_validation_outcomes"
+    __table_args__ = (UniqueConstraint("prediction_id", name="uq_prospective_prediction"),)
+    id = Column(Integer, primary_key=True)
+    prediction_id = Column(Integer, ForeignKey("model_prediction_records.id", ondelete="CASCADE"), nullable=False)
+    outcome_observed = Column(Boolean, nullable=False)
+    outcome_type = Column(String, nullable=False)
+    observed_at = Column(DateTime, nullable=False)
+    adjudication_status = Column(String, nullable=False)
+    adjudicator_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class EffectivenessStudyRecord(Base):
+    """Pseudonymous workflow-effectiveness evidence for an approved study."""
+
+    __tablename__ = "effectiveness_study_records"
+    id = Column(Integer, primary_key=True)
+    study_code = Column(String, nullable=False, index=True)
+    participant_code = Column(String, nullable=False)
+    study_arm = Column(String, nullable=False)
+    outcome_name = Column(String, nullable=False)
+    outcome_value = Column(Float, nullable=False)
+    unit = Column(String, nullable=True)
+    intervention_occurred = Column(Boolean, nullable=False)
+    protocol_deviation = Column(Boolean, default=False, nullable=False)
+    notes = Column(Text, nullable=True)
+    recorded_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)

@@ -388,7 +388,11 @@ def deterministic_output(
 
 
 def validate_output_evidence(
-    output: ClinicalAIOutput, evidence_ids: set[str]
+    output: ClinicalAIOutput,
+    evidence_ids: set[str],
+    context: dict | None = None,
+    *,
+    allow_critical: bool = True,
 ) -> ClinicalAIOutput:
     invalid = [
         item.source_id
@@ -400,6 +404,20 @@ def validate_output_evidence(
     for item in output.supporting_evidence:
         if not item.source_id.startswith(f"{item.source_type}-"):
             raise ValueError("Evidence source type does not match its source ID")
+    if context:
+        source_records = {
+            record["source_id"]: record
+            for section in ("vitals", "medications", "events")
+            for record in context.get(section, [])
+        }
+        for item in output.supporting_evidence:
+            stored = source_records[item.source_id]
+            if str(item.timestamp or "") != str(stored.get("timestamp") or ""):
+                raise ValueError("Evidence timestamp does not match the controlled source record")
+    if not output.supporting_evidence and output.confidence > 0.35:
+        raise ValueError("Unsupported output confidence exceeds the safe limit")
+    if output.risk_level == "Critical" and not allow_critical:
+        raise ValueError("Critical escalation may only be produced by deterministic safety rules")
     return output
 
 
@@ -461,7 +479,7 @@ def request_structured_ai(
                 response.choices[0].message.content
             )
             validated = validate_output_evidence(
-                parsed, allowed_evidence_ids(context)
+                parsed, allowed_evidence_ids(context), context, allow_critical=False
             )
             _circuit_failures = 0
             return validated, settings.ai_model, "available"

@@ -66,7 +66,7 @@ export default function RegisterAccess() {
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-10 text-white">
-      <div className="mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur sm:p-8">
+      <div className="registration-form mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur sm:p-8">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600">
             <UserPlus className="h-7 w-7" />
