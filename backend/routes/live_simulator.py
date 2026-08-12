@@ -281,6 +281,7 @@ def generate_live_vital(
     vital = models.Vital(
         patient_id=patient.id,
         timestamp=datetime.now().isoformat(timespec="seconds"),
+        source="simulator",
         **generated,
     )
 

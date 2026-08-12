@@ -8,10 +8,10 @@ export default function AIAssistantPage() {
   const { isPatient, isNurse } = useAuth();
 
   const title = isPatient
-    ? "My Health AI Assistant"
+    ? "My Groq AI Assistant"
     : isNurse
-    ? "Nursing AI Assistant"
-    : "AI Clinical Assistant";
+    ? "Nursing Groq AI Assistant"
+    : "Groq AI Clinical Assistant";
 
   const description = isPatient
     ? "Ask plain-language questions about your own readings, medication, and care guidance."

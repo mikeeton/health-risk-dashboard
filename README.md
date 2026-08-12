@@ -1,5 +1,11 @@
 # Health Risk Dashboard
 
+## Dissertation and reproducible evidence
+
+The edited dissertation is in [`docs/dissertation/Health_Risk_Dashboard_Dissertation.docx`](docs/dissertation/Health_Risk_Dashboard_Dissertation.docx). Its source, generated diagrams, locally captured interface screenshots and artifact provenance are kept alongside it and documented in [`docs/evidence/README.md`](docs/evidence/README.md).
+
+The evidence pack distinguishes trained six-hour ML predictions, the pre-trained Groq AI Assistant, deterministic Safety Rules, calculated health indicators and synthetic demonstration data. It does not claim prospective clinical validation, clinical effectiveness or regulatory approval.
+
 Health Risk Dashboard is a full-stack clinical monitoring application for
 role-based patient review, live vitals, medication tracking, review cases,
 audit trails, analytics, and AI-assisted patient summaries.
@@ -883,15 +889,15 @@ This keeps PDF code out of normal page navigation.
 
 `frontend/src/app/components/AIInsightPanel.tsx`
 
-- Shows AI-generated clinical insights.
+- Shows a calculated trend insight generated locally from fixed thresholds; it is not Groq or trained ML output.
 
 `frontend/src/app/components/AIExplanationPanel.tsx`
 
-- Displays explainability text for risk scoring.
+- Displays deterministic explanations for the calculated frontend risk indicator.
 
 `frontend/src/app/components/AIClinicianReport.tsx`
 
-- Presents clinician-facing AI report content.
+- Presents a locally assembled calculated clinical summary; Groq summaries are labelled separately.
 
 `frontend/src/app/components/AITextBox.tsx`
 
@@ -908,7 +914,7 @@ This keeps PDF code out of normal page navigation.
 
 `frontend/src/app/components/MLPredictionPanel.tsx`
 
-- Shows ML deterioration prediction for the selected patient.
+- Shows the trained six-hour critical-event model probability, or clearly identifies Safety Rules/calculated fallback when model inference is bypassed.
 
 `frontend/src/app/components/LinearRegressionPanel.tsx`
 
@@ -916,7 +922,7 @@ This keeps PDF code out of normal page navigation.
 
 `frontend/src/app/components/PredictiveRiskPanel.tsx`
 
-- Shows frontend predictive risk calculations.
+- Shows a frontend calculated trend-risk indicator and explicitly distinguishes it from the trained ML model.
 
 `frontend/src/app/components/TrendAnalysisPanel.tsx`
 

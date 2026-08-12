@@ -37,7 +37,8 @@ type ReviewCase = {
 type Prediction = {
   prediction_score: number;
   prediction_level: string;
-  confidence: number;
+  probability?: number;
+  source?: string;
   message: string;
 };
 
@@ -47,6 +48,8 @@ export default function DoctorDashboard() {
   const [reviewCases, setReviewCases] = useState<ReviewCase[]>([]);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [aiSummary, setAiSummary] = useState("");
+  const [aiModel, setAiModel] = useState("unavailable");
+  const [aiProviderStatus, setAiProviderStatus] = useState("unavailable");
   const [noteType, setNoteType] = useState<DoctorClinicalNoteType>("Diagnosis");
   const [noteTitle, setNoteTitle] = useState("");
   const [noteDescription, setNoteDescription] = useState("");
@@ -82,6 +85,12 @@ export default function DoctorDashboard() {
 
     if (aiResult.status === "fulfilled") {
       setAiSummary(aiResult.value.summary ?? "");
+      setAiModel(aiResult.value.model_used ?? "deterministic fallback");
+      setAiProviderStatus(aiResult.value.provider_status ?? "unknown");
+    } else {
+      setAiSummary("");
+      setAiModel("unavailable");
+      setAiProviderStatus("unavailable");
     }
   }
 
@@ -371,15 +380,15 @@ export default function DoctorDashboard() {
           <div className="mb-5 flex items-center gap-3">
             <FileText className="h-6 w-6 text-blue-600" />
             <div>
-              <h2 className="text-xl font-extrabold">Latest AI Summary</h2>
-              <p className="text-sm text-slate-500">Groq-generated clinical overview</p>
+              <h2 className="text-xl font-extrabold">Latest Groq AI Assistant Summary</h2>
+              <p className="text-sm text-slate-500">Uses the pre-trained Groq LLM when available; otherwise shows deterministic fallback</p>
             </div>
           </div>
 
           <AITextBox
-            title="Latest AI Summary"
+            title={`Latest Groq AI Assistant Summary · ${aiProviderStatus.replaceAll("_", " ")}`}
             text={aiSummary || "No AI summary available."}
-            modelUsed="llama-3.1-8b-instant"
+            modelUsed={aiModel}
           />
         </div>
 

@@ -194,6 +194,7 @@ class VitalCreate(BaseModel):
 
     risk_score: int = Field(ge=0, le=10)
     activity_state: str = Field(min_length=1, max_length=80)
+    source: Literal["manual", "csv_upload", "simulator", "demo_seed", "withings", "wearable"] = "manual"
 
 
 class VitalResponse(BaseModel):
@@ -217,6 +218,8 @@ class VitalResponse(BaseModel):
 
     risk_score: int
     activity_state: str
+    source: str
+    verification_status: str
 
 # =========================
 # REVIEW CASES
@@ -358,7 +361,8 @@ class MLPredictionResponse(BaseModel):
     patient_id: int
     prediction_score: int
     prediction_level: str
-    confidence: float
+    probability: float | None = None
+    source: str
     message: str
 
 # =========================

@@ -172,7 +172,6 @@ def _create_or_update(
     reasons: list[str],
     vital,
     probability: float | None = None,
-    confidence: float | None = None,
     model_version: str | None = None,
     prediction=None,
     data_quality: dict | None = None,
@@ -182,7 +181,7 @@ def _create_or_update(
     note = (
         f"{marker} This patient has a developing risk pattern that may require clinical review. "
         f"Evidence: {evidence}. Latest evidence time: {vital.timestamp}. "
-        + (f"Six-hour model probability: {probability:.1%}; confidence: {confidence:.1%}; model: {model_version}. " if probability is not None else "")
+        + (f"Predicted six-hour critical-event probability: {probability:.1%}; model: {model_version}. " if probability is not None else "")
         + "This is an early-review prompt and does not confirm that deterioration will occur. "
         "Recommended checks: verify the reading, review recent trends, assess symptoms and document the clinical decision. "
         "Escalate urgently if an actual reading crosses a deterministic critical threshold."
@@ -209,7 +208,7 @@ def _create_or_update(
             alert_type="urgent_deterministic" if kind == "urgent" else "early_clinical_review",
             predicted_risk_level=level if probability is not None else None,
             probability=probability,
-            confidence=confidence,
+            confidence=None,
             prediction_window_hours=6 if probability is not None else None,
             model_version=model_version,
             evidence_json=json.dumps([{"timestamp": vital.timestamp, "observation": item} for item in reasons]),
@@ -338,7 +337,6 @@ def evaluate_new_vital(db, vital):
         reasons = list(trends)
         if confirmed:
             reasons.append("the predictive model estimates increased risk of a defined critical vital event within six hours")
-        confidence = prediction.get("confidence") if prediction else None
         case = _create_or_update(
             db,
             patient=patient,
@@ -348,7 +346,6 @@ def evaluate_new_vital(db, vital):
             reasons=reasons,
             vital=vital,
             probability=probability,
-            confidence=confidence,
             model_version=prediction.get("model_version") if prediction else None,
             prediction=prediction,
             data_quality=_data_quality(vital),

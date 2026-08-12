@@ -124,6 +124,7 @@ def create_vitals(patient_id, base_risk):
             calories=random.randint(1400, 2900),
             risk_score=risk,
             activity_state=random.choice(["resting", "walking", "sleeping", "active"]),
+            source="demo_seed",
         )
 
         db.add(vital)
