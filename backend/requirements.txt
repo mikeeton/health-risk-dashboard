@@ -18,5 +18,5 @@ groq
 argon2-cffi
 redis[hiredis]>=5.2,<7
 sentry-sdk[fastapi]>=2.20,<3
-boto3>=1.35,<2
+boto3>=1.43.72,<2
 pyotp>=2.9,<3
