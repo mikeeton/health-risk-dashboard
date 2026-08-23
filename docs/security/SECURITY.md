@@ -6,6 +6,6 @@ Do not include real patient data, access tokens, passwords, or API keys.
 
 Production deployments must use synthetic data until the privacy, clinical
 safety, regulatory, penetration-testing, backup, and recovery gates in
-`DEPLOYMENT_CHECKLIST.md` are formally approved.
+the [deployment checklist](../setup/DEPLOYMENT_CHECKLIST.md) is formally approved.
 
 Supported security updates apply to the latest `main` release only.

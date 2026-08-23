@@ -18,7 +18,7 @@ def field(paragraph, instruction):
     begin = OxmlElement("w:fldChar"); begin.set(qn("w:fldCharType"), "begin")
     text = OxmlElement("w:instrText"); text.set(qn("xml:space"), "preserve"); text.text = instruction
     sep = OxmlElement("w:fldChar"); sep.set(qn("w:fldCharType"), "separate")
-    val = OxmlElement("w:t"); val.text = "Update this field in Microsoft Word"
+    val = OxmlElement("w:t"); val.text = "1"
     end = OxmlElement("w:fldChar"); end.set(qn("w:fldCharType"), "end")
     for node in (begin, text, sep, val, end): run._r.append(node)
 
@@ -64,11 +64,55 @@ def add_static_toc(doc):
         run = p.add_run(f"{label}\t{page}")
         run.bold = label.startswith("Chapter")
 
+def add_static_list(doc, entries):
+    for number, label in entries:
+        p = doc.add_paragraph()
+        p.paragraph_format.first_line_indent = Inches(0)
+        p.paragraph_format.space_after = Pt(4)
+        number_run = p.add_run(f"{number}  ")
+        number_run.bold = True
+        p.add_run(label)
+
+def add_lists_of_illustrations(doc):
+    add_static_list(doc, [
+        ("Figure 4.1", "Layered architecture of the Health Risk Dashboard"),
+        ("Figure 4.2", "Role and patient-access boundary"),
+        ("Figure 4.3", "Observation-to-alert data flow"),
+        ("Figure 4.4", "Evidence-bound AI assistant pipeline"),
+        ("Figure 4.5", "Production deployment topology"),
+        ("Figure 5.1", "Doctor dashboard displaying an assigned patient and current observations"),
+        ("Figure 5.2", "Nurse dashboard organised around bedside care activities"),
+        ("Figure 5.3", "Administrator dashboard for non-clinical platform governance"),
+        ("Figure 5.4", "Notification centre with unread inbox and retained history"),
+        ("Figure 5.5", "Reproducible machine-learning lifecycle"),
+        ("Figure 5.6", "Trained six-hour model output with probability and provenance"),
+        ("Figure 5.7", "Restricted research evidence workspace"),
+        ("Figure 5.8", "Evidence-linked clinician Groq AI Assistant"),
+        ("Figure 5.9", "Responsive authentication interface"),
+        ("Figure 6.1", "Candidate-model performance on the validation partition"),
+        ("Figure 6.2", "Internal test confusion matrix at the 0.014 threshold"),
+        ("Figure 6.3", "Internal test calibration plot"),
+        ("Figure 6.4", "Internal test and external Set B metric comparison"),
+        ("Figure 6.5", "Global SHAP feature influence in the evaluation sample"),
+    ])
+    doc.add_heading("List of Tables", level=1)
+    add_static_list(doc, [
+        ("Table 3.1", "Principal functional requirements"),
+        ("Table 4.1", "Logical layers of the Health Risk Dashboard"),
+        ("Table 4.2", "Summary threat model"),
+        ("Table 6.1", "Final engineering verification summary"),
+        ("Table 6.2", "Retrospective model performance at the selected operating threshold"),
+        ("Table 6.3", "Evidence maturity and permitted conclusions"),
+    ])
+
 def add_figure(doc, filename, caption, alt_text):
     p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.keep_with_next = True
     image_path = ROOT / "docs" / "dissertation" / (filename if "/" in filename else f"figures/{filename}")
-    run = p.add_run(); run.add_picture(str(image_path), width=Inches(5.65))
+    # Keep the architecture figure slightly shorter so its paired summary table
+    # remains together on the same page; other figures use the widest readable size.
+    figure_width = 4.90 if filename == "architecture.png" else 5.72
+    run = p.add_run(); run.add_picture(str(image_path), width=Inches(figure_width))
     drawing = run._r.find(qn("w:drawing"))
     if drawing is not None:
         docPr = drawing.find(".//" + qn("wp:docPr"))
@@ -199,6 +243,7 @@ def main():
     abstract_p.paragraph_format.line_spacing = 1.3
     for run in abstract_p.runs: run.font.size = Pt(11.5)
     doc.add_heading("Table of Contents", level=1); add_static_toc(doc)
+    doc.add_heading("List of Figures", level=1); add_lists_of_illustrations(doc)
     doc.add_heading("List of Abbreviations", level=1)
     add_table(doc,["Abbreviation","Meaning"],[["AI","Artificial intelligence"],["API","Application programming interface"],["CSP","Content Security Policy"],["EHR","Electronic health record"],["JWT","JSON Web Token"],["ML","Machine learning"],["RBAC","Role-based access control"],["SHAP","SHapley Additive exPlanations"],["SUS","System Usability Scale"],["WCAG","Web Content Accessibility Guidelines"]],[1.8,4.7])
     set_page_number_format(sec, "lowerRoman", 1); page_number(sec.footer)

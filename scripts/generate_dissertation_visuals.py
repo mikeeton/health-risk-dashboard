@@ -12,8 +12,8 @@ def base(figsize=(10,5.4)):
     fig,ax=plt.subplots(figsize=figsize,dpi=180); fig.patch.set_facecolor('white'); ax.set_facecolor('white'); ax.axis('off'); return fig,ax
 def box(ax,x,y,w,h,title,subtitle='',color=BLUE):
     ax.add_patch(FancyBboxPatch((x,y),w,h,boxstyle='round,pad=0.012,rounding_size=.02',fc='white',ec=color,lw=1.8))
-    ax.text(x+w/2,y+h*.62,title,ha='center',va='center',fontsize=10,fontweight='bold',color=NAVY)
-    if subtitle: ax.text(x+w/2,y+h*.28,subtitle,ha='center',va='center',fontsize=7.2,color=GREY,wrap=True)
+    ax.text(x+w/2,y+h*.62,title,ha='center',va='center',fontsize=11,fontweight='bold',color=NAVY)
+    if subtitle: ax.text(x+w/2,y+h*.28,subtitle,ha='center',va='center',fontsize=9,color=GREY,wrap=True)
 def arrow(ax,a,b,color=GREY): ax.add_patch(FancyArrowPatch(a,b,arrowstyle='-|>',mutation_scale=12,lw=1.4,color=color,connectionstyle='arc3'))
 def save(fig,name): fig.tight_layout(pad=.4); fig.savefig(OUT/name,bbox_inches='tight',facecolor='white'); plt.close(fig)
 
@@ -62,6 +62,22 @@ ax.set_title('Internal test confusion matrix\nThreshold = 0.014',fontweight='bol
 
 cal=e['test_metrics']['calibration']; pred=[p['predicted'] for p in cal]; obs=[p['observed'] for p in cal]
 fig,ax=plt.subplots(figsize=(7,5.5),dpi=180); ax.plot([0,.09],[0,.09],'--',color=GREY,label='Ideal calibration'); ax.plot(pred,obs,'o-',color=BLUE,lw=2,label='Model'); ax.set(xlabel='Mean predicted probability',ylabel='Observed event frequency',title='Internal test calibration'); ax.grid(alpha=.25); ax.legend(frameon=False); ax.set_xlim(0,.09); ax.set_ylim(0,.09); fig.tight_layout(); save(fig,'calibration.png')
+
+candidate=e['candidate_validation']; names=['Logistic regression','Random forest']; metrics=['roc_auc','pr_auc','f1']; labels=['ROC-AUC','PR-AUC','F1'];
+x=np.arange(len(names)); width=.22
+fig,ax=plt.subplots(figsize=(8,5.4),dpi=180)
+for offset,(metric,label,color) in enumerate(zip(metrics,labels,[BLUE,TEAL,AMBER])):
+    values=[candidate['logistic_regression'][metric],candidate['random_forest'][metric]]
+    bars=ax.bar(x+(offset-1)*width,values,width,label=label,color=color)
+    ax.bar_label(bars,fmt='%.3f',padding=3,fontsize=9)
+ax.set_xticks(x,names); ax.set_ylim(0,1); ax.set_ylabel('Validation metric value'); ax.set_title('Candidate-model validation comparison',fontweight='bold',color=NAVY); ax.grid(axis='y',alpha=.2); ax.legend(frameon=False); fig.tight_layout(); save(fig,'candidate_model_comparison.png')
+
+internal=e['test_metrics']; external=e['external_validation']['metrics']; compare=['roc_auc','pr_auc','recall_sensitivity','specificity','precision']; compare_labels=['ROC-AUC','PR-AUC','Sensitivity','Specificity','Precision']; x=np.arange(len(compare_labels)); width=.34
+fig,ax=plt.subplots(figsize=(9,5.4),dpi=180)
+bars1=ax.bar(x-width/2,[internal[k] for k in compare],width,label='Internal test',color=BLUE)
+bars2=ax.bar(x+width/2,[external[k] for k in compare],width,label='External Set B',color=TEAL)
+ax.bar_label(bars1,fmt='%.3f',padding=3,fontsize=8); ax.bar_label(bars2,fmt='%.3f',padding=3,fontsize=8)
+ax.set_xticks(x,compare_labels); ax.set_ylim(0,.95); ax.set_ylabel('Metric value'); ax.set_title('Internal and related-cohort retrospective performance',fontweight='bold',color=NAVY); ax.grid(axis='y',alpha=.2); ax.legend(frameon=False); fig.tight_layout(); save(fig,'cohort_metric_comparison.png')
 
 sh=json.loads((ROOT/'docs'/'evidence'/'global-shap.json').read_text()); vals=sh.get('features',sh.get('feature_importance',[]))
 if isinstance(vals,dict): vals=[{'feature':k,'mean_absolute_shap':v} for k,v in vals.items()]
