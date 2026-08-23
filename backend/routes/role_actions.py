@@ -166,6 +166,7 @@ def nurse_record_vitals(
         calories=vital.calories,
         risk_score=vital.risk_score,
         activity_state=vital.activity_state,
+        source=vital.source,
     )
 
     db.add(new_vital)

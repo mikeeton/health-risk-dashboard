@@ -53,6 +53,7 @@ def receive_watch_data(
         risk_score=3,
 
         activity_state="watch_sync",
+        source="wearable",
     )
 
     db.add(vital)

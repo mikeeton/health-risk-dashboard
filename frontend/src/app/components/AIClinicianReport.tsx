@@ -14,7 +14,7 @@ export default function AIClinicianReport({ report }: Props) {
     showToast({
       type: "success",
       title: "Report copied",
-      message: "AI clinician report copied to clipboard.",
+      message: "Calculated clinical summary copied to clipboard.",
     });
   };
 
@@ -25,9 +25,9 @@ export default function AIClinicianReport({ report }: Props) {
           <FileText className="h-6 w-6 text-blue-600" />
 
           <div>
-            <h2 className="text-xl font-bold">AI Clinician Report</h2>
+            <h2 className="text-xl font-bold">Calculated Clinical Summary</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Generated clinical summary for review
+              Rule-based summary assembled locally — not Groq-generated
             </p>
           </div>
         </div>

@@ -16,9 +16,9 @@ export default function AIInsightPanel({ insight, onGenerate }: Props) {
           </div>
 
           <div>
-            <h2 className="text-xl font-bold">AI Clinical Insight</h2>
+            <h2 className="text-xl font-bold">Calculated Trend Insight</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Generated from baseline, trends, risk scoring, and latest vitals.
+              Rule-based indicator calculated locally from averages and thresholds. Not ML or Groq.
             </p>
           </div>
         </div>
@@ -28,7 +28,7 @@ export default function AIInsightPanel({ insight, onGenerate }: Props) {
           className="rounded-2xl bg-blue-600 px-5 py-3 text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700"
         >
           <Sparkles className="mr-2 h-4 w-4" />
-          Generate Insight
+          Refresh Trend Insight
         </Button>
       </div>
 

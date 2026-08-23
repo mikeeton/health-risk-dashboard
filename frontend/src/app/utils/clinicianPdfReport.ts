@@ -22,7 +22,8 @@ type PatientEvent = {
 type MLPrediction = {
   prediction_score: number;
   prediction_level: string;
-  confidence: number;
+  probability?: number;
+  source?: string;
   message: string;
 };
 
@@ -82,7 +83,7 @@ export function generateClinicianPdfReport({
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.text("AI Clinician Report", 20, 18);
+  doc.text("Clinical Monitoring Report", 20, 18);
 
   doc.setFontSize(9);
   doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 26);
@@ -170,30 +171,32 @@ export function generateClinicianPdfReport({
   }
 
   y += 6;
-  y = section(doc, "5. Machine Learning Prediction", y);
+  y = section(doc, "5. Trained Six-Hour ML Prediction", y);
 
   if (!prediction) {
     y = addText(doc, "Prediction unavailable. At least 5 vital records may be required.", 20, y);
   } else {
     y = addText(
       doc,
-      `Prediction score: ${prediction.prediction_score}/10. Level: ${
-        prediction.prediction_level
-      }. Confidence: ${(prediction.confidence * 100).toFixed(0)}%. ${
-        prediction.message
-      }`,
+      `Prediction score: ${prediction.prediction_score}/10. Level: ${prediction.prediction_level}. ${
+        prediction.source === "versioned_model" && prediction.probability !== undefined
+          ? `Predicted six-hour critical-event probability: ${(prediction.probability * 100).toFixed(1)}%.`
+          : prediction.source === "deterministic_safety_override"
+            ? "Safety Rules triggered; model probability was not calculated."
+            : "Calculated fallback; no trained-model probability is available."
+      } ${prediction.message}`,
       20,
       y
     );
   }
 
   y += 6;
-  y = section(doc, "6. AI Risk Analysis", y);
+  y = section(doc, "6. Groq AI Assistant Summary", y);
 
   y = addText(
     doc,
     aiSummary ||
-      "AI analysis unavailable. Continue routine monitoring and review the clinical dashboard data.",
+      "Groq AI Assistant summary unavailable. Continue routine monitoring and review the clinical dashboard data.",
     20,
     y
   );

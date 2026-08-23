@@ -8,6 +8,7 @@ import {
 } from "./ui/table";
 import { Card } from "./ui/card";
 import type { HealthData } from "../data/healthData";
+import DataProvenanceBadge from "./DataProvenanceBadge";
 
 interface DataTableProps {
   data: HealthData[];
@@ -46,6 +47,7 @@ export default function DataTable({ data }: DataTableProps) {
               <TableHead>Activity</TableHead>
               <TableHead>Risk Score</TableHead>
               <TableHead>State</TableHead>
+              <TableHead>Data Source</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -66,6 +68,7 @@ export default function DataTable({ data }: DataTableProps) {
                   {row.riskScore}/10
                 </TableCell>
                 <TableCell className="capitalize">{row.activityState}</TableCell>
+                <TableCell><DataProvenanceBadge source={row.source} compact /></TableCell>
               </TableRow>
             ))}
           </TableBody>

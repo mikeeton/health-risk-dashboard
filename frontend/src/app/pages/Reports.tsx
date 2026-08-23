@@ -16,7 +16,8 @@ import { getAIPatientSummary, getMLPrediction } from "../services/api";
 type Prediction = {
   prediction_score: number;
   prediction_level: string;
-  confidence: number;
+  probability?: number;
+  source?: string;
   message: string;
 };
 
@@ -130,16 +131,16 @@ export default function Reports() {
 
         <div className="glass-card rounded-3xl p-6">
           <BrainCircuit className="mb-4 h-7 w-7 text-blue-600" />
-          <p className="text-sm font-bold text-slate-500">ML Prediction</p>
+          <p className="text-sm font-bold text-slate-500">Trained Six-Hour ML Prediction</p>
           <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
             {prediction ? `${prediction.prediction_score}/10` : "Unavailable"}
           </h2>
           <p className="mt-2 text-sm text-slate-500">
             {prediction
-              ? `${prediction.prediction_level} · ${Math.round(
-                  prediction.confidence * 100
-                )}% confidence`
-              : "More vitals may be required"}
+              ? prediction.source === "versioned_model" && prediction.probability !== undefined
+                ? `${prediction.prediction_level} · ${(prediction.probability * 100).toFixed(1)}% predicted six-hour event probability`
+                : `${prediction.prediction_level} · ${prediction.source === "deterministic_safety_override" ? "Safety Rules" : "calculated fallback (no model probability)"}`
+              : "Prediction unavailable"}
           </p>
         </div>
 
@@ -166,7 +167,7 @@ export default function Reports() {
             </div>
           ) : (
             <AITextBox
-  title="AI Risk Analysis"
+  title="Groq AI Assistant Summary"
   text={aiSummary || "No AI summary available."}
   modelUsed="llama-3.1-8b-instant"
 />

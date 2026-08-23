@@ -18,7 +18,6 @@ def calculate_prediction_from_latest(vital):
         return {
             "prediction_score": 0,
             "prediction_level": "Unavailable",
-            "confidence": 0,
             "message": "No vital records available for prediction.",
         }
 
@@ -48,8 +47,7 @@ def calculate_prediction_from_latest(vital):
     return {
         "prediction_score": score,
         "prediction_level": level,
-        "confidence": 0.62,
-        "message": "Fallback prediction generated from latest vital reading. Add more records for stronger ML confidence.",
+        "message": "Calculated fallback generated from the latest vital reading. No trained-model probability is available.",
     }
 
 
@@ -73,11 +71,14 @@ def predict_deterioration(
             "patient_id": patient_id,
             "prediction_score": 0,
             "prediction_level": "Unavailable",
-            "confidence": 0,
             "message": "No vital records available for this patient.",
         }
 
     latest = vitals[0]
+    input_data_sources = sorted({vital.source for vital in vitals[:5]})
+    contains_synthetic_data = any(
+        source in {"simulator", "demo_seed"} for source in input_data_sources
+    )
     emergency_reasons = []
     if latest.spo2 < 90:
         emergency_reasons.append("oxygen saturation below 90%")
@@ -91,21 +92,30 @@ def predict_deterioration(
             "source": "deterministic_safety_override",
             "prediction_score": 10,
             "prediction_level": "Critical",
-            "confidence": 1.0,
             "anomaly_detected": True,
             "safety_reasons": emergency_reasons,
+            "input_data_sources": input_data_sources,
+            "contains_synthetic_data": contains_synthetic_data,
             "message": "Deterministic clinical escalation rules were triggered; model inference was bypassed.",
         }
 
     trained_prediction = predict(vitals, patient_id) if len(vitals) >= 5 else None
     if trained_prediction:
-        return {"patient_id": patient_id, "source": "versioned_model", **trained_prediction}
+        return {
+            "patient_id": patient_id,
+            "source": "versioned_model",
+            "input_data_sources": input_data_sources,
+            "contains_synthetic_data": contains_synthetic_data,
+            **trained_prediction,
+        }
 
     if len(vitals) < 5:
         fallback = calculate_prediction_from_latest(vitals[0])
         return {
             "patient_id": patient_id,
             "source": "deterministic_fallback",
+            "input_data_sources": input_data_sources,
+            "contains_synthetic_data": contains_synthetic_data,
             **fallback,
         }
 
@@ -138,10 +148,11 @@ def predict_deterioration(
     return {
         "patient_id": patient_id,
         "source": "deterministic_fallback",
+        "input_data_sources": input_data_sources,
+        "contains_synthetic_data": contains_synthetic_data,
         "prediction_score": score,
         "prediction_level": level,
-        "confidence": 0.81,
-        "message": "Deterministic fallback generated from recent vital trend data because no validated model artifact is installed.",
+        "message": "Calculated fallback generated from recent vital trend data because no validated model artifact is installed. No trained-model probability is available.",
     }
 
 

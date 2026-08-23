@@ -1,4 +1,4 @@
-# Deployment Guide
+# Deployment guide
 
 This guide describes a production-style deployment for the Health Risk
 Dashboard. The project is PostgreSQL-only and should be deployed with HTTPS,
@@ -62,10 +62,10 @@ Keep real `.env` files out of Git. Rotate any key that was ever exposed in a
 ticket, screenshot, terminal output, or repository.
 
 Keep `AI_ENABLED=false` until the AI activation gates in
-`DEPLOYMENT_CHECKLIST.md` are approved. A key by itself does not authorize
+the [deployment checklist](DEPLOYMENT_CHECKLIST.md) is approved. A key by itself does not authorize
 processing patient data through the provider.
 
-See `AI_SETUP.md` and `WITHINGS_SETUP.md` for provider-specific setup.
+See [Groq AI setup](AI_SETUP.md) and [Withings setup](WITHINGS_SETUP.md) for provider-specific setup.
 
 ## 3. Database Setup
 

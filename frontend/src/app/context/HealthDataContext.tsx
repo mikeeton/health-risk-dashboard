@@ -45,6 +45,8 @@ type BackendVital = {
   calories: number;
   risk_score: number;
   activity_state: HealthData["activityState"];
+  source: HealthData["source"];
+  verification_status: string;
 };
 
 const fallbackPatient: Patient = {
@@ -89,6 +91,8 @@ function mapBackendVital(vital: BackendVital): HealthData {
     calories: vital.calories,
     riskScore: vital.risk_score,
     activityState: vital.activity_state,
+    source: vital.source,
+    verificationStatus: vital.verification_status,
   };
 }
 

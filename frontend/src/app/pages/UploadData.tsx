@@ -113,6 +113,7 @@ export default function UploadData() {
           calories: record.calories,
           risk_score: record.riskScore,
           activity_state: record.activityState,
+          source: "csv_upload",
         });
       }
 
@@ -137,7 +138,7 @@ export default function UploadData() {
         </h1>
 
         <p className="mt-2 text-gray-600 dark:text-slate-400">
-          Upload smartwatch-style patient health data for AI-assisted risk
+          Upload smartwatch-style patient health data for calculated risk indicators
           analysis.
         </p>
       </div>
@@ -160,7 +161,7 @@ export default function UploadData() {
           </p>
 
           <p className="mt-3 text-gray-600 dark:text-slate-400">
-            Risk score will be calculated automatically by the AI risk engine and
+            Risk score will be calculated automatically by deterministic thresholds and
             saved into the backend database.
           </p>
 

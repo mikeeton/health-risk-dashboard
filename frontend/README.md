@@ -19,4 +19,5 @@ npm run test:e2e
 
 Set `VITE_API_BASE_URL` to the HTTPS backend URL before building production.
 The production host must provide the security headers in `vercel.json`.
-See the root `README.md`, `DEPLOYMENT.md`, and `DEPLOYMENT_CHECKLIST.md`.
+See the root [`README.md`](../README.md), [deployment guide](../docs/setup/DEPLOYMENT.md),
+and [deployment checklist](../docs/setup/DEPLOYMENT_CHECKLIST.md).

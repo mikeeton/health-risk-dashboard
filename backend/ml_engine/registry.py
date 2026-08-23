@@ -66,7 +66,6 @@ def predict(vitals, patient_id: int) -> dict | None:
     return {
         "prediction_score": round(probability * 10, 2),
         "prediction_level": "High" if probability >= threshold else "Moderate" if probability >= threshold * 0.7 else "Low",
-        "confidence": round(max(probability, 1 - probability), 4),
         "probability": probability,
         "anomaly_score": anomaly_score,
         "anomaly_detected": bool(bundle["anomaly_detector"].predict(latest)[0] == -1),
