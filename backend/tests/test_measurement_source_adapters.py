@@ -1,11 +1,17 @@
+import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
+import models
 import schemas
+from database import Base
 from measurement_ingestion import IngestionResult
-from routes import live_simulator, role_actions, vitals, wearables
+from routes import integrations_withings, live_simulator, role_actions, vitals, wearables
 
 
 def vital_payload(*, source="manual"):
@@ -161,3 +167,103 @@ def test_simulator_adapter_delegates_patient_update_and_audit(monkeypatch):
     assert captured["source"] == "simulator"
     assert captured["patient_update"].last_checkup is not None
     assert captured["audit"].action == "CONDITION_BASED_SIMULATOR_GENERATE_VITAL"
+
+
+def test_withings_adapter_preserves_external_id_and_live_hook(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    db = sessionmaker(bind=engine)()
+    patient = models.Patient(
+        name="Withings Patient",
+        age=60,
+        condition="General monitoring",
+        risk_level="Low",
+        last_checkup="2026-09-01",
+    )
+    db.add(patient)
+    db.commit()
+    db.refresh(patient)
+    patient_id = patient.id
+    connection = models.WithingsConnection(
+        patient_id=patient_id,
+        connected_by_user_id=1,
+        withings_userid="provider-user-1",
+        access_token_encrypted="access",
+        refresh_token_encrypted="refresh",
+        token_expires_at=datetime(2026, 9, 12),
+        scopes="user.metrics",
+    )
+    db.add(connection)
+    db.commit()
+
+    async def access_token(*_args):
+        return "token"
+
+    async def measurements(*_args, **_kwargs):
+        return {
+            "measuregrps": [
+                {
+                    "grpid": 456,
+                    "date": 1789120800,
+                    "measures": [
+                        {"type": 11, "value": 74, "unit": 0},
+                        {"type": 54, "value": 98, "unit": 0},
+                    ],
+                }
+            ]
+        }
+
+    published = []
+
+    async def publish(patient_id, payload):
+        published.append((patient_id, payload))
+
+    captured = {}
+
+    def fake_ingest(db_arg, payload, **kwargs):
+        captured.update(payload=payload, **kwargs)
+        stored = SimpleNamespace(
+            id=99,
+            timestamp=payload["timestamp"],
+            heart_rate=payload["heart_rate"],
+            spo2=payload["spo2"],
+            systolic_bp=payload["systolic_bp"],
+            diastolic_bp=payload["diastolic_bp"],
+            steps=payload["steps"],
+            sleep_hours=payload["sleep_hours"],
+            active_minutes=payload["active_minutes"],
+            calories=payload["calories"],
+            risk_score=payload["risk_score"],
+            activity_state=payload["activity_state"],
+            source=kwargs["source"],
+        )
+        return IngestionResult(
+            vital=stored,
+            created=True,
+            hook_result=kwargs["post_ingest_hook"](stored),
+        )
+
+    monkeypatch.setattr(integrations_withings, "valid_access_token", access_token)
+    monkeypatch.setattr(integrations_withings, "withings_post", measurements)
+    monkeypatch.setattr(integrations_withings, "publish", publish)
+    monkeypatch.setattr(integrations_withings, "ingest_vital", fake_ingest)
+
+    class WebhookRequest:
+        async def body(self):
+            return (
+                b"userid=provider-user-1&appli=4"
+                b"&startdate=1789120000&enddate=1789121000"
+            )
+
+    try:
+        response = asyncio.run(integrations_withings.webhook(WebhookRequest(), db))
+    finally:
+        db.close()
+
+    assert response.status_code == 204
+    assert captured["source"] == "withings"
+    assert captured["external_id"] == "withings:provider-user-1:456"
+    assert captured["patient_update"].last_checkup is not None
+    assert published[0][0] == patient_id
+    assert published[0][1]["source"] == "withings"
+    assert published[0][1]["persisted"] is True

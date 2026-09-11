@@ -13,7 +13,6 @@ from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 import httpx
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import models
@@ -22,9 +21,9 @@ from auth_utils import create_access_token, decode_access_token, get_current_use
 from config import get_settings
 from database import get_db
 from live_updates import publish
+from measurement_ingestion import PatientUpdate, ingest_vital
 from routes.audit import write_audit_log
 from routes.live_simulator import calculate_risk_score, get_risk_level
-from early_warning import evaluate_new_vital
 
 
 router = APIRouter(prefix="/integrations/withings", tags=["Withings"])
@@ -298,12 +297,6 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     )
     for group in body.get("measuregrps", []):
         external_id = f"withings:{userid}:{group.get('grpid')}"
-        if (
-            db.query(models.Vital)
-            .filter(models.Vital.external_id == external_id)
-            .first()
-        ):
-            continue
         values = measurement_values(group)
         heart_rate = round(values.get(11, latest.heart_rate if latest else 70))
         spo2 = round(values.get(54, latest.spo2 if latest else 98), 1)
@@ -315,59 +308,54 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
         measured_at = datetime.fromtimestamp(
             int(group.get("date", enddate)), tz=timezone.utc
         ).isoformat()
-        vital = models.Vital(
-            patient_id=connection.patient_id,
-            timestamp=measured_at,
-            heart_rate=heart_rate,
-            spo2=spo2,
-            systolic_bp=systolic,
-            diastolic_bp=diastolic,
-            steps=latest.steps if latest else 0,
-            sleep_hours=latest.sleep_hours if latest else 0,
-            active_minutes=latest.active_minutes if latest else 0,
-            calories=latest.calories if latest else 0,
-            risk_score=risk_score,
-            activity_state="withings_device",
+        last_checkup = datetime.now(timezone.utc).date().isoformat()
+        connection.last_sync_at = utc_now_naive()
+        result = ingest_vital(
+            db,
+            {
+                "patient_id": connection.patient_id,
+                "timestamp": measured_at,
+                "heart_rate": heart_rate,
+                "spo2": spo2,
+                "systolic_bp": systolic,
+                "diastolic_bp": diastolic,
+                "steps": latest.steps if latest else 0,
+                "sleep_hours": latest.sleep_hours if latest else 0,
+                "active_minutes": latest.active_minutes if latest else 0,
+                "calories": latest.calories if latest else 0,
+                "risk_score": risk_score,
+                "activity_state": "withings_device",
+            },
             source="withings",
             external_id=external_id,
+            patient_update=PatientUpdate(
+                risk_level=get_risk_level(risk_score),
+                last_checkup=last_checkup,
+            ),
+            post_ingest_hook=lambda vital: publish(
+                connection.patient_id,
+                {
+                    "id": str(vital.id),
+                    "patientId": connection.patient_id,
+                    "timestamp": vital.timestamp,
+                    "heartRate": vital.heart_rate,
+                    "spo2": vital.spo2,
+                    "systolicBP": vital.systolic_bp,
+                    "diastolicBP": vital.diastolic_bp,
+                    "steps": vital.steps,
+                    "sleepHours": vital.sleep_hours,
+                    "activeMinutes": vital.active_minutes,
+                    "calories": vital.calories,
+                    "riskScore": vital.risk_score,
+                    "activityState": vital.activity_state,
+                    "source": vital.source,
+                    "persisted": True,
+                },
+            ),
         )
-        db.add(vital)
-        try:
-            db.commit()
-        except IntegrityError:
-            db.rollback()
+        if not result.created:
             continue
-        db.refresh(vital)
-        evaluate_new_vital(db, vital)
-        patient = (
-            db.query(models.Patient)
-            .filter(models.Patient.id == connection.patient_id)
-            .first()
-        )
-        patient.risk_level = get_risk_level(risk_score)
-        patient.last_checkup = datetime.now(timezone.utc).date().isoformat()
-        connection.last_sync_at = utc_now_naive()
-        db.commit()
-        await publish(
-            connection.patient_id,
-            {
-                "id": str(vital.id),
-                "patientId": connection.patient_id,
-                "timestamp": measured_at,
-                "heartRate": heart_rate,
-                "spo2": spo2,
-                "systolicBP": systolic,
-                "diastolicBP": diastolic,
-                "steps": vital.steps,
-                "sleepHours": vital.sleep_hours,
-                "activeMinutes": vital.active_minutes,
-                "calories": vital.calories,
-                "riskScore": risk_score,
-                "activityState": "withings_device",
-                "source": "withings",
-                "persisted": True,
-            },
-        )
+        await result.hook_result
     return Response(status_code=204)
 
 
