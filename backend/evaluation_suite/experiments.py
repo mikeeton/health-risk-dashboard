@@ -4,7 +4,12 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import timedelta
+import importlib.metadata
 import json
+import os
+import platform
+from statistics import mean, median
+from time import perf_counter
 from typing import Iterator
 from unittest.mock import patch
 
@@ -416,3 +421,191 @@ def groq_independence_result(seed: int) -> dict:
             "narrative_output_evaluated": False,
             "passed": disabled_value == enabled_value,
         }
+
+
+def false_alert_evaluation(seed: int, trials: int = 30) -> tuple[dict, list[dict]]:
+    if trials < 1:
+        raise ValueError("False-alert trials must be positive")
+    rows = []
+    for trial in range(trials):
+        with isolated_database() as db:
+            patient = create_patient(db, f"Normal trial {trial + 1}")
+            set_governance(db, enabled=False, mode="live")
+            ingest_readings(
+                db,
+                patient,
+                generate_scenario("normal_stable", seed=seed + trial),
+            )
+            alert_count = (
+                db.query(models.ReviewCase).filter_by(patient_id=patient.id).count()
+            )
+            rows.append(
+                {
+                    "trial": trial + 1,
+                    "seed": seed + trial,
+                    "synthetic_label": "normal",
+                    "alert_count": alert_count,
+                    "false_alert": alert_count > 0,
+                }
+            )
+    false_alerts = sum(1 for row in rows if row["false_alert"])
+    return (
+        {
+            "normal_sequences": trials,
+            "false_alerts": false_alerts,
+            "false_alert_rate": false_alerts / trials,
+            "governance_mode": "live",
+            "ml_enabled": False,
+            "label_source": "fixed-seed synthetic normal scenario",
+        },
+        rows,
+    )
+
+
+def shap_attribution_evaluation(
+    seed: int,
+    repeats_per_abnormality: int = 5,
+) -> tuple[dict, list[dict]]:
+    """Measure top-k attribution alignment and report the actual method used."""
+    if repeats_per_abnormality < 1:
+        raise ValueError("Attribution repetitions must be positive")
+    rows = []
+    cases = (
+        ("heart_rate", "heart_rate", {"heart_rate": 135}),
+        ("spo2", "spo2", {"spo2": 90.0}),
+    )
+    for injected, expected_prefix, changes in cases:
+        for repeat in range(repeats_per_abnormality):
+            readings = generate_scenario("normal_stable", seed=seed + repeat)[
+                :BASELINE_RECORDS
+            ]
+            current = replace(
+                readings[-1],
+                timestamp=(
+                    DEFAULT_START + timedelta(minutes=5 * BASELINE_RECORDS)
+                ).isoformat(),
+                **changes,
+            )
+            vital_objects = []
+            for index, reading in enumerate(readings + [current], start=1):
+                values = reading.measurement(patient_id=1)
+                vital_objects.append(type("EvaluationVital", (), {**values, "id": index})())
+            signal = model_predict(
+                list(reversed(vital_objects)),
+                patient_id=1,
+                include_explanation=True,
+            )
+            explanations = (signal or {}).get("explanations", [])
+            features = [str(item.get("feature", "")) for item in explanations]
+            methods = sorted({str(item.get("method", "unknown")) for item in explanations})
+            rows.append(
+                {
+                    "injected_abnormality": injected,
+                    "repeat": repeat + 1,
+                    "seed": seed + repeat,
+                    "expected_feature_prefix": expected_prefix,
+                    "top_1_feature": features[0] if features else None,
+                    "top_3_features": features[:3],
+                    "top_1_match": bool(features and features[0].startswith(expected_prefix)),
+                    "top_3_match": any(
+                        feature.startswith(expected_prefix) for feature in features[:3]
+                    ),
+                    "methods": methods,
+                    "model_version": (signal or {}).get("model_version"),
+                }
+            )
+    top_1 = sum(1 for row in rows if row["top_1_match"])
+    top_3 = sum(1 for row in rows if row["top_3_match"])
+    methods = sorted({method for row in rows for method in row["methods"]})
+    return (
+        {
+            "evaluations": len(rows),
+            "top_1_matches": top_1,
+            "top_1_rate": top_1 / len(rows),
+            "top_3_matches": top_3,
+            "top_3_rate": top_3 / len(rows),
+            "methods_observed": methods,
+            "shap_available_for_all": methods == ["SHAP"],
+            "interpretation": "Feature attribution alignment; not causal explanation.",
+        },
+        rows,
+    )
+
+
+def _percentile(values: list[float], percentile: float) -> float:
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * percentile
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+
+def performance_evaluation(
+    seed: int,
+    iterations: int = 30,
+) -> tuple[dict, list[dict]]:
+    if iterations < 1:
+        raise ValueError("Performance iterations must be positive")
+    rng_readings = generate_scenario("normal_stable", seed=seed)
+    samples = []
+    with isolated_database() as db:
+        patient = create_patient(db, "Performance evaluation")
+        setup = rng_readings[:BASELINE_RECORDS]
+        with patch("early_warning.model_status", return_value={"available": False}):
+            ingest_readings(db, patient, setup)
+
+        template = setup[-1]
+        for offset in range(iterations + 1):
+            reading = replace(
+                template,
+                timestamp=(
+                    DEFAULT_START
+                    + timedelta(minutes=5 * (BASELINE_RECORDS + offset))
+                ).isoformat(),
+                heart_rate=template.heart_rate + (offset % 3) - 1,
+            )
+            started = perf_counter()
+            result = ingest_vital(
+                db,
+                reading.measurement(patient.id),
+                source="simulator",
+                verification_status="unverified",
+            )
+            assessment = build_patient_risk_assessment(db, patient)
+            elapsed_ms = (perf_counter() - started) * 1000
+            if offset == 0:
+                continue
+            samples.append(
+                {
+                    "iteration": offset,
+                    "duration_ms": round(elapsed_ms, 4),
+                    "vital_id": result.vital.id,
+                    "canonical_level": assessment.overall_level,
+                    "assessment_version": assessment.assessment_version,
+                }
+            )
+    durations = [row["duration_ms"] for row in samples]
+    environment = {
+        "platform": platform.platform(),
+        "processor": platform.processor() or "not reported",
+        "logical_cpu_count": os.cpu_count(),
+        "python": platform.python_version(),
+        "sqlalchemy": importlib.metadata.version("sqlalchemy"),
+        "scikit_learn": importlib.metadata.version("scikit-learn"),
+        "database": "SQLite in-memory",
+    }
+    return (
+        {
+            "iterations": iterations,
+            "warmup_iterations": 1,
+            "measurement": "ingest_vital through early warning, then canonical assessment available",
+            "mean_ms": round(mean(durations), 4),
+            "median_ms": round(median(durations), 4),
+            "p95_ms": round(_percentile(durations, 0.95), 4),
+            "minimum_ms": round(min(durations), 4),
+            "maximum_ms": round(max(durations), 4),
+            "environment": environment,
+        },
+        samples,
+    )
