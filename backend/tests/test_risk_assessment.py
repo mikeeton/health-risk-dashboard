@@ -100,7 +100,8 @@ def add_vital(
 
 
 def add_stable_history(db, patient_id):
-    return [add_vital(db, patient_id, index) for index in range(1, 6)]
+    # Ten prior resting observations plus the current reading satisfy baseline-v2.
+    return [add_vital(db, patient_id, index) for index in range(1, 12)]
 
 
 def add_prediction(db, patient_id, vital_id, *, probability, threshold=0.1, mode="shadow"):
@@ -164,7 +165,7 @@ def test_baseline_insufficient_is_explicit_and_not_claimed_as_reassurance(db):
     assessment = build_patient_risk_assessment(db, patient)
 
     assert assessment.baseline.ready is False
-    assert assessment.baseline.reason == "insufficient_resting_history"
+    assert assessment.baseline.reason == "insufficient_history"
     assert assessment.baseline.relative_level is None
     assert "not evidence of reassurance" in assessment.reason
 
@@ -176,6 +177,7 @@ def test_stable_patient_with_ready_baseline_is_low(db):
     assessment = build_patient_risk_assessment(db, patient)
 
     assert assessment.baseline.ready is True
+    assert assessment.baseline.version == "baseline-v2"
     assert assessment.baseline.relative_level == "low"
     assert assessment.overall_level == "low"
     assert assessment.data_quality.complete is True
