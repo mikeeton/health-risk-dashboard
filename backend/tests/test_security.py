@@ -298,7 +298,7 @@ def test_complete_role_based_clinical_workflow(
             headers=patient_headers,
             json={
                 "patient_id": patient.id,
-                "timestamp": f"{timestamp}-forbidden",
+                    "timestamp": timestamp,
                 "heart_rate": 82,
                 "spo2": 97,
                 "systolic_bp": 124,
