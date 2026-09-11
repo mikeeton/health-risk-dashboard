@@ -15,13 +15,13 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from baseline_service import build_patient_baseline, parse_observation_timestamp
 from early_warning import _critical_reasons, _trend_reasons, get_model_governance
 from ml_engine.registry import model_status, predict
 
 
 CANONICAL_RISK_VERSION = "canonical-risk-v1"
-BASELINE_METHOD = "resting_latest_five_mean_v1"
-BASELINE_REQUIRED_SAMPLES = 5
+ML_MINIMUM_VITALS = 5
 DATA_STALE_AFTER_HOURS = 24
 ML_TARGET_SEMANTICS = (
     "Probability that the subsequent six-hour window contains a "
@@ -39,90 +39,27 @@ _live_prediction_cache: dict[tuple[int, int, str, str], dict[str, Any] | None] =
 _LIVE_PREDICTION_CACHE_LIMIT = 256
 
 
-def _parse_timestamp(value: Any) -> datetime | None:
-    if isinstance(value, datetime):
-        parsed = value
-    elif isinstance(value, str):
-        try:
-            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    else:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
 def _chronological(vitals: list[models.Vital]) -> list[models.Vital]:
     minimum = datetime.min.replace(tzinfo=timezone.utc)
     return sorted(
         vitals,
-        key=lambda vital: (_parse_timestamp(vital.timestamp) or minimum, vital.id or 0),
+        key=lambda vital: (
+            parse_observation_timestamp(vital.timestamp) or minimum,
+            vital.id or 0,
+        ),
     )
 
 
-def _percentage_difference(current: float, baseline: float) -> float:
-    if baseline == 0:
-        return 0.0
-    return ((current - baseline) / baseline) * 100
-
-
-def _build_baseline(
+def _apply_patient_relative_policy(
     patient: models.Patient,
-    chronological_vitals: list[models.Vital],
     latest: models.Vital | None,
+    baseline: schemas.BaselineAssessment,
 ) -> schemas.BaselineAssessment:
-    resting = [
-        vital
-        for vital in chronological_vitals
-        if (vital.activity_state or "").strip().lower() == "resting"
-        and all(
-            getattr(vital, field, None) is not None
-            for field in (
-                "heart_rate",
-                "spo2",
-                "systolic_bp",
-                "diastolic_bp",
-                "sleep_hours",
-                "steps",
-            )
-        )
-    ]
-    samples = resting[-BASELINE_REQUIRED_SAMPLES:]
-    limitations = [
-        "Arithmetic mean of five recent resting observations; not clinically validated.",
-        "No outlier exclusion, time-windowing, baseline history, or drift protection.",
-    ]
-    if len(samples) < BASELINE_REQUIRED_SAMPLES or latest is None:
-        return schemas.BaselineAssessment(
-            ready=False,
-            method=BASELINE_METHOD,
-            sample_count=len(samples),
-            required_sample_count=BASELINE_REQUIRED_SAMPLES,
-            reason="insufficient_resting_history",
-            limitations=limitations,
-        )
+    if not baseline.ready or latest is None or not baseline.values or not baseline.deviations:
+        return baseline
 
-    def mean(field: str) -> float:
-        return sum(float(getattr(item, field)) for item in samples) / len(samples)
-
-    values = schemas.BaselineValues(
-        heart_rate=mean("heart_rate"),
-        spo2=mean("spo2"),
-        systolic_bp=mean("systolic_bp"),
-        diastolic_bp=mean("diastolic_bp"),
-        sleep_hours=mean("sleep_hours"),
-        steps=mean("steps"),
-    )
-    deviations = schemas.BaselineDeviations(
-        heart_rate_percent=_percentage_difference(latest.heart_rate, values.heart_rate),
-        spo2_percent=_percentage_difference(latest.spo2, values.spo2),
-        systolic_bp_percent=_percentage_difference(latest.systolic_bp, values.systolic_bp),
-        sleep_hours_percent=_percentage_difference(latest.sleep_hours, values.sleep_hours),
-        steps_percent=_percentage_difference(latest.steps, values.steps),
-    )
-
+    values = baseline.values
+    deviations = baseline.deviations
     score = 1
     reasons: list[str] = []
     condition = (patient.condition or "").lower()
@@ -167,17 +104,12 @@ def _build_baseline(
 
     score = max(1, min(10, score))
     level = "critical" if score >= 9 else "high" if score >= 7 else "moderate" if score >= 4 else "low"
-    return schemas.BaselineAssessment(
-        ready=True,
-        method=BASELINE_METHOD,
-        sample_count=len(samples),
-        required_sample_count=BASELINE_REQUIRED_SAMPLES,
-        relative_score=score,
-        relative_level=level,
-        values=values,
-        deviations=deviations,
-        reasons=reasons,
-        limitations=limitations,
+    return baseline.model_copy(
+        update={
+            "relative_score": score,
+            "relative_level": level,
+            "reasons": reasons,
+        }
     )
 
 
@@ -241,7 +173,7 @@ def _build_ml_components(
     live: dict[str, Any] | None = None
     if (
         governance.get("enabled", True)
-        and len(vitals_descending) >= BASELINE_REQUIRED_SAMPLES
+        and len(vitals_descending) >= ML_MINIMUM_VITALS
         and status.get("available")
     ):
         try:
@@ -269,7 +201,7 @@ def _build_ml_components(
             target_semantics=ML_TARGET_SEMANTICS,
             source="stored_prediction",
             based_on_vital_id=stored.vital_id,
-            generated_at=_parse_timestamp(stored.created_at),
+            generated_at=parse_observation_timestamp(stored.created_at),
             consecutive_positive_count=stored.consecutive_positive_count,
             active_alert_eligible=bool(stored.mode != "shadow" and stored.notified),
         )
@@ -349,8 +281,8 @@ def _build_alert(db: Session, patient_id: int) -> schemas.AlertAssessment:
         severity=alert.risk_level,
         score=alert.risk_score,
         alert_type=alert.alert_type,
-        created_at=_parse_timestamp(alert.created_at),
-        updated_at=_parse_timestamp(alert.updated_at),
+        created_at=parse_observation_timestamp(alert.created_at),
+        updated_at=parse_observation_timestamp(alert.updated_at),
     )
 
 
@@ -381,7 +313,7 @@ def _build_data_quality(latest: models.Vital | None, generated_at: datetime) -> 
         "calories",
     )
     missing = [field for field in fields if getattr(latest, field, None) is None]
-    recorded_at = _parse_timestamp(latest.timestamp)
+    recorded_at = parse_observation_timestamp(latest.timestamp)
     stale = recorded_at is None or generated_at - recorded_at > timedelta(hours=DATA_STALE_AFTER_HOURS)
     return schemas.DataQualityAssessment(
         stale=stale,
@@ -419,7 +351,12 @@ def build_patient_risk_assessment(
     latest = chronological[-1] if chronological else None
     descending = list(reversed(chronological))
 
-    baseline = _build_baseline(patient, chronological, latest)
+    baseline = build_patient_baseline(
+        db,
+        patient.id,
+        current_vital=latest,
+    )
+    baseline = _apply_patient_relative_policy(patient, latest, baseline)
     deterministic_reasons = _critical_reasons(latest) if latest else []
     deterministic = schemas.DeterministicAssessment(
         triggered=bool(deterministic_reasons),

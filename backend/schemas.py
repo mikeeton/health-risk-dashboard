@@ -390,16 +390,34 @@ class BaselineDeviations(BaseModel):
     steps_percent: float
 
 
+class BaselineMetricAssessment(BaseModel):
+    unit: str
+    mean: float | None = None
+    std_dev: float | None = None
+    current: float | None = None
+    deviation: float | None = None
+    deviation_percent: float | None = None
+    z_score: float | None = None
+    raw_sample_count: int
+    sample_count: int
+    excluded_outliers: int
+
+
 class BaselineAssessment(BaseModel):
     ready: bool
+    version: str
     method: str
+    ordering: Literal["oldest_to_newest"]
     sample_count: int
     required_sample_count: int
+    maximum_sample_count: int
+    outlier_method: str
     reason: str | None = None
     relative_score: int | None = None
     relative_level: CanonicalRiskLevel | None = None
     values: BaselineValues | None = None
     deviations: BaselineDeviations | None = None
+    metrics: dict[str, BaselineMetricAssessment] = Field(default_factory=dict)
     reasons: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
 
