@@ -5,6 +5,7 @@ The main [project README](../README.md) is the quickest introduction. This index
 ## Architecture and workflows
 
 - [Shared measurement ingestion](architecture/MEASUREMENT_INGESTION.md)
+- [Measurement validation contract](architecture/MEASUREMENT_VALIDATION.md)
 - [Patient baseline v2](architecture/PATIENT_BASELINE.md)
 - [Canonical risk assessment](architecture/CANONICAL_RISK_ASSESSMENT.md)
 - [Role workflows](architecture/ROLE_WORKFLOWS.md)

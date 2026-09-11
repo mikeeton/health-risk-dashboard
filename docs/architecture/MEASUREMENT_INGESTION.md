@@ -47,28 +47,30 @@ The shared service:
 Authentication and patient authorization remain in the routes. Provider API
 calls and measurement-code mapping remain in the Withings adapter.
 
-## Deduplication policy in Phase 3
-
-Phase 3 deliberately preserves the policies that existed before this refactor:
+## Deduplication policy
 
 - Withings uses its unique `withings:{userid}:{group_id}` external ID. An
   external ID always takes precedence and retains database-level uniqueness.
-- The manual/CSV endpoint rejects an existing patient/timestamp pair with HTTP
-  409, matching its previous behavior.
-- Nurse, wearable, and simulator sources do not receive a new deduplication
-  rule in this phase.
+- Without an external ID, the common key is normalized UTC timestamp, patient,
+  and source.
+- Equivalent offsets in legacy rows are compared as instants, so a stored
+  `12:00+02:00` matches a new `10:00+00:00` observation from the same source.
+- Duplicate measurements do not rerun early warning, audit, or live hooks. The
+  manual/CSV endpoint continues to express a duplicate as HTTP 409; other
+  adapters retain their existing success response.
 
-A universal non-provider policy is deferred to Phase 4 so this refactor does
-not silently change the meaning of duplicates.
+Only `external_id` currently has a database unique constraint. The common key
+is enforced by the service and therefore has a small concurrent-insert race
+until a future migration can safely add a database constraint after checking
+existing production data.
 
-## Validation and timestamp limitation
+## Validation
 
 Every stored production reading is revalidated against the repository's
 existing `VitalCreate` bounds. The wearable request schema now applies the same
 existing bounds to its overlapping fields before route execution.
 
-Timestamps remain stored in the existing string column and retain the incoming
-representation. Strict ISO-8601 parsing, timezone awareness, UTC
-normalisation, cross-field validation, missing-provider-value semantics, unit
-enforcement, and the universal deduplication key are Phase 4 work. This avoids
-claiming those guarantees before they are implemented and tested.
+New timestamps must be valid timezone-aware ISO-8601 datetimes and are stored
+as UTC ISO-8601 strings. Diastolic pressure may not exceed systolic pressure.
+Expected units, provider missingness, and complete bounds are documented in
+[Measurement Validation](MEASUREMENT_VALIDATION.md).

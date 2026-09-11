@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 import measurement_ingestion
 import models
+import schemas
 from database import Base
 from measurement_ingestion import AuditMetadata, PatientUpdate, ingest_vital
 
@@ -216,6 +217,33 @@ def test_diastolic_above_systolic_is_rejected(db, patient):
             measurement(patient.id, systolic_bp=100, diastolic_bp=110),
             source="manual",
         )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("steps", -1),
+        ("sleep_hours", -0.5),
+        ("active_minutes", -1),
+        ("calories", -1),
+    ],
+)
+def test_negative_activity_measurements_are_rejected(db, patient, field, value):
+    with pytest.raises(ValidationError):
+        ingest_vital(
+            db,
+            measurement(patient.id, **{field: value}),
+            source="manual",
+        )
+
+
+def test_vital_schema_exposes_internal_unit_contract():
+    properties = schemas.VitalCreate.model_json_schema()["properties"]
+
+    assert properties["heart_rate"]["description"] == "Beats per minute (bpm)"
+    assert properties["spo2"]["description"].endswith("(%)")
+    assert properties["systolic_bp"]["description"].endswith("(mmHg)")
+    assert properties["sleep_hours"]["description"] == "Hours"
 
 
 def test_common_schema_validation_rejects_invalid_measurement(db, patient):

@@ -194,16 +194,16 @@ class VitalCreate(BaseModel):
     patient_id: int = Field(gt=0)
     timestamp: str = Field(min_length=1, max_length=80)
 
-    heart_rate: int = Field(ge=20, le=240)
-    spo2: float = Field(ge=50, le=100)
+    heart_rate: int = Field(ge=20, le=240, description="Beats per minute (bpm)")
+    spo2: float = Field(ge=50, le=100, description="Peripheral oxygen saturation (%)")
 
-    systolic_bp: int = Field(ge=40, le=260)
-    diastolic_bp: int = Field(ge=20, le=180)
+    systolic_bp: int = Field(ge=40, le=260, description="Millimetres of mercury (mmHg)")
+    diastolic_bp: int = Field(ge=20, le=180, description="Millimetres of mercury (mmHg)")
 
-    steps: int = Field(ge=0, le=200000)
-    sleep_hours: float = Field(ge=0, le=24)
-    active_minutes: int = Field(ge=0, le=1440)
-    calories: int = Field(ge=0, le=20000)
+    steps: int = Field(ge=0, le=200000, description="Step count")
+    sleep_hours: float = Field(ge=0, le=24, description="Hours")
+    active_minutes: int = Field(ge=0, le=1440, description="Minutes")
+    calories: int = Field(ge=0, le=20000, description="Kilocalories (kcal)")
 
     risk_score: int = Field(ge=0, le=10)
     activity_state: str = Field(min_length=1, max_length=80)
@@ -615,12 +615,12 @@ class WearableVitalCreate(BaseModel):
 
     device_name: str
 
-    heart_rate: int = Field(ge=20, le=240)
-    spo2: float = Field(ge=50, le=100)
+    heart_rate: int = Field(ge=20, le=240, description="Beats per minute (bpm)")
+    spo2: float = Field(ge=50, le=100, description="Peripheral oxygen saturation (%)")
 
-    steps: int = Field(ge=0, le=200000)
+    steps: int = Field(ge=0, le=200000, description="Step count")
 
-    sleep_hours: float = Field(ge=0, le=24)
+    sleep_hours: float = Field(ge=0, le=24, description="Hours")
 
     timestamp: str = Field(min_length=1, max_length=80)
 
