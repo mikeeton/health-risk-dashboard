@@ -95,7 +95,7 @@ def test_ingestion_validates_persists_metadata_and_runs_downstream_hooks(
     assert audit.action == "TEST_INGEST"
 
 
-def test_patient_timestamp_duplicate_preserves_manual_api_policy(
+def test_patient_timestamp_source_duplicate_uses_common_policy(
     db, patient, monkeypatch
 ):
     evaluated = []
@@ -109,13 +109,11 @@ def test_patient_timestamp_duplicate_preserves_manual_api_policy(
         db,
         measurement(patient.id),
         source="manual",
-        deduplication="patient_timestamp",
     )
     duplicate = ingest_vital(
         db,
         measurement(patient.id, heart_rate=99),
         source="manual",
-        deduplication="patient_timestamp",
     )
 
     assert first.created is True
@@ -141,13 +139,83 @@ def test_external_id_takes_precedence_for_provider_idempotency(
         measurement(patient.id, timestamp="2026-09-11T11:00:00+00:00"),
         source="withings",
         external_id="withings:123:456",
-        deduplication="patient_timestamp",
     )
 
     assert first.created is True
     assert duplicate.created is False
     assert duplicate.vital.id == first.vital.id
     assert db.query(models.Vital).count() == 1
+
+
+def test_same_patient_timestamp_is_distinct_for_different_sources(
+    db, patient, monkeypatch
+):
+    monkeypatch.setattr(measurement_ingestion, "evaluate_new_vital", lambda *_: None)
+
+    manual = ingest_vital(db, measurement(patient.id), source="manual")
+    wearable = ingest_vital(db, measurement(patient.id), source="wearable")
+
+    assert manual.created is True
+    assert wearable.created is True
+    assert manual.vital.id != wearable.vital.id
+    assert db.query(models.Vital).count() == 2
+
+
+def test_common_deduplication_matches_legacy_equivalent_timezone(
+    db, patient, monkeypatch
+):
+    monkeypatch.setattr(measurement_ingestion, "evaluate_new_vital", lambda *_: None)
+    legacy = models.Vital(
+        **measurement(patient.id, timestamp="2026-09-11T12:00:00+02:00"),
+        source="manual",
+    )
+    db.add(legacy)
+    db.commit()
+    db.refresh(legacy)
+
+    duplicate = ingest_vital(
+        db,
+        measurement(patient.id, timestamp="2026-09-11T10:00:00Z"),
+        source="manual",
+    )
+
+    assert duplicate.created is False
+    assert duplicate.vital.id == legacy.id
+    assert db.query(models.Vital).count() == 1
+
+
+def test_timestamp_is_normalized_to_utc(db, patient, monkeypatch):
+    monkeypatch.setattr(measurement_ingestion, "evaluate_new_vital", lambda *_: None)
+
+    result = ingest_vital(
+        db,
+        measurement(patient.id, timestamp="2026-09-11T12:30:00+02:00"),
+        source="manual",
+    )
+
+    assert result.vital.timestamp == "2026-09-11T10:30:00+00:00"
+
+
+@pytest.mark.parametrize(
+    "timestamp",
+    ["not-a-timestamp", "2026-09-11T10:00:00"],
+)
+def test_invalid_or_timezone_naive_timestamp_is_rejected(db, patient, timestamp):
+    with pytest.raises(ValidationError):
+        ingest_vital(
+            db,
+            measurement(patient.id, timestamp=timestamp),
+            source="manual",
+        )
+
+
+def test_diastolic_above_systolic_is_rejected(db, patient):
+    with pytest.raises(ValidationError):
+        ingest_vital(
+            db,
+            measurement(patient.id, systolic_bp=100, diastolic_bp=110),
+            source="manual",
+        )
 
 
 def test_common_schema_validation_rejects_invalid_measurement(db, patient):

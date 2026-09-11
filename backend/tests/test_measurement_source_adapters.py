@@ -61,7 +61,6 @@ def test_manual_api_delegates_legacy_dedup_and_audit(monkeypatch):
     assert vitals.create_vital(payload, db=object(), current_user=user()) is stored
     assert captured["payload"] is payload
     assert captured["source"] == "manual"
-    assert captured["deduplication"] == "patient_timestamp"
     assert captured["audit"].action == "CREATE_VITAL"
 
 
@@ -179,6 +178,7 @@ def test_simulator_adapter_delegates_patient_update_and_audit(monkeypatch):
 
     assert response["vital"] is stored
     assert captured["source"] == "simulator"
+    assert captured["payload"]["timestamp"].endswith("+00:00")
     assert captured["patient_update"].last_checkup is not None
     assert captured["audit"].action == "CONDITION_BASED_SIMULATOR_GENERATE_VITAL"
 

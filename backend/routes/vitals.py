@@ -28,7 +28,6 @@ def create_vital(
         db,
         vital,
         source=vital.source,
-        deduplication="patient_timestamp",
         audit=AuditMetadata(
             action="CREATE_VITAL",
             user_email=current_user.email,

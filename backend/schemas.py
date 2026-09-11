@@ -2,7 +2,9 @@ from datetime import datetime, date
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from datetime import datetime, timezone
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 COMMON_PASSWORDS = {
@@ -171,6 +173,17 @@ class StaffAssignmentResponse(BaseModel):
 # VITALS
 # =========================
 
+def normalize_vital_timestamp(value: str) -> str:
+    """Return a timezone-aware vital timestamp normalized to UTC."""
+    candidate = value.strip()
+    try:
+        parsed = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("timestamp must be a valid ISO-8601 datetime") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("timestamp must include a timezone offset")
+    return parsed.astimezone(timezone.utc).isoformat()
+
 class VitalCreate(BaseModel):
     """Validated vital reading.
 
@@ -195,6 +208,14 @@ class VitalCreate(BaseModel):
     risk_score: int = Field(ge=0, le=10)
     activity_state: str = Field(min_length=1, max_length=80)
     source: Literal["manual", "csv_upload", "simulator", "demo_seed", "withings", "wearable"] = "manual"
+
+    _normalize_timestamp = field_validator("timestamp")(normalize_vital_timestamp)
+
+    @model_validator(mode="after")
+    def validate_blood_pressure_order(self):
+        if self.diastolic_bp > self.systolic_bp:
+            raise ValueError("diastolic blood pressure cannot exceed systolic blood pressure")
+        return self
 
 
 class VitalResponse(BaseModel):
@@ -602,6 +623,8 @@ class WearableVitalCreate(BaseModel):
     sleep_hours: float = Field(ge=0, le=24)
 
     timestamp: str = Field(min_length=1, max_length=80)
+
+    _normalize_timestamp = field_validator("timestamp")(normalize_vital_timestamp)
 
 
 class WearableDeviceResponse(BaseModel):

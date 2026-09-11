@@ -26,7 +26,6 @@ VitalSource = Literal[
     "withings",
     "wearable",
 ]
-DeduplicationMode = Literal["none", "patient_timestamp"]
 PostIngestHook = Callable[[models.Vital], Any]
 
 
@@ -70,7 +69,6 @@ def _find_duplicate(
     db: Session,
     measurement: schemas.VitalCreate,
     external_id: str | None,
-    deduplication: DeduplicationMode,
 ) -> models.Vital | None:
     with db.no_autoflush:
         if external_id:
@@ -79,13 +77,21 @@ def _find_duplicate(
                 .filter(models.Vital.external_id == external_id)
                 .first()
             )
-        if deduplication == "patient_timestamp":
-            return (
-                db.query(models.Vital)
-                .filter(models.Vital.patient_id == measurement.patient_id)
-                .filter(models.Vital.timestamp == measurement.timestamp)
-                .first()
-            )
+        candidates = (
+            db.query(models.Vital)
+            .filter(models.Vital.patient_id == measurement.patient_id)
+            .filter(models.Vital.source == measurement.source)
+            .all()
+        )
+        for candidate in candidates:
+            try:
+                candidate_timestamp = schemas.normalize_vital_timestamp(
+                    candidate.timestamp
+                )
+            except (TypeError, ValueError):
+                continue
+            if candidate_timestamp == measurement.timestamp:
+                return candidate
     return None
 
 
@@ -95,7 +101,6 @@ def ingest_vital(
     *,
     source: VitalSource,
     external_id: str | None = None,
-    deduplication: DeduplicationMode = "none",
     recorded_by_user_id: int | None = None,
     verification_status: str | None = None,
     patient_update: PatientUpdate | None = None,
@@ -109,7 +114,7 @@ def ingest_vital(
     processing, audits, or live-update hooks.
     """
     measurement = _normalise_measurement(measurement_data, source)
-    existing = _find_duplicate(db, measurement, external_id, deduplication)
+    existing = _find_duplicate(db, measurement, external_id)
     if existing:
         return IngestionResult(vital=existing, created=False)
 
@@ -156,7 +161,7 @@ def ingest_vital(
         # Recover idempotently from concurrent provider deliveries, but do not
         # disguise unrelated integrity failures.
         if external_id:
-            existing = _find_duplicate(db, measurement, external_id, "none")
+            existing = _find_duplicate(db, measurement, external_id)
             if existing:
                 return IngestionResult(vital=existing, created=False)
         raise

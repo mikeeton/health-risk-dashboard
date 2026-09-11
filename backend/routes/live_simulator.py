@@ -1,5 +1,5 @@
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
@@ -281,7 +281,7 @@ def generate_live_vital(
         db,
         {
             "patient_id": patient.id,
-            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             **generated,
         },
         source="simulator",

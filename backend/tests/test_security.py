@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -266,7 +266,7 @@ def test_complete_role_based_clinical_workflow(
         assert assignment.status_code == 200
         created_ids["assignment"] = assignment.json()["id"]
 
-        timestamp = datetime.now().isoformat(timespec="microseconds")
+        timestamp = datetime.now(timezone.utc).isoformat(timespec="microseconds")
         vital = client.post(
             "/vitals/",
             headers=doctor_headers,
