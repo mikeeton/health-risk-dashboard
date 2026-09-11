@@ -12,6 +12,7 @@ import random
 
 SCENARIO_VERSION = "synthetic-scenarios-v1"
 DEFAULT_START = datetime(2026, 9, 11, 8, 0, tzinfo=timezone.utc)
+BASELINE_RECORDS = 15
 SUPPORTED_SCENARIOS = (
     "normal_stable",
     "single_spike",
@@ -46,7 +47,7 @@ def _stable_history(
     rng: random.Random,
     *,
     start: datetime,
-    count: int = 10,
+    count: int = BASELINE_RECORDS,
     baseline_heart_rate: int = 70,
 ) -> list[ScenarioReading]:
     readings = []
