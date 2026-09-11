@@ -22,6 +22,8 @@ The main [project README](../README.md) is the quickest introduction. This index
 ## Security and testing
 
 - [Security policy and reporting](security/SECURITY.md)
+- [Isolated PostgreSQL verification](testing/LOCAL_POSTGRESQL.md)
+- [Phase 6 infrastructure and CI verification](testing/PHASE_6_INFRASTRUCTURE_REPORT.md)
 - [Product test and deployment-readiness report](testing/PRODUCT_TEST_REPORT.md)
 - [Formal test matrix](FORMAL_TEST_MATRIX.md)
 - [Accessibility test plan](ACCESSIBILITY_TEST_PLAN.md)
