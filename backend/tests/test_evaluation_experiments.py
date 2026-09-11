@@ -77,6 +77,15 @@ def test_canonical_risk_is_independent_of_groq():
     assert result["alert_identical"] is True
 
 
+def test_security_boundary_denies_outsider_and_pseudonymizes_ai_context():
+    result = experiments.security_boundary_result(seed=7)
+
+    assert result["passed"] is True
+    assert result["unauthorized_canonical_access_status"] == 404
+    assert result["assistant_context_patient_name_absent"] is True
+    assert result["assistant_context_pseudonym_present"] is True
+
+
 def test_false_alert_rate_uses_normal_synthetic_sequences():
     summary, rows = experiments.false_alert_evaluation(seed=7, trials=3)
 

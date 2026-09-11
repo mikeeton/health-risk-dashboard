@@ -18,6 +18,7 @@ from .experiments import (
     performance_evaluation,
     persistence_comparison,
     scenario_outcomes,
+    security_boundary_result,
     shadow_mode_result,
     shap_attribution_evaluation,
 )
@@ -81,6 +82,7 @@ def run_evaluation_suite(
     critical = critical_override_results(seed)
     shadow = shadow_mode_result(seed)
     groq = groq_independence_result(seed)
+    security = security_boundary_result(seed)
     false_alert_summary, false_alert_rows = false_alert_evaluation(
         seed, false_alert_trials
     )
@@ -101,7 +103,7 @@ def run_evaluation_suite(
             "software_correctness": True,
             "ml_proof_of_concept": True,
             "performance": True,
-            "security": False,
+            "security": True,
             "reliability": True,
             "clinical_validation": False,
         },
@@ -119,6 +121,7 @@ def run_evaluation_suite(
             "attribution_methods": attribution_summary["methods_observed"],
             "shadow_mode_passed": shadow["passed"],
             "groq_independence_passed": groq["passed"],
+            "security_boundary_passed": security["passed"],
             "performance_mean_ms": performance_summary["mean_ms"],
             "performance_median_ms": performance_summary["median_ms"],
             "performance_p95_ms": performance_summary["p95_ms"],
@@ -177,6 +180,7 @@ def run_evaluation_suite(
         "methodology.json": methodology,
         "shadow_mode.json": shadow,
         "groq_independence.json": groq,
+        "security_boundary.json": security,
         "false_alert_summary.json": false_alert_summary,
         "shap_attribution_summary.json": attribution_summary,
         "performance_summary.json": performance_summary,
@@ -188,7 +192,7 @@ def run_evaluation_suite(
 
     manifest = {
         "evaluation_version": EVALUATION_VERSION,
-        "output_directory": str(output_dir.resolve()),
+        "output_directory": ".",
         "files": sorted([*csv_outputs, *json_outputs]),
     }
     _write_json(output_dir / "manifest.json", manifest)

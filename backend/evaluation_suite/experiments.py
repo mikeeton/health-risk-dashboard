@@ -13,6 +13,7 @@ from time import perf_counter
 from typing import Iterator
 from unittest.mock import patch
 
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -420,6 +421,45 @@ def groq_independence_result(seed: int) -> dict:
             "groq_called_by_canonical": False,
             "narrative_output_evaluated": False,
             "passed": disabled_value == enabled_value,
+        }
+
+
+def security_boundary_result(seed: int) -> dict:
+    from routes.assistant import build_patient_context
+    from routes.patients import get_patient_risk_assessment
+
+    with isolated_database() as db:
+        patient = create_patient(db, "Never Expose Evaluation Name")
+        readings = generate_scenario("normal_stable", seed=seed)
+        with patch("early_warning.model_status", return_value={"available": False}):
+            ingest_readings(db, patient, readings)
+        outsider = models.User(
+            email="evaluation-outsider@example.invalid",
+            full_name="Evaluation Outsider",
+            role="doctor",
+            password_hash="not-a-real-login",
+            status="active",
+        )
+        db.add(outsider)
+        db.commit()
+        db.refresh(outsider)
+
+        status_code = None
+        try:
+            get_patient_risk_assessment(patient.id, db, outsider)
+        except HTTPException as exc:
+            status_code = exc.status_code
+
+        context = build_patient_context(patient.id, db)
+        name_absent = patient.name not in context
+        pseudonym_present = f"patient-{patient.id}" in context
+        return {
+            "unauthorized_canonical_access_status": status_code,
+            "unauthorized_access_denied": status_code == 404,
+            "assistant_context_patient_name_absent": name_absent,
+            "assistant_context_pseudonym_present": pseudonym_present,
+            "synthetic_data_only": True,
+            "passed": status_code == 404 and name_absent and pseudonym_present,
         }
 
 
