@@ -217,6 +217,11 @@ def test_withings_adapter_preserves_external_id_and_live_hook(monkeypatch):
         return {
             "measuregrps": [
                 {
+                    "grpid": 455,
+                    "date": 1789120700,
+                    "measures": [{"type": 11, "value": 73, "unit": 0}],
+                },
+                {
                     "grpid": 456,
                     "date": 1789120800,
                     "measures": [
@@ -233,8 +238,10 @@ def test_withings_adapter_preserves_external_id_and_live_hook(monkeypatch):
         published.append((patient_id, payload))
 
     captured = {}
+    ingest_calls = []
 
     def fake_ingest(db_arg, payload, **kwargs):
+        ingest_calls.append(kwargs["external_id"])
         captured.update(payload=payload, **kwargs)
         stored = SimpleNamespace(
             id=99,
@@ -261,6 +268,24 @@ def test_withings_adapter_preserves_external_id_and_live_hook(monkeypatch):
     monkeypatch.setattr(integrations_withings, "withings_post", measurements)
     monkeypatch.setattr(integrations_withings, "publish", publish)
     monkeypatch.setattr(integrations_withings, "ingest_vital", fake_ingest)
+    def mapped_vital(values):
+        if values.get(11) == 73:
+            return {"heart_rate": 73}, ["spo2", "systolic_bp"]
+        return (
+            {
+                "heart_rate": 74,
+                "spo2": 98,
+                "systolic_bp": 120,
+                "diastolic_bp": 80,
+                "steps": 4000,
+                "sleep_hours": 7,
+                "active_minutes": 35,
+                "calories": 1800,
+            },
+            [],
+        )
+
+    monkeypatch.setattr(integrations_withings, "map_withings_vital", mapped_vital)
 
     class WebhookRequest:
         async def body(self):
@@ -275,9 +300,26 @@ def test_withings_adapter_preserves_external_id_and_live_hook(monkeypatch):
         db.close()
 
     assert response.status_code == 204
+    assert ingest_calls == ["withings:provider-user-1:456"]
     assert captured["source"] == "withings"
     assert captured["external_id"] == "withings:provider-user-1:456"
     assert captured["patient_update"].last_checkup is not None
     assert published[0][0] == patient_id
     assert published[0][1]["source"] == "withings"
     assert published[0][1]["persisted"] is True
+
+
+def test_withings_mapping_reports_missing_fields_without_defaults():
+    mapped, missing = integrations_withings.map_withings_vital(
+        {11: 74, 54: 97.5}
+    )
+
+    assert mapped == {"heart_rate": 74, "spo2": 97.5}
+    assert missing == [
+        "systolic_bp",
+        "diastolic_bp",
+        "steps",
+        "sleep_hours",
+        "active_minutes",
+        "calories",
+    ]

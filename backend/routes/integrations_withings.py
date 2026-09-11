@@ -7,6 +7,7 @@ authenticated Withings Data API before validation and persistence.
 
 from datetime import datetime, timedelta, timezone
 import json
+import logging
 from urllib.parse import parse_qs, urlencode
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -30,6 +31,24 @@ router = APIRouter(prefix="/integrations/withings", tags=["Withings"])
 settings = get_settings()
 WITHINGS_API = "https://wbsapi.withings.net"
 WITHINGS_AUTHORIZE = "https://account.withings.com/oauth2_user/authorize2"
+logger = logging.getLogger(__name__)
+
+WITHINGS_VITAL_MEASURE_TYPES = {
+    "heart_rate": 11,
+    "spo2": 54,
+    "systolic_bp": 10,
+    "diastolic_bp": 9,
+}
+WIDE_VITAL_FIELDS = (
+    "heart_rate",
+    "spo2",
+    "systolic_bp",
+    "diastolic_bp",
+    "steps",
+    "sleep_hours",
+    "active_minutes",
+    "calories",
+)
 
 
 def utc_now_naive():
@@ -261,6 +280,25 @@ def measurement_values(group: dict) -> dict[int, float]:
     return values
 
 
+def map_withings_vital(values: dict[int, float]) -> tuple[dict, list[str]]:
+    """Map only values actually supplied by Withings; never synthesize gaps."""
+    mapped = {
+        field: values[measure_type]
+        for field, measure_type in WITHINGS_VITAL_MEASURE_TYPES.items()
+        if measure_type in values
+    }
+    if "heart_rate" in mapped:
+        mapped["heart_rate"] = round(mapped["heart_rate"])
+    if "spo2" in mapped:
+        mapped["spo2"] = round(mapped["spo2"], 1)
+    if "systolic_bp" in mapped:
+        mapped["systolic_bp"] = round(mapped["systolic_bp"])
+    if "diastolic_bp" in mapped:
+        mapped["diastolic_bp"] = round(mapped["diastolic_bp"])
+    missing = [field for field in WIDE_VITAL_FIELDS if field not in mapped]
+    return mapped, missing
+
+
 @router.post("/webhook", status_code=204)
 async def webhook(request: Request, db: Session = Depends(get_db)):
     parsed = parse_qs((await request.body()).decode("utf-8", errors="ignore"))
@@ -289,21 +327,26 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
         },
         access_token=token,
     )
-    latest = (
-        db.query(models.Vital)
-        .filter(models.Vital.patient_id == connection.patient_id)
-        .order_by(models.Vital.id.desc())
-        .first()
-    )
     for group in body.get("measuregrps", []):
         external_id = f"withings:{userid}:{group.get('grpid')}"
         values = measurement_values(group)
-        heart_rate = round(values.get(11, latest.heart_rate if latest else 70))
-        spo2 = round(values.get(54, latest.spo2 if latest else 98), 1)
-        systolic = round(values.get(10, latest.systolic_bp if latest else 120))
-        diastolic = round(values.get(9, latest.diastolic_bp if latest else 80))
+        mapped, missing = map_withings_vital(values)
+        if missing:
+            logger.warning(
+                "Skipping incomplete Withings measurement",
+                extra={
+                    "patient_id": connection.patient_id,
+                    "external_id": external_id,
+                    "missing_fields": missing,
+                },
+            )
+            continue
         risk_score = calculate_risk_score(
-            heart_rate, spo2, systolic, diastolic, latest.sleep_hours if latest else 0
+            mapped["heart_rate"],
+            mapped["spo2"],
+            mapped["systolic_bp"],
+            mapped["diastolic_bp"],
+            mapped["sleep_hours"],
         )
         measured_at = datetime.fromtimestamp(
             int(group.get("date", enddate)), tz=timezone.utc
@@ -315,14 +358,7 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
             {
                 "patient_id": connection.patient_id,
                 "timestamp": measured_at,
-                "heart_rate": heart_rate,
-                "spo2": spo2,
-                "systolic_bp": systolic,
-                "diastolic_bp": diastolic,
-                "steps": latest.steps if latest else 0,
-                "sleep_hours": latest.sleep_hours if latest else 0,
-                "active_minutes": latest.active_minutes if latest else 0,
-                "calories": latest.calories if latest else 0,
+                **mapped,
                 "risk_score": risk_score,
                 "activity_state": "withings_device",
             },
