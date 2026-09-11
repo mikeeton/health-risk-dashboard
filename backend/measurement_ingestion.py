@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Literal, Mapping
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import models
@@ -59,9 +59,9 @@ def _normalise_measurement(
         else dict(measurement_data)
     )
     # Full ISO-8601 parsing and UTC normalisation are deliberately introduced
-    # in Phase 4. For now, centralise the existing string representation.
+    # in Phase 4. For now, preserve the existing string representation.
     if "timestamp" in data:
-        data["timestamp"] = str(data["timestamp"]).strip()
+        data["timestamp"] = str(data["timestamp"])
     data["source"] = source
     return schemas.VitalCreate.model_validate(data)
 
@@ -72,19 +72,20 @@ def _find_duplicate(
     external_id: str | None,
     deduplication: DeduplicationMode,
 ) -> models.Vital | None:
-    if external_id:
-        return (
-            db.query(models.Vital)
-            .filter(models.Vital.external_id == external_id)
-            .first()
-        )
-    if deduplication == "patient_timestamp":
-        return (
-            db.query(models.Vital)
-            .filter(models.Vital.patient_id == measurement.patient_id)
-            .filter(models.Vital.timestamp == measurement.timestamp)
-            .first()
-        )
+    with db.no_autoflush:
+        if external_id:
+            return (
+                db.query(models.Vital)
+                .filter(models.Vital.external_id == external_id)
+                .first()
+            )
+        if deduplication == "patient_timestamp":
+            return (
+                db.query(models.Vital)
+                .filter(models.Vital.patient_id == measurement.patient_id)
+                .filter(models.Vital.timestamp == measurement.timestamp)
+                .first()
+            )
     return None
 
 
@@ -158,6 +159,9 @@ def ingest_vital(
             existing = _find_duplicate(db, measurement, external_id, "none")
             if existing:
                 return IngestionResult(vital=existing, created=False)
+        raise
+    except SQLAlchemyError:
+        db.rollback()
         raise
 
     db.refresh(vital)

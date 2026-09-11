@@ -590,18 +590,18 @@ class ReferralResponse(BaseModel):
 # =========================
 
 class WearableVitalCreate(BaseModel):
-    patient_id: int
+    patient_id: int = Field(gt=0)
 
     device_name: str
 
-    heart_rate: int
-    spo2: float
+    heart_rate: int = Field(ge=20, le=240)
+    spo2: float = Field(ge=50, le=100)
 
-    steps: int
+    steps: int = Field(ge=0, le=200000)
 
-    sleep_hours: float
+    sleep_hours: float = Field(ge=0, le=24)
 
-    timestamp: str
+    timestamp: str = Field(min_length=1, max_length=80)
 
 
 class WearableDeviceResponse(BaseModel):

@@ -3,6 +3,7 @@ import asyncio
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 import measurement_ingestion
@@ -178,3 +179,19 @@ def test_async_live_hook_is_invoked_by_pipeline_and_can_be_awaited(
     asyncio.run(result.hook_result)
 
     assert published == [result.vital.id]
+
+
+def test_transaction_rolls_back_vital_when_audit_write_fails(
+    db, patient, monkeypatch
+):
+    monkeypatch.setattr(measurement_ingestion, "evaluate_new_vital", lambda *_: None)
+
+    with pytest.raises(IntegrityError):
+        ingest_vital(
+            db,
+            measurement(patient.id),
+            source="manual",
+            audit=AuditMetadata(action=None),
+        )
+
+    assert db.query(models.Vital).count() == 0

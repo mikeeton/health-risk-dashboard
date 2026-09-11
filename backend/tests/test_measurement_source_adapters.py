@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -139,6 +140,19 @@ def test_wearable_adapter_maps_defaults_and_source(monkeypatch):
     assert captured["source"] == "wearable"
     assert captured["payload"]["activity_state"] == "watch_sync"
     assert captured["payload"]["systolic_bp"] == 120
+
+
+def test_wearable_request_uses_existing_common_vital_bounds():
+    with pytest.raises(ValidationError):
+        schemas.WearableVitalCreate(
+            patient_id=42,
+            device_name="Invalid Watch",
+            heart_rate=300,
+            spo2=98,
+            steps=5000,
+            sleep_hours=7,
+            timestamp="2026-09-11T10:00:00+00:00",
+        )
 
 
 def test_simulator_adapter_delegates_patient_update_and_audit(monkeypatch):

@@ -4,6 +4,9 @@ The main [project README](../README.md) is the quickest introduction. This index
 
 ## Architecture and workflows
 
+- [Shared measurement ingestion](architecture/MEASUREMENT_INGESTION.md)
+- [Patient baseline v2](architecture/PATIENT_BASELINE.md)
+- [Canonical risk assessment](architecture/CANONICAL_RISK_ASSESSMENT.md)
 - [Role workflows](architecture/ROLE_WORKFLOWS.md)
 - [Application and research separation](RESEARCH_ARCHITECTURE.md)
 
@@ -38,4 +41,3 @@ The main [project README](../README.md) is the quickest introduction. This index
 - [Development issues and fixes](development/DEVELOPMENT_ISSUES_AND_FIXES.md)
 
 The dated status and test-report documents are retained as project history. For current capability claims, prefer the repository implementation, automated checks, model card, and latest claims-versus-code audit.
-
