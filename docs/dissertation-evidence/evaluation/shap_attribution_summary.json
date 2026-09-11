@@ -1,0 +1,12 @@
+{
+  "evaluations": 10,
+  "interpretation": "Feature attribution alignment; not causal explanation.",
+  "methods_observed": [
+    "model coefficient fallback"
+  ],
+  "shap_available_for_all": false,
+  "top_1_matches": 5,
+  "top_1_rate": 0.5,
+  "top_3_matches": 5,
+  "top_3_rate": 0.5
+}

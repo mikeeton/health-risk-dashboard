@@ -1,0 +1,8 @@
+{
+  "false_alert_rate": 0.0,
+  "false_alerts": 0,
+  "governance_mode": "live",
+  "label_source": "fixed-seed synthetic normal scenario",
+  "ml_enabled": false,
+  "normal_sequences": 30
+}

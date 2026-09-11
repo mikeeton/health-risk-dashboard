@@ -1,0 +1,22 @@
+{
+  "evaluation_version": "dissertation-evaluation-v1",
+  "files": [
+    "baseline_personalization.csv",
+    "critical_override.csv",
+    "false_alert_summary.json",
+    "false_alert_trials.csv",
+    "groq_independence.json",
+    "methodology.json",
+    "multi_signal_comparison.csv",
+    "performance_samples.csv",
+    "performance_summary.json",
+    "persistence_comparison.csv",
+    "scenario_outcomes.csv",
+    "security_boundary.json",
+    "shadow_mode.json",
+    "shap_attribution.csv",
+    "shap_attribution_summary.json",
+    "summary.json"
+  ],
+  "output_directory": "."
+}

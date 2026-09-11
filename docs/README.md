@@ -33,6 +33,7 @@ The main [project README](../README.md) is the quickest introduction. This index
 - [Validation and generalisation plan](VALIDATION_AND_GENERALISATION.md)
 - [Regulatory preparation boundary](REGULATORY_PREPARATION.md)
 - [Dissertation implementation evidence](DISSERTATION_EVIDENCE.md)
+- [Reproducible dissertation evaluation suite](dissertation-evidence/README.md)
 - [Generated evidence pack](evidence/README.md)
 - [Dissertation source, figures, screenshots, and audits](dissertation/)
 

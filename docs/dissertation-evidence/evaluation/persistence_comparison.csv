@@ -1,0 +1,3 @@
+abnormal_readings,canonical_level,alert_count,alert_severity,duplicate_updates
+1,moderate,1,Moderate,0
+5,moderate,1,Moderate,3

@@ -1,0 +1,16 @@
+{
+  "attribution_repeats_per_abnormality": 5,
+  "data": "Synthetic, fixed-seed observations only; no patient-identifiable data.",
+  "evaluation_version": "dissertation-evaluation-v1",
+  "false_alert_trials": 30,
+  "notes": [
+    "Controlled ML outputs are used only for the shadow-governance experiment.",
+    "Groq is never called; the independence test installs a fail-if-called stub.",
+    "All other ML probabilities, anomaly signals, and attributions use the installed artifact."
+  ],
+  "performance_iterations": 30,
+  "performance_warmup_iterations": 1,
+  "scenario_version": "synthetic-scenarios-v1",
+  "seed": 20260911,
+  "system_under_test": "Shared ingestion, baseline-v2, early warning, canonical-risk-v1, the installed versioned ML artifact, and its attribution implementation."
+}

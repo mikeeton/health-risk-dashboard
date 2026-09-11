@@ -1,0 +1,11 @@
+{
+  "active_alert_eligible": false,
+  "controlled_probability": 0.8,
+  "governance_mode": "shadow",
+  "latest_prediction_stored": true,
+  "ml_classification": "high",
+  "operating_threshold": 0.1,
+  "passed": true,
+  "review_cases": 0,
+  "stored_predictions": 2
+}

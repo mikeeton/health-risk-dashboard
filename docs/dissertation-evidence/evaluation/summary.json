@@ -1,0 +1,48 @@
+{
+  "classification": {
+    "clinical_validation": false,
+    "ml_proof_of_concept": true,
+    "performance": true,
+    "reliability": true,
+    "security": true,
+    "software_correctness": true
+  },
+  "evaluation_version": "dissertation-evaluation-v1",
+  "generated_at": "2026-09-11T21:29:57.485999+00:00",
+  "headline_results": {
+    "attribution_methods": [
+      "model coefficient fallback"
+    ],
+    "attribution_top_1_rate": 0.5,
+    "attribution_top_3_rate": 0.5,
+    "baseline_personalization_z_ratio": 5.7772,
+    "critical_override_cases": 3,
+    "critical_override_passes": 3,
+    "critical_override_rate": 1.0,
+    "false_alert_rate": 0.0,
+    "groq_independence_passed": true,
+    "performance_mean_ms": 22.0232,
+    "performance_median_ms": 10.9621,
+    "performance_p95_ms": 85.4816,
+    "scenario_count": 8,
+    "security_boundary_passed": true,
+    "shadow_mode_passed": true
+  },
+  "limitations": [
+    "Scenario labels are synthetic fixtures, not clinical ground truth.",
+    "The committed ML target is a threshold-derived six-hour proxy outcome.",
+    "Attribution describes model feature contribution and is not causal explanation.",
+    "Performance uses SQLite in-memory on one development workstation, not production hosting.",
+    "False-alert estimates cover generated normal sequences and do not estimate a clinical population rate.",
+    "No clinician-led calibration or clinical validation is claimed."
+  ],
+  "model_artifact": {
+    "available": true,
+    "model_version": "physionet-critical-v1",
+    "operating_threshold": 0.014000000000000002,
+    "schema_version": "wearable-risk-v1",
+    "selected_model": "logistic_regression"
+  },
+  "scenario_version": "synthetic-scenarios-v1",
+  "seed": 20260911
+}

@@ -1,0 +1,19 @@
+{
+  "environment": {
+    "database": "SQLite in-memory",
+    "logical_cpu_count": 8,
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 23 Model 160 Stepping 0, AuthenticAMD",
+    "python": "3.14.5",
+    "scikit_learn": "1.9.0",
+    "sqlalchemy": "2.0.51"
+  },
+  "iterations": 30,
+  "maximum_ms": 216.5709,
+  "mean_ms": 22.0232,
+  "measurement": "ingest_vital through early warning, then canonical assessment available",
+  "median_ms": 10.9621,
+  "minimum_ms": 7.8589,
+  "p95_ms": 85.4816,
+  "warmup_iterations": 1
+}
