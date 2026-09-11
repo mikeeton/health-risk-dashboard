@@ -2,6 +2,17 @@
 
 This backend uses Alembic for PostgreSQL schema changes.
 
+For a reproducible clean-database upgrade, downgrade/upgrade rehearsal, and
+complete backend test run, use the repository's disposable PostgreSQL setup
+from the repository root:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-postgresql.ps1
+```
+
+See [`docs/testing/LOCAL_POSTGRESQL.md`](../docs/testing/LOCAL_POSTGRESQL.md)
+for isolation guarantees, diagnostic options, and the optional Redis profile.
+
 Run migrations from the `backend` directory:
 
 ```bash
