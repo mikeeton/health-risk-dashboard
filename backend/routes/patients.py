@@ -15,6 +15,7 @@ from access_control import (
 )
 from auth_utils import get_current_user
 from database import get_db
+from risk_assessment import build_patient_risk_assessment
 from routes.audit import write_audit_log
 
 router = APIRouter(
@@ -148,6 +149,24 @@ def get_patient(
     current_user: models.User = Depends(get_current_user),
 ):
     return get_accessible_patient(db, patient_id, current_user)
+
+
+@router.get(
+    "/{patient_id}/risk-assessment",
+    response_model=schemas.CanonicalRiskAssessment,
+)
+def get_patient_risk_assessment(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Return the versioned patient-level presentation contract.
+
+    This route is read-only. It does not invoke Groq, persist predictions, or
+    create ReviewCases; those responsibilities remain in their existing flows.
+    """
+    patient = get_accessible_patient(db, patient_id, current_user)
+    return build_patient_risk_assessment(db, patient)
 
 
 @router.patch("/{patient_id}/care-team", response_model=schemas.PatientResponse)
