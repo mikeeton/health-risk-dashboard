@@ -41,16 +41,23 @@ downgrade a current deterministic Critical result.
 
 ## Patient-relative baseline signal
 
-`baseline-v1` is represented by the method identifier
-`resting_latest_five_mean_v1`. Vitals are parsed and sorted chronologically, and
-the five most recent complete readings marked `resting` are averaged. The
-response exposes sample count, required count, averages, current percentage
-deviations, relative score/level, reasons, and limitations.
+`baseline-v2` is represented by the method identifier
+`recent_resting_prior_observations_v2`. It is owned by `baseline_service.py`.
+The service parses timestamps to UTC, orders observations oldest-to-newest, and
+compares the current reading with up to 30 preceding resting observations. The
+current reading is never included in its own reference baseline.
 
-This first version intentionally retains the former dashboard's basic mean and
-point semantics. It adds deterministic ordering and an explicit not-ready state,
-but it does not provide outlier exclusion, a time window, baseline history, or
-drift protection. Those are later baseline-hardening concerns.
+Each metric requires 10 samples after per-metric median-absolute-deviation
+filtering at a modified-z cutoff of 3.5. The response exposes mean, sample
+standard deviation, current absolute/percentage deviation, z-score, raw and
+retained sample counts, and excluded-outlier count. The original summary values
+remain present for compatibility with the canonical patient-relative point
+policy.
+
+The observation-count window is intentional because repository data density
+varies substantially between simulator, manual, and wearable sources. This is
+still a proof-of-concept baseline: it has no historical persistence, fixed-day
+window, multivariate outlier treatment, or gradual-deterioration freeze policy.
 
 ## ML prediction
 
