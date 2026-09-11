@@ -365,6 +365,119 @@ class MLPredictionResponse(BaseModel):
     source: str
     message: str
 
+
+# =========================
+# CANONICAL RISK ASSESSMENT
+# =========================
+
+CanonicalRiskLevel = Literal["low", "moderate", "high", "critical"]
+
+
+class BaselineValues(BaseModel):
+    heart_rate: float
+    spo2: float
+    systolic_bp: float
+    diastolic_bp: float
+    sleep_hours: float
+    steps: float
+
+
+class BaselineDeviations(BaseModel):
+    heart_rate_percent: float
+    spo2_percent: float
+    systolic_bp_percent: float
+    sleep_hours_percent: float
+    steps_percent: float
+
+
+class BaselineAssessment(BaseModel):
+    ready: bool
+    method: str
+    sample_count: int
+    required_sample_count: int
+    reason: str | None = None
+    relative_score: int | None = None
+    relative_level: CanonicalRiskLevel | None = None
+    values: BaselineValues | None = None
+    deviations: BaselineDeviations | None = None
+    reasons: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class DeterministicAssessment(BaseModel):
+    triggered: bool
+    level: Literal["critical"] | None = None
+    reasons: list[str] = Field(default_factory=list)
+
+
+class MLRiskAssessment(BaseModel):
+    available: bool
+    reason: str | None = None
+    probability: float | None = None
+    classification: Literal["low", "moderate", "high"] | None = None
+    operating_threshold: float | None = None
+    model_version: str | None = None
+    governance_mode: str
+    prediction_window_hours: int = 6
+    target_semantics: str
+    source: Literal["stored_prediction", "live_read_only", "unavailable"]
+    based_on_vital_id: int | None = None
+    generated_at: datetime | None = None
+    consecutive_positive_count: int = 0
+    active_alert_eligible: bool = False
+
+
+class AnomalyAssessment(BaseModel):
+    available: bool
+    score: float | None = None
+    is_anomalous: bool | None = None
+    reason: str | None = None
+    semantics: str
+
+
+class RiskEvidence(BaseModel):
+    feature: str
+    value: float | str | None = None
+    contribution: float | None = None
+    source: Literal["critical_rule", "trend_rule", "shap"]
+    description: str
+
+
+class AlertAssessment(BaseModel):
+    exists: bool
+    alert_id: int | None = None
+    status: str | None = None
+    severity: str | None = None
+    score: int | None = None
+    alert_type: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class DataQualityAssessment(BaseModel):
+    stale: bool
+    complete: bool
+    last_reading_at: datetime | None = None
+    missing_metrics: list[str] = Field(default_factory=list)
+    source: str | None = None
+    verification_status: str | None = None
+
+
+class CanonicalRiskAssessment(BaseModel):
+    patient_id: int
+    assessment_version: str
+    generated_at: datetime
+    overall_level: CanonicalRiskLevel
+    overall_score: float | None = None
+    reason: str
+    baseline: BaselineAssessment
+    deterministic: DeterministicAssessment
+    ml: MLRiskAssessment
+    anomaly: AnomalyAssessment
+    evidence: list[RiskEvidence] = Field(default_factory=list)
+    alert: AlertAssessment
+    data_quality: DataQualityAssessment
+
 # =========================
 # NOTIFICATIONS 
 # =========================
