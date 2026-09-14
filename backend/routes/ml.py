@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 import models
@@ -99,7 +99,13 @@ def predict_deterioration(
             "message": "Deterministic clinical escalation rules were triggered; model inference was bypassed.",
         }
 
-    trained_prediction = predict(vitals, patient_id) if len(vitals) >= 5 else None
+    try:
+        trained_prediction = predict(vitals, patient_id) if len(vitals) >= 5 else None
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="The trained ML model is temporarily unavailable.",
+        ) from exc
     if trained_prediction:
         return {
             "patient_id": patient_id,

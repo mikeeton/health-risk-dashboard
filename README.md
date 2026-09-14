@@ -1,5 +1,20 @@
 # Health Risk Dashboard
 
+> Deployment target: Vercel Free (frontend), Render Free Web Service (FastAPI), Neon Free (PostgreSQL), and optional Upstash Redis Free/Groq. This is a portfolio/university system and is unsuitable for real patient data or clinical production use.
+
+```mermaid
+flowchart LR
+    Browser[Browser] -->|HTTPS / WSS| Vercel[Vercel Free\nReact + Vite]
+    Vercel -->|HTTPS / WSS| Render[Render Free\nFastAPI, 1 worker]
+    Render -->|TLS PostgreSQL| Neon[Neon Free\nPostgreSQL]
+    Render -.->|optional rediss://| Upstash[Upstash Redis Free]
+    Render -.->|optional API call| Groq[Groq]
+    GitHub[GitHub Actions\n6-hour health monitor] --> Render
+    GitHub --> Vercel
+```
+
+The exact manual provider steps, migration safety procedure, rollback, and troubleshooting are in [the deployment guide](docs/setup/DEPLOYMENT.md). Use [the free-tier checklist](FREE_TIER_MIGRATION.md) during cutover.
+
 A full-stack clinical monitoring and research prototype for role-based patient review, live observations, care workflows, and explainable risk analysis. It demonstrates production-minded software engineering around sensitive health data without claiming clinical validation or medical-device status.
 
 > **Project status:** Functional portfolio and final-year research prototype. Use synthetic or appropriately governed research data only; the system is not a certified medical device and must not be used to make autonomous clinical decisions.
@@ -83,7 +98,7 @@ health-risk-dashboard/
 ├── docs/                    Architecture, setup, security, testing and research evidence
 ├── scripts/                 Dissertation source/visual build utilities
 ├── .github/                 CI and dependency automation
-├── render.yaml              Render services, PostgreSQL, Redis and backup job
+├── render.yaml              Single Render Free backend web service
 └── README.md
 ```
 
@@ -103,7 +118,7 @@ From PowerShell:
 cd backend
 python -m venv venv
 .\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 ```
 

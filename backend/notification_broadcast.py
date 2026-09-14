@@ -48,7 +48,7 @@ def publish_after_commit(session: Session) -> None:
         client.publish(CHANNEL, "changed")
     except Exception:
         # A notification commit must never be rolled back because Redis is down.
-        logging.exception("Notification broadcast failed")
+        logging.warning("Optional Redis notification broadcast is unavailable")
 
 
 @event.listens_for(Session, "after_rollback")
@@ -107,7 +107,12 @@ async def redis_healthcheck() -> bool:
         return False
     from redis.asyncio import Redis
 
-    client = Redis.from_url(settings.redis_url, socket_connect_timeout=2)
+    client = Redis.from_url(
+        settings.redis_url,
+        socket_connect_timeout=2,
+        socket_timeout=2,
+        health_check_interval=30,
+    )
     try:
         return bool(await client.ping())
     finally:

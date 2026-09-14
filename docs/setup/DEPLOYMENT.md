@@ -1,369 +1,133 @@
-# Deployment guide
+# Free-tier deployment guide
 
-This guide describes a production-style deployment for the Health Risk
-Dashboard. The project is PostgreSQL-only and should be deployed with HTTPS,
-strong secrets, database backups, and a reverse proxy or platform load balancer.
+This guide targets a university/portfolio demonstration: Vercel Free for the React/Vite frontend, one Render Free FastAPI web service, Neon Free PostgreSQL, optional Upstash Redis Free, optional Groq, and GitHub Actions for monitoring. It is not suitable for real patient data, clinical production, regulated workloads, or availability-sensitive care.
 
-## 1. Prerequisites
-
-- Python 3.11 or newer
-- Node.js 20 or newer
-- PostgreSQL 14 or newer
-- A Linux server, container platform, or managed app host
-- HTTPS certificate from the platform or reverse proxy
-- A long random `SECRET_KEY`
-
-## 2. Backend Environment
-
-Create `backend/.env` from `backend/.env.example` and set production values:
-
-```text
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB_NAME
-DATABASE_POOL_SIZE=5
-DATABASE_MAX_OVERFLOW=10
-DATABASE_POOL_RECYCLE_SECONDS=300
-REDIS_URL=redis://PRIVATE_REDIS_HOST:6379
-REQUIRE_REDIS=true
-APP_ENV=production
-SECRET_KEY=replace-with-a-long-random-production-secret
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
-CORS_ORIGINS=https://your-frontend-domain.example
-ALLOWED_HOSTS=your-api-domain.example
-FORCE_HTTPS=true
-PUBLIC_API_DOCS=false
-MAX_REQUEST_BYTES=1048576
-RUN_STARTUP_SCHEMA_CHECK=false
-RATE_LIMIT_ENABLED=true
-RATE_LIMIT_REQUESTS=120
-RATE_LIMIT_WINDOW_SECONDS=60
-AUTH_RATE_LIMIT_REQUESTS=20
-AUTH_RATE_LIMIT_WINDOW_SECONDS=60
-TRUSTED_PROXY_COUNT=1
-GROQ_API_KEY=
-AI_ENABLED=false
-AI_MODEL=llama-3.1-8b-instant
-AI_TIMEOUT_SECONDS=12
-FRONTEND_URL=https://your-frontend-domain.example
-WITHINGS_CLIENT_ID=
-WITHINGS_CLIENT_SECRET=
-WITHINGS_REDIRECT_URI=https://your-api-domain.example/integrations/withings/callback
-WITHINGS_WEBHOOK_URL=https://your-api-domain.example/integrations/withings/webhook
-WITHINGS_WEBHOOK_SECRET=
-INTEGRATION_ENCRYPTION_KEY=
-REQUIRE_WITHINGS=true
-SENTRY_DSN=
-REQUIRE_SENTRY=true
-SENTRY_TRACES_SAMPLE_RATE=0.1
-RELEASE=
+```mermaid
+flowchart TB
+  User -->|HTTPS| Vercel[Vercel Free frontend]
+  Vercel -->|HTTPS REST / WSS| Render[Render Free FastAPI\none Uvicorn worker]
+  Render -->|TLS, pooled runtime connection| Neon[Neon Free PostgreSQL]
+  Render -.->|optional TLS Redis| Upstash[Upstash Redis Free]
+  Render -.->|optional, disabled by default| Groq[Groq API]
+  Actions[GitHub Actions] -->|every ~6 hours| Render
+  Actions --> Vercel
 ```
 
-Keep real `.env` files out of Git. Rotate any key that was ever exposed in a
-ticket, screenshot, terminal output, or repository.
+PostgreSQL is mandatory and remains the durable source of truth. Redis only distributes notification hints; authentication, authorization, patient isolation, and records remain database-backed. Groq is disabled unless both `AI_ENABLED=true` and a key/governance configuration are supplied.
 
-Keep `AI_ENABLED=false` until the AI activation gates in
-the [deployment checklist](DEPLOYMENT_CHECKLIST.md) is approved. A key by itself does not authorize
-processing patient data through the provider.
+## Environment matrix
 
-See [Groq AI setup](AI_SETUP.md) and [Withings setup](WITHINGS_SETUP.md) for provider-specific setup.
+| Variable | Configure in | Purpose |
+|---|---|---|
+| `DATABASE_URL` | Render | Neon pooled PostgreSQL URL for runtime; must use TLS |
+| `DATABASE_SSLMODE` | Render | `require` unless already governed by the URL |
+| `DATABASE_POOL_SIZE`, `DATABASE_MAX_OVERFLOW` | Render | Conservative runtime connections (`2` and `1`) |
+| `REDIS_URL` | Render, optional | Upstash TLS Redis URL beginning `rediss://` |
+| `REQUIRE_REDIS` | Render | Keep `false` for optional demo fan-out |
+| `SECRET_KEY` | Render secret | Unique JWT signing secret, at least 32 characters |
+| `CORS_ORIGINS` | Render | Exact comma-separated HTTPS Vercel origins; never `*` |
+| `FRONTEND_URL` | Render | Canonical Vercel origin |
+| `ALLOWED_HOSTS` | Render | Render/custom API hostnames only, without scheme |
+| `FORCE_HTTPS` | Render | Must be `true` in production |
+| `GROQ_API_KEY` | Render, optional | Groq credential; leave blank when AI is disabled |
+| `AI_ENABLED` | Render | Defaults to `false`; governance checks still apply |
+| `AI_MEMORY_ENCRYPTION_KEY` | Render, conditional | Required by existing real-data AI policy |
+| `INTEGRATION_ENCRYPTION_KEY` | Render, conditional | Encrypts configured Withings integration data |
+| `WITHINGS_WEBHOOK_SECRET` | Render, conditional | Independent random secret appended to the registered Withings callback URL |
+| `VITE_API_BASE_URL` | Vercel | New public Render backend origin |
+| `PRODUCTION_API_URL` | GitHub variable | Health monitor backend origin |
+| `PRODUCTION_FRONTEND_URL` | GitHub variable | Health monitor frontend origin |
 
-## 3. Database Setup
+See the placeholder-only `backend/.env.production.example` and `frontend/.env.production.example` for the remaining existing controls. Never commit `.env` files.
 
-Create the PostgreSQL database and run Alembic migrations:
+## 1. Create Neon PostgreSQL
+
+1. In Neon, create a project and database in an appropriate nearby region.
+2. In **Connect**, select the database/role and enable the pooled connection option. Copy the pooled PostgreSQL URL to Render as `DATABASE_URL`.
+3. Copy a direct (non-pooler) URL for schema migrations and data import. Keep it only in a local secret store/environment variable.
+4. Confirm the supplied URL includes `sslmode=require`. This application also accepts the legacy `postgres://` alias and normalizes it for SQLAlchemy/psycopg2.
+5. Before application traffic, run migrations against the direct URL:
 
 ```bash
 cd backend
-source venv/bin/activate
-alembic upgrade head
+DATABASE_URL='postgresql://...direct...?sslmode=require' alembic upgrade head
 alembic current
 ```
 
-The current migration chain ends with:
+On PowerShell, assign the secret through the process environment without putting it in shell history, then run the same Alembic commands. Alembic migrations preserve the existing schema; do not run schema resets or `Base.metadata.drop_all`.
 
-```text
-20260729_0014
-```
+## 2. Migrate existing Render data safely
 
-The latest migrations include rotating refresh-token sessions, encrypted
-Withings connections, private per-user notification read receipts, encrypted
-AI memory and MFA secrets, care workflows, structured clinical operations,
-granular administration, and single-use password reset links.
-
-## 4. Backend Service
-
-Install dependencies and start the app with a production ASGI server:
+Do this only while the old database is accessible and with separately obtained credentials. A suspended/expired Render database may be inaccessible; repository code cannot inspect or reactivate it. Do not delete it during cutover.
 
 ```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000
+pg_dump --format=custom --no-owner --no-acl \
+  --dbname="$OLD_RENDER_DATABASE_URL" \
+  --file=render-before-neon.dump
+
+pg_restore --list render-before-neon.dump > render-before-neon.contents.txt
+
+pg_restore --exit-on-error --no-owner --no-acl \
+  --dbname="$NEON_DIRECT_DATABASE_URL" \
+  render-before-neon.dump
 ```
 
-For a process manager such as systemd, Supervisor, Render, Railway, Fly, or a
-container runtime, keep the same command and inject environment variables
-through the platform secret manager.
+For a populated Neon target, prefer a new empty Neon branch/database and rehearse there. Do not use `--clean`, `--create`, or destructive resets. After restore, run `alembic current`, compare migration revision and per-table row counts, test all roles, and retain the dump securely according to its data classification. If conflicts occur, stop and investigate rather than overwriting rows.
 
-Health endpoints:
+No automated database backup is included because a GitHub-hosted workflow would require broad database and storage credentials. Schedule manual encrypted `pg_dump --format=custom` exports to approved storage and periodically test `pg_restore` into an isolated database.
 
-```text
-/health/live
-/health/ready
-```
+## 3. Create optional Upstash Redis
 
-Use `/health/ready` for readiness because it verifies database connectivity.
-When `REQUIRE_REDIS=true`, readiness also fails if Redis/Valkey is unavailable.
+1. Create a Redis database in Upstash and choose a nearby region.
+2. From the database Connect page, copy the TCP TLS endpoint containing username/password, in the form `rediss://default:...@...:port` (not the REST URL).
+3. Set it as Render `REDIS_URL`; keep `REQUIRE_REDIS=false`.
 
-## 4A. Monitoring and encrypted backups
+The client uses TLS based on `rediss://`, bounded socket timeouts, and no URL logging. If Redis is absent/down, committed records and access controls remain intact; live cross-instance hints degrade to polling/single-process behavior and readiness reports the optional degradation. Do not use an in-process fallback for security state.
 
-Set `SENTRY_DSN` for backend errors and `VITE_SENTRY_DSN` for frontend errors.
-The SDKs exclude default personally identifiable information and request
-bodies. Configure alert rules in Sentry for new issues, error-rate increases,
-and performance degradation.
+## 4. Configure Render Free
 
-The Render Blueprint includes a daily backup cron job. Configure its
-S3-compatible object-storage secrets:
+1. Push/review this branch and create a Render Blueprint/Web Service from the repository. Syncing the Blueprint may identify old resources no longer declared; do not approve deletion of the old database, Key Value service, or cron until rollback is no longer needed.
+2. Confirm: root `backend`, runtime Python, plan `free`, build `pip install -r requirements.txt`, start `python scripts/start_render.py`, health path `/health/ready`.
+3. Supply external values for `DATABASE_URL`, `SECRET_KEY`, and optional credentials. Override `CORS_ORIGINS`, `FRONTEND_URL`, and `ALLOWED_HOSTS` after final URLs are known.
+4. Run the Alembic command explicitly against Neon before deployment. The web start command intentionally does not migrate or train.
+5. Deploy and record `https://<new-service>.onrender.com`. Verify `/health/live` and `/health/ready`.
 
-```text
-BACKUP_S3_BUCKET=
-BACKUP_S3_ENDPOINT=
-BACKUP_ENCRYPTION_KEY=
-BACKUP_RETENTION_DAYS=30
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_DEFAULT_REGION=eu-west-2
-```
+The launcher binds one Uvicorn worker to Render's `0.0.0.0:$PORT`. The model is deserialized once on first inference; metadata-only readiness does not import SHAP or load the model. A free service can sleep and take roughly a minute to respond on first request and has only 512 MB RAM.
 
-Backups are created with `pg_dump`, encrypted before upload, and uploaded with
-server-side encryption. `.github/workflows/backup-verify.yml` downloads and
-structurally verifies the newest encrypted backup every Monday. A successful
-verification is not a substitute for a scheduled restore drill into an
-isolated database.
+## 5. Configure Vercel
 
-## 5. Frontend Build
+1. Import the repository and set project root to `frontend`.
+2. Keep framework Vite, install `npm ci`, build `npm run build`, output `dist`.
+3. Set production `VITE_API_BASE_URL=https://<new-service>.onrender.com`; production builds intentionally fail when it is absent or non-HTTPS.
+4. Deploy and copy the final Vercel origin back to Render `CORS_ORIGINS` and `FRONTEND_URL`. Redeploy the backend.
+5. Test login and live updates. WebSocket URLs derive from the API URL and become `wss://` when the API uses HTTPS.
 
-Create `frontend/.env.production` or platform variables:
+## 6. Optional Groq
 
-```text
-VITE_API_BASE_URL=https://your-api-domain.example
-VITE_SENTRY_DSN=
-VITE_SENTRY_TRACES_SAMPLE_RATE=0.1
-VITE_RELEASE=
-```
+Leave `AI_ENABLED=false` and `GROQ_API_KEY` unset for the safe default. If enabling it, set the key only in Render and satisfy the existing classification, DPA, retention, regional-processing, audit, clinical-approval, and encryption gates. Provider access does not make this project clinically approved.
 
-Build the static frontend:
+## 7. GitHub monitoring
 
-```bash
-cd frontend
-npm ci
-npm run build
-```
+Set repository **Variables** (not secrets) `PRODUCTION_API_URL` and `PRODUCTION_FRONTEND_URL` to public origins. The workflow runs at minute 17 every six hours and manually, checks backend first, permits bounded cold-start retries, classifies timeouts/connectivity/readiness/likely suspension failures without printing response bodies, then checks the frontend. Concurrency prevents overlap. GitHub schedules can be delayed.
 
-Serve `frontend/dist` from Nginx, Caddy, Netlify, Vercel, Cloudflare Pages, or
-the static hosting feature of your platform.
+## Rollback
 
-The deployed frontend includes responsive layouts for phone, tablet, laptop,
-and desktop widths. Light/dark mode follows the device preference until the
-user makes an explicit choice with the theme toggle, then that choice is saved
-in browser storage.
+1. Stop new writes or place the demo in a controlled maintenance window.
+2. Point Vercel `VITE_API_BASE_URL` back to the old backend and redeploy.
+3. Restore the old backend's CORS/host configuration if it was changed.
+4. If writes occurred on Neon, export and reconcile them explicitly before returning to the old database; never overwrite the old database blindly.
+5. Keep Neon/Upstash and the new service until rollback validation and data reconciliation finish. Resource deletion and billing changes are separate manual decisions.
 
-## 5A. Recommended Student Deployment: Vercel + Render
+## Troubleshooting
 
-For this project, use:
+- **HTTP 503:** Check `/health/ready`. A database failure is essential; optional Redis reports degraded. A sleeping Render service may first time out. Dashboard suspension/billing messages require account action.
+- **Database TLS:** Use the Neon-provided URL with `sslmode=require`; avoid duplicating conflicting SSL parameters. Use pooled URL for runtime and direct URL for Alembic/import.
+- **Migration errors:** Use the direct URL, run `alembic current`/`alembic heads`, and stop on revision or object conflicts. Never stamp or reset without understanding the data state.
+- **CORS:** Use exact HTTPS origins, no trailing paths and no wildcard with authenticated requests. `FRONTEND_URL` must also appear in `CORS_ORIGINS`.
+- **WebSockets:** Confirm `VITE_API_BASE_URL` is HTTPS, browser URL is `wss://`, Render host is allowed, and proxy/security tools permit upgrades. Redis affects fan-out, not authorization.
+- **Out of memory:** Confirm one worker; inspect whether the first ML/SHAP request triggers the crash. Avoid concurrent explanation requests. Keep the artifact but leave expensive ML features unused until capacity is available.
+- **Cold starts:** Retry after about one minute. The health workflow avoids alerting on the first bounded timeout, but free-tier availability is not guaranteed.
 
-- Vercel for the React/Vite frontend.
-- Render for the FastAPI backend and managed PostgreSQL database.
+## Verification before cutover
 
-This split is recommended because Vercel is excellent for static frontend
-hosting, while the backend needs a long-running ASGI process, PostgreSQL,
-Alembic migrations, and WebSockets.
-
-### Backend on Render
-
-1. Push this repository to GitHub.
-2. Open Render and create a new Blueprint from the repository.
-3. Render will read `render.yaml`.
-4. Create the web service and PostgreSQL database.
-5. In the Render service environment, set:
-
-```text
-CORS_ORIGINS=https://your-vercel-app.vercel.app
-ALLOWED_HOSTS=your-render-api.onrender.com
-```
-
-Leave AI disabled for the initial synthetic-data deployment. Enable it only
-after the privacy, clinical-safety, and provider approvals are complete.
-
-6. After the first deployment, run the admin reset command from Render Shell:
-
-```bash
-python scripts/reset_admin.py \
-  --email admin@example.com \
-  --full-name "System Admin" \
-  --password 'replace-with-a-strong-password'
-```
-
-The backend start command in `render.yaml` runs:
-
-```bash
-python scripts/wait_for_database.py && alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
-```
-
-The wait step gives Render PostgreSQL time to become reachable before Alembic
-runs. Without it, first deploys can fail with a database connection timeout
-before the web server has opened a port.
-
-The Render blueprint also sets:
-
-```text
-PYTHON_VERSION=3.12.3
-```
-
-This keeps Render from silently deploying with a newer Python version than the
-one used during local development.
-
-### Frontend on Vercel
-
-1. Import the same GitHub repository into Vercel.
-2. Set the Vercel project root directory to:
-
-```text
-frontend
-```
-
-3. Vercel will read `frontend/vercel.json`.
-4. Set the frontend environment variable:
-
-```text
-VITE_API_BASE_URL=https://your-render-api.onrender.com
-```
-
-5. Deploy.
-
-The Vercel config uses:
-
-```text
-installCommand: npm ci
-buildCommand: npm run build
-outputDirectory: dist
-```
-
-It also rewrites all frontend routes to `index.html`, so direct links such as
-`/login`, `/admin`, and `/referrals` work with React Router.
-
-### Final URL Update
-
-After Vercel gives you the final frontend URL, go back to Render and update:
-
-```text
-CORS_ORIGINS=https://your-vercel-app.vercel.app
-```
-
-Then redeploy the backend. Without this CORS update, login requests from Vercel
-will be blocked by the browser.
-
-### Render Troubleshooting
-
-If logs show:
-
-```text
-psycopg2.OperationalError: connection timed out
-```
-
-check the following:
-
-- The PostgreSQL database exists and is not still provisioning.
-- The backend service and database were created by the same Blueprint.
-- `DATABASE_URL` is coming from the Render database, not copied manually from another service.
-- Redeploy after the database status shows available.
-- Keep `python scripts/wait_for_database.py` in the start command so the app retries before running migrations.
-
-If logs show Python 3.14 packages while local development uses Python 3.12,
-confirm `PYTHON_VERSION=3.12.3` exists in the Render service environment.
-
-## 6. Reverse Proxy and WebSockets
-
-The API includes WebSockets for live vitals and production notification updates.
-If you use Nginx, proxy upgrade headers are required:
-
-```nginx
-proxy_http_version 1.1;
-proxy_set_header Upgrade $http_upgrade;
-proxy_set_header Connection "upgrade";
-proxy_set_header Host $host;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header X-Forwarded-Proto $scheme;
-```
-
-Set `TRUSTED_PROXY_COUNT` to the number of trusted proxies in front of FastAPI
-so rate limiting and audit metadata use the correct client IP.
-
-## 7. CORS
-
-`CORS_ORIGINS` must include only the deployed frontend origins:
-
-```text
-CORS_ORIGINS=https://health-risk.example,https://www.health-risk.example
-```
-
-Avoid `*` for a healthcare-style application because authenticated requests use
-Bearer tokens and should only come from expected domains.
-
-## 8. Admin Account
-
-Create or reset the admin account after migrations:
-
-```bash
-cd backend
-source venv/bin/activate
-python scripts/reset_admin.py \
-  --email admin@example.com \
-  --full-name "System Admin" \
-  --password 'replace-with-a-strong-password'
-```
-
-Rotate the default development password before presentation or deployment.
-
-## 9. Security Checks
-
-Before release, run:
-
-```bash
-cd backend
-python3 -m py_compile $(rg --files . -g '*.py' -g '!venv/**')
-pytest -q
-
-cd ../frontend
-npm run lint
-npm run build
-npm run test:e2e
-```
-
-The default browser suite checks public-page rendering, password visibility
-controls, invalid-login feedback, responsive overflow, and authenticated app
-shell sizing. Keep these checks green before deploying to Vercel or another
-static host.
-
-For authenticated browser tests, start the backend and set:
-
-```bash
-E2E_RUN_AUTH=1 \
-E2E_ADMIN_EMAIL=admin@example.com \
-E2E_ADMIN_PASSWORD='your-admin-password' \
-npm run test:e2e
-```
-
-## 10. Production Gaps to Track
-
-The code now has good final-year project hardening, but a real hospital-grade
-deployment would still need:
-
-- Redis-backed rate limiting for multiple backend workers.
-- Centralized logging and audit export retention policies.
-- Automated database backups and restore drills.
-- Secret rotation procedures.
-- Background job handling for slower AI calls.
-- Production visual-regression coverage for the most important authenticated role dashboards.
-- Formal clinical safety review before use with real patient data.
+Run backend tests with `pip install -r backend/requirements-dev.txt`, frontend lint/build/tests, `alembic upgrade head` on a disposable PostgreSQL database, and a local `/health/live`/`/health/ready` smoke test. External deployment is only proven after the provider dashboard steps and endpoint tests succeed.

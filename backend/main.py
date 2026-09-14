@@ -328,6 +328,7 @@ async def readiness_check(db: Session = Depends(get_db)):
             redis_status = "unavailable"
     if settings.require_redis and redis_status != "ok":
         raise HTTPException(status_code=503, detail="Redis is unavailable")
+    # Metadata/file validation deliberately avoids deserialising the model.
     ml_status = model_status()
     if settings.require_ml_model and not ml_status.get("available"):
         raise HTTPException(status_code=503, detail="Approved ML model is unavailable")
@@ -336,6 +337,7 @@ async def readiness_check(db: Session = Depends(get_db)):
         "status": "ready",
         "database": "ok",
         "redis": redis_status,
+        "degraded": redis_status == "unavailable" and not settings.require_redis,
         "error_reporting": "configured" if settings.sentry_dsn else "disabled",
         "ml_model": "approved" if ml_status.get("available") else "unavailable",
         "ml_model_version": ml_status.get("model_version"),

@@ -2,7 +2,7 @@ name: Production Health Monitor
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "17 */6 * * *"
   workflow_dispatch:
   push:
     paths:
@@ -11,31 +11,60 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: production-health-monitor
+  cancel-in-progress: true
+
 jobs:
   health-check:
     runs-on: ubuntu-latest
     env:
-      # Repository variables can override these defaults when custom domains
-      # are introduced. Keeping the deployed service URLs here prevents the
-      # monitor from failing before it has contacted either service.
-      PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL || 'https://health-risk-dashboard-api.onrender.com' }}
-      PRODUCTION_FRONTEND_URL: ${{ vars.PRODUCTION_FRONTEND_URL || 'https://aihealthcaredashboard.vercel.app' }}
+      PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}
+      PRODUCTION_FRONTEND_URL: ${{ vars.PRODUCTION_FRONTEND_URL }}
     steps:
-      - name: Verify configuration
+      - name: Verify monitor configuration
+        shell: bash
         run: |
-          test -n "$PRODUCTION_API_URL"
-          test -n "$PRODUCTION_FRONTEND_URL"
-          echo "Backend: $PRODUCTION_API_URL"
-          echo "Frontend: $PRODUCTION_FRONTEND_URL"
-      - name: Check backend readiness
+          if [[ -z "$PRODUCTION_API_URL" || -z "$PRODUCTION_FRONTEND_URL" ]]; then
+            echo "Set repository variables PRODUCTION_API_URL and PRODUCTION_FRONTEND_URL."
+            exit 2
+          fi
+
+      - name: Check backend readiness (cold-start aware)
+        shell: bash
         run: |
-          curl --fail --silent --show-error \
-            --retry 5 --retry-delay 5 --retry-all-errors \
-            --connect-timeout 15 --max-time 45 \
-            "$PRODUCTION_API_URL/health/ready"
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          for attempt in 1 2 3 4; do
+            set +e
+            status=$(curl --silent --show-error --output "$response_file" \
+              --write-out '%{http_code}' --connect-timeout 10 --max-time 35 \
+              "$PRODUCTION_API_URL/health/ready")
+            curl_exit=$?
+            set -e
+            if [[ "$curl_exit" -eq 0 && "$status" =~ ^2 ]]; then
+              echo "Backend readiness succeeded on attempt $attempt."
+              exit 0
+            fi
+            if [[ "$curl_exit" -eq 28 ]]; then
+              reason="cold-start or application timeout"
+            elif [[ "$curl_exit" -eq 6 || "$curl_exit" -eq 7 ]]; then
+              reason="DNS or connectivity failure"
+            elif [[ "$status" == "503" ]] && grep -Eqi 'suspend|billing' "$response_file"; then
+              reason="service suspension or billing-related HTTP 503"
+            elif [[ "$status" == "503" ]]; then
+              reason="application readiness HTTP 503"
+            else
+              reason="HTTP ${status:-000} or curl exit $curl_exit"
+            fi
+            echo "Backend attempt $attempt failed: $reason."
+            [[ "$attempt" -lt 4 ]] && sleep 20
+          done
+          exit 1
+
       - name: Check frontend
+        shell: bash
         run: |
-          curl --fail --silent --show-error \
-            --retry 3 --retry-delay 3 --retry-all-errors \
-            --connect-timeout 15 --max-time 30 \
-            --output /dev/null "$PRODUCTION_FRONTEND_URL"
+          curl --fail --silent --show-error --output /dev/null \
+            --retry 2 --retry-delay 5 --retry-all-errors \
+            --connect-timeout 10 --max-time 30 "$PRODUCTION_FRONTEND_URL"
