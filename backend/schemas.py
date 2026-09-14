@@ -53,6 +53,24 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class WebSocketTicketRequest(BaseModel):
+    audience: Literal["live_vitals", "notifications"]
+    patient_id: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_scope(self):
+        if self.audience == "live_vitals" and self.patient_id is None:
+            raise ValueError("patient_id is required for live-vital tickets")
+        if self.audience == "notifications" and self.patient_id is not None:
+            raise ValueError("patient_id is not valid for notification tickets")
+        return self
+
+
+class WebSocketTicketResponse(BaseModel):
+    ticket: str
+    expires_in_seconds: int
+
+
 class PasswordResetConfirm(BaseModel):
     token: str = Field(min_length=32, max_length=300)
     new_password: str = Field(min_length=12, max_length=128)

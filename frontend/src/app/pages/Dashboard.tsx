@@ -206,7 +206,7 @@ export default function Dashboard() {
     }
   };
 
-  const toggleLiveMonitoring = () => {
+  const toggleLiveMonitoring = async () => {
     if (liveMonitoring) {
       socketRef.current?.close();
       socketRef.current = null;
@@ -215,22 +215,27 @@ export default function Dashboard() {
       return;
     }
 
-    const socket = createLiveVitalsSocket(
-      selectedPatient.id,
-      handleLiveSocketRecord,
-      () => {
-        setSocketConnected(true);
-        setLiveMonitoring(true);
-      },
-      () => {
-        setSocketConnected(false);
-      },
-      () => {
-        setSocketConnected(false);
-      }
-    );
+    try {
+      const socket = await createLiveVitalsSocket(
+        selectedPatient.id,
+        handleLiveSocketRecord,
+        () => {
+          setSocketConnected(true);
+          setLiveMonitoring(true);
+        },
+        () => {
+          setSocketConnected(false);
+        },
+        () => {
+          setSocketConnected(false);
+        }
+      );
 
-    socketRef.current = socket;
+      socketRef.current = socket;
+    } catch {
+      setSocketConnected(false);
+      setLiveMonitoring(false);
+    }
   };
 
   const generateInsight = () => {

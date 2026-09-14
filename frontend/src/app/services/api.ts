@@ -81,7 +81,7 @@ async function getRefreshedAccessToken() {
   return refreshRequest;
 }
 
-async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   // Centralize Bearer-token attachment so pages/components do not duplicate
   // authentication code or accidentally call protected endpoints anonymously.
   const headers = new Headers(init.headers);

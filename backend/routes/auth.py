@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from access_control import get_accessible_patient
 from database import get_db
 from auth_utils import (
     hash_password,
@@ -17,6 +18,9 @@ from auth_utils import (
     decode_access_token,
     password_needs_rehash,
     decrypt_mfa_secret,
+    create_websocket_ticket,
+    get_current_user,
+    WEBSOCKET_TICKET_EXPIRE_SECONDS,
 )
 from routes.audit import write_audit_log
 
@@ -24,6 +28,27 @@ router = APIRouter(
     prefix="/auth",
     tags=["Auth"]
 )
+
+
+@router.post("/websocket-ticket", response_model=schemas.WebSocketTicketResponse)
+def websocket_ticket(
+    request: schemas.WebSocketTicketRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Exchange the main bearer token for a brief, route-scoped socket ticket."""
+
+    if request.patient_id is not None:
+        get_accessible_patient(db, request.patient_id, current_user)
+
+    return {
+        "ticket": create_websocket_ticket(
+            current_user,
+            request.audience,
+            request.patient_id,
+        ),
+        "expires_in_seconds": WEBSOCKET_TICKET_EXPIRE_SECONDS,
+    }
 
 
 def utc_now_naive() -> datetime:
