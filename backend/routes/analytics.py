@@ -1,7 +1,5 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sklearn.linear_model import LinearRegression
-import numpy as np
 
 import models
 from access_control import (
@@ -24,6 +22,9 @@ def linear_regression_forecast(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    import numpy as np
+    from sklearn.linear_model import LinearRegression
+
     get_accessible_patient(db, patient_id, current_user)
 
     vitals = (

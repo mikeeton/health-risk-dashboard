@@ -1,0 +1,7 @@
+{
+  "alert_identical": true,
+  "canonical_identical": true,
+  "groq_called_by_canonical": false,
+  "narrative_output_evaluated": false,
+  "passed": true
+}

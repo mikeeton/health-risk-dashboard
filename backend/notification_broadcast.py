@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from contextlib import suppress
 
 from sqlalchemy import event
 from sqlalchemy.orm import Session
@@ -47,7 +48,7 @@ def publish_after_commit(session: Session) -> None:
         client.publish(CHANNEL, "changed")
     except Exception:
         # A notification commit must never be rolled back because Redis is down.
-        logging.exception("Notification broadcast failed")
+        logging.warning("Optional Redis notification broadcast is unavailable")
 
 
 @event.listens_for(Session, "after_rollback")
@@ -66,26 +67,39 @@ async def wait_for_notification_change(timeout_seconds: float = 25) -> bool:
         await asyncio.sleep(timeout_seconds)
         return True
 
-    from redis.asyncio import Redis
-
-    client = Redis.from_url(
-        settings.redis_url,
-        socket_connect_timeout=2,
-        socket_timeout=max(3, timeout_seconds + 2),
-        health_check_interval=30,
-    )
-    pubsub = client.pubsub()
+    client = None
+    pubsub = None
     try:
+        from redis.asyncio import Redis
+
+        client = Redis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=2,
+            socket_timeout=max(3, timeout_seconds + 2),
+            health_check_interval=30,
+        )
+        pubsub = client.pubsub()
         await pubsub.subscribe(CHANNEL)
         message = await pubsub.get_message(
             ignore_subscribe_messages=True,
             timeout=timeout_seconds,
         )
         return message is not None
+    except Exception:
+        logging.warning(
+            "Optional Redis subscription is unavailable; using polling fallback"
+        )
+        await asyncio.sleep(min(timeout_seconds, 5))
+        return False
     finally:
-        await pubsub.unsubscribe(CHANNEL)
-        await pubsub.aclose()
-        await client.aclose()
+        if pubsub is not None:
+            with suppress(Exception):
+                await pubsub.unsubscribe(CHANNEL)
+            with suppress(Exception):
+                await pubsub.aclose()
+        if client is not None:
+            with suppress(Exception):
+                await client.aclose()
 
 
 async def redis_healthcheck() -> bool:
@@ -93,7 +107,12 @@ async def redis_healthcheck() -> bool:
         return False
     from redis.asyncio import Redis
 
-    client = Redis.from_url(settings.redis_url, socket_connect_timeout=2)
+    client = Redis.from_url(
+        settings.redis_url,
+        socket_connect_timeout=2,
+        socket_timeout=2,
+        health_check_interval=30,
+    )
     try:
         return bool(await client.ping())
     finally:

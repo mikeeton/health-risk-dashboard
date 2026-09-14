@@ -13,7 +13,7 @@ from access_control import (
 )
 from auth_utils import get_current_user
 from database import get_db
-from early_warning import evaluate_new_vital
+from measurement_ingestion import ingest_vital
 
 router = APIRouter(
     prefix="/wearables",
@@ -30,35 +30,24 @@ def receive_watch_data(
     require_roles(current_user, {"doctor", "nurse", "patient"})
     get_accessible_patient(db, payload.patient_id, current_user)
 
-    vital = models.Vital(
-        patient_id=payload.patient_id,
-
-        timestamp=payload.timestamp,
-
-        heart_rate=payload.heart_rate,
-
-        spo2=payload.spo2,
-
-        systolic_bp=120,
-        diastolic_bp=80,
-
-        steps=payload.steps,
-
-        sleep_hours=payload.sleep_hours,
-
-        active_minutes=60,
-
-        calories=250,
-
-        risk_score=3,
-
-        activity_state="watch_sync",
+    ingest_vital(
+        db,
+        {
+            "patient_id": payload.patient_id,
+            "timestamp": payload.timestamp,
+            "heart_rate": payload.heart_rate,
+            "spo2": payload.spo2,
+            "systolic_bp": 120,
+            "diastolic_bp": 80,
+            "steps": payload.steps,
+            "sleep_hours": payload.sleep_hours,
+            "active_minutes": 60,
+            "calories": 250,
+            "risk_score": 3,
+            "activity_state": "watch_sync",
+        },
+        source="wearable",
     )
-
-    db.add(vital)
-    db.commit()
-    db.refresh(vital)
-    evaluate_new_vital(db, vital)
 
     return {
         "message": "Watch data received successfully"

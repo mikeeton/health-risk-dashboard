@@ -13,6 +13,12 @@ type Status = {
   configured: boolean;
   connected: boolean;
   last_sync_at?: string | null;
+  last_successful_sync?: string | null;
+  last_error_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  data_stale: boolean;
+  sync_state: "disconnected" | "healthy" | "stale" | "error";
 };
 
 export default function WithingsIntegration({ patientId }: Props) {
@@ -40,7 +46,7 @@ export default function WithingsIntegration({ patientId }: Props) {
       window.location.assign(result.authorization_url);
     } catch {
       setMessage(
-        "Withings is not configured yet. Add the five WITHINGS_* deployment settings."
+        "Withings is not configured yet. Add the required WITHINGS_* deployment settings."
       );
       setBusy(false);
     }
@@ -70,11 +76,9 @@ export default function WithingsIntegration({ patientId }: Props) {
             <h2 className="font-extrabold">Withings live measurements</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {status?.connected
-                ? `Connected${
-                    status.last_sync_at
-                      ? ` · last sync ${new Date(status.last_sync_at).toLocaleString()}`
-                      : ""
-                  }`
+                ? status.last_successful_sync
+                  ? `Connected · last successful sync ${new Date(status.last_successful_sync).toLocaleString()}`
+                  : "Connected · no complete measurement available"
                 : "Connect a Withings account or its official demo account"}
             </p>
           </div>
@@ -115,6 +119,27 @@ export default function WithingsIntegration({ patientId }: Props) {
         <p role="status" className="mt-3 text-sm text-amber-700 dark:text-amber-300">
           {message}
         </p>
+      )}
+      {status?.connected && status.sync_state !== "healthy" && (
+        <div
+          role="status"
+          className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+        >
+          <p className="font-extrabold">
+            {status.sync_state === "error"
+              ? "Withings sync needs attention"
+              : "Withings data is stale or unavailable"}
+          </p>
+          <p className="mt-1">
+            {status.last_error_message ??
+              "No complete provider measurement has been received in the last 24 hours."}
+          </p>
+          {status.last_error_at && (
+            <p className="mt-1 text-xs">
+              Last attempt: {new Date(status.last_error_at).toLocaleString()}
+            </p>
+          )}
+        </div>
       )}
       <p className="mt-3 text-xs font-semibold text-slate-500">
         Consumer-device readings may be delayed and are not emergency monitoring.

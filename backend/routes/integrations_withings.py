@@ -7,13 +7,15 @@ authenticated Withings Data API before validation and persistence.
 
 from datetime import datetime, timedelta, timezone
 import json
-from urllib.parse import parse_qs, urlencode
+import logging
+import os
+import secrets
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlsplit, urlunsplit
 
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 import httpx
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import models
@@ -22,15 +24,35 @@ from auth_utils import create_access_token, decode_access_token, get_current_use
 from config import get_settings
 from database import get_db
 from live_updates import publish
+from measurement_ingestion import PatientUpdate, ingest_vital
 from routes.audit import write_audit_log
 from routes.live_simulator import calculate_risk_score, get_risk_level
-from early_warning import evaluate_new_vital
 
 
 router = APIRouter(prefix="/integrations/withings", tags=["Withings"])
 settings = get_settings()
 WITHINGS_API = "https://wbsapi.withings.net"
 WITHINGS_AUTHORIZE = "https://account.withings.com/oauth2_user/authorize2"
+logger = logging.getLogger(__name__)
+
+WITHINGS_VITAL_MEASURE_TYPES = {
+    "heart_rate": 11,
+    "spo2": 54,
+    "systolic_bp": 10,
+    "diastolic_bp": 9,
+}
+WIDE_VITAL_FIELDS = (
+    "heart_rate",
+    "spo2",
+    "systolic_bp",
+    "diastolic_bp",
+    "steps",
+    "sleep_hours",
+    "active_minutes",
+    "calories",
+)
+WITHINGS_STALE_AFTER = timedelta(hours=24)
+WITHINGS_WEBHOOK_TOKEN_PARAMETER = "withings_token"
 
 
 def utc_now_naive():
@@ -45,8 +67,53 @@ def integration_configured() -> bool:
             settings.withings_redirect_uri,
             settings.withings_webhook_url,
             settings.integration_encryption_key,
+            webhook_secret(),
         )
     )
+
+
+def webhook_secret() -> str:
+    return os.getenv("WITHINGS_WEBHOOK_SECRET", "").strip()
+
+
+def secured_webhook_url() -> str:
+    """Return the registered callback URL with Withings' supported secret."""
+
+    parts = urlsplit(settings.withings_webhook_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query[WITHINGS_WEBHOOK_TOKEN_PARAMETER] = webhook_secret()
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def verify_webhook_secret(provided: str | None) -> None:
+    expected = webhook_secret()
+    if not expected or not provided or not secrets.compare_digest(provided, expected):
+        raise HTTPException(status_code=401, detail="Invalid Withings webhook token")
+
+
+def mark_sync_error(
+    connection: models.WithingsConnection,
+    db: Session,
+    *,
+    code: str,
+    message: str,
+) -> None:
+    connection.last_error_at = utc_now_naive()
+    connection.last_error_code = code[:80]
+    connection.last_error_message = message[:500]
+    connection.updated_at = utc_now_naive()
+    db.commit()
+
+
+def mark_sync_success(connection: models.WithingsConnection, db: Session) -> None:
+    completed_at = utc_now_naive()
+    connection.last_sync_at = completed_at
+    connection.last_successful_sync = completed_at
+    connection.last_error_at = None
+    connection.last_error_code = None
+    connection.last_error_message = None
+    connection.updated_at = completed_at
+    db.commit()
 
 
 def cipher() -> Fernet:
@@ -218,16 +285,25 @@ async def callback(
     connection.updated_at = utc_now_naive()
     db.commit()
 
-    await withings_post(
-        "",
-        {
-            "action": "subscribe",
-            "callbackurl": settings.withings_webhook_url,
-            "appli": 4,
-            "comment": "Health Risk Dashboard BP, HR and SpO2",
-        },
-        access_token=body["access_token"],
-    )
+    try:
+        await withings_post(
+            "",
+            {
+                "action": "subscribe",
+                "callbackurl": secured_webhook_url(),
+                "appli": 4,
+                "comment": "Health Risk Dashboard BP, HR and SpO2",
+            },
+            access_token=body["access_token"],
+        )
+    except HTTPException as error:
+        mark_sync_error(
+            connection,
+            db,
+            code="subscription_failed",
+            message=str(error.detail),
+        )
+        raise
     write_audit_log(
         db=db,
         action="WITHINGS_CONNECTED",
@@ -246,7 +322,10 @@ async def callback(
 
 
 @router.head("/webhook", status_code=204)
-def webhook_verification():
+def webhook_verification(
+    withings_token: str | None = Query(None),
+):
+    verify_webhook_secret(withings_token)
     return Response(status_code=204)
 
 
@@ -262,8 +341,32 @@ def measurement_values(group: dict) -> dict[int, float]:
     return values
 
 
+def map_withings_vital(values: dict[int, float]) -> tuple[dict, list[str]]:
+    """Map only values actually supplied by Withings; never synthesize gaps."""
+    mapped = {
+        field: values[measure_type]
+        for field, measure_type in WITHINGS_VITAL_MEASURE_TYPES.items()
+        if measure_type in values
+    }
+    if "heart_rate" in mapped:
+        mapped["heart_rate"] = round(mapped["heart_rate"])
+    if "spo2" in mapped:
+        mapped["spo2"] = round(mapped["spo2"], 1)
+    if "systolic_bp" in mapped:
+        mapped["systolic_bp"] = round(mapped["systolic_bp"])
+    if "diastolic_bp" in mapped:
+        mapped["diastolic_bp"] = round(mapped["diastolic_bp"])
+    missing = [field for field in WIDE_VITAL_FIELDS if field not in mapped]
+    return mapped, missing
+
+
 @router.post("/webhook", status_code=204)
-async def webhook(request: Request, db: Session = Depends(get_db)):
+async def webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+    withings_token: str | None = Query(None),
+):
+    verify_webhook_secret(withings_token)
     parsed = parse_qs((await request.body()).decode("utf-8", errors="ignore"))
     userid = (parsed.get("userid") or [""])[0]
     appli = (parsed.get("appli") or [""])[0]
@@ -280,93 +383,110 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     if not connection:
         return Response(status_code=204)
 
-    token = await valid_access_token(connection, db)
-    body = await withings_post(
-        "/measure",
-        {
-            "action": "getmeas",
-            "startdate": startdate,
-            "enddate": enddate,
-        },
-        access_token=token,
-    )
-    latest = (
-        db.query(models.Vital)
-        .filter(models.Vital.patient_id == connection.patient_id)
-        .order_by(models.Vital.id.desc())
-        .first()
-    )
-    for group in body.get("measuregrps", []):
-        external_id = f"withings:{userid}:{group.get('grpid')}"
-        if (
-            db.query(models.Vital)
-            .filter(models.Vital.external_id == external_id)
-            .first()
-        ):
-            continue
-        values = measurement_values(group)
-        heart_rate = round(values.get(11, latest.heart_rate if latest else 70))
-        spo2 = round(values.get(54, latest.spo2 if latest else 98), 1)
-        systolic = round(values.get(10, latest.systolic_bp if latest else 120))
-        diastolic = round(values.get(9, latest.diastolic_bp if latest else 80))
-        risk_score = calculate_risk_score(
-            heart_rate, spo2, systolic, diastolic, latest.sleep_hours if latest else 0
-        )
-        measured_at = datetime.fromtimestamp(
-            int(group.get("date", enddate)), tz=timezone.utc
-        ).isoformat()
-        vital = models.Vital(
-            patient_id=connection.patient_id,
-            timestamp=measured_at,
-            heart_rate=heart_rate,
-            spo2=spo2,
-            systolic_bp=systolic,
-            diastolic_bp=diastolic,
-            steps=latest.steps if latest else 0,
-            sleep_hours=latest.sleep_hours if latest else 0,
-            active_minutes=latest.active_minutes if latest else 0,
-            calories=latest.calories if latest else 0,
-            risk_score=risk_score,
-            activity_state="withings_device",
-            source="withings",
-            external_id=external_id,
-        )
-        db.add(vital)
-        try:
-            db.commit()
-        except IntegrityError:
-            db.rollback()
-            continue
-        db.refresh(vital)
-        evaluate_new_vital(db, vital)
-        patient = (
-            db.query(models.Patient)
-            .filter(models.Patient.id == connection.patient_id)
-            .first()
-        )
-        patient.risk_level = get_risk_level(risk_score)
-        patient.last_checkup = datetime.now(timezone.utc).date().isoformat()
-        connection.last_sync_at = utc_now_naive()
-        db.commit()
-        await publish(
-            connection.patient_id,
+    complete_groups = 0
+    unavailable_fields: set[str] = set()
+    try:
+        token = await valid_access_token(connection, db)
+        body = await withings_post(
+            "/measure",
             {
-                "id": str(vital.id),
-                "patientId": connection.patient_id,
-                "timestamp": measured_at,
-                "heartRate": heart_rate,
-                "spo2": spo2,
-                "systolicBP": systolic,
-                "diastolicBP": diastolic,
-                "steps": vital.steps,
-                "sleepHours": vital.sleep_hours,
-                "activeMinutes": vital.active_minutes,
-                "calories": vital.calories,
-                "riskScore": risk_score,
-                "activityState": "withings_device",
-                "source": "withings",
-                "persisted": True,
+                "action": "getmeas",
+                "startdate": startdate,
+                "enddate": enddate,
             },
+            access_token=token,
+        )
+        for group in body.get("measuregrps", []):
+            external_id = f"withings:{userid}:{group.get('grpid')}"
+            values = measurement_values(group)
+            mapped, missing = map_withings_vital(values)
+            if missing:
+                unavailable_fields.update(missing)
+                logger.warning(
+                    "Skipping incomplete Withings measurement",
+                    extra={
+                        "patient_id": connection.patient_id,
+                        "external_id": external_id,
+                        "missing_fields": missing,
+                    },
+                )
+                continue
+            complete_groups += 1
+            risk_score = calculate_risk_score(
+                mapped["heart_rate"],
+                mapped["spo2"],
+                mapped["systolic_bp"],
+                mapped["diastolic_bp"],
+                mapped["sleep_hours"],
+            )
+            measured_at = datetime.fromtimestamp(
+                int(group.get("date", enddate)), tz=timezone.utc
+            ).isoformat()
+            last_checkup = datetime.now(timezone.utc).date().isoformat()
+            result = ingest_vital(
+                db,
+                {
+                    "patient_id": connection.patient_id,
+                    "timestamp": measured_at,
+                    **mapped,
+                    "risk_score": risk_score,
+                    "activity_state": "withings_device",
+                },
+                source="withings",
+                external_id=external_id,
+                patient_update=PatientUpdate(
+                    risk_level=get_risk_level(risk_score),
+                    last_checkup=last_checkup,
+                ),
+                post_ingest_hook=lambda vital: publish(
+                    connection.patient_id,
+                    {
+                        "id": str(vital.id),
+                        "patientId": connection.patient_id,
+                        "timestamp": vital.timestamp,
+                        "heartRate": vital.heart_rate,
+                        "spo2": vital.spo2,
+                        "systolicBP": vital.systolic_bp,
+                        "diastolicBP": vital.diastolic_bp,
+                        "steps": vital.steps,
+                        "sleepHours": vital.sleep_hours,
+                        "activeMinutes": vital.active_minutes,
+                        "calories": vital.calories,
+                        "riskScore": vital.risk_score,
+                        "activityState": vital.activity_state,
+                        "source": vital.source,
+                        "persisted": True,
+                    },
+                ),
+            )
+            if result.created:
+                await result.hook_result
+    except HTTPException as error:
+        mark_sync_error(
+            connection,
+            db,
+            code="provider_request_failed",
+            message=str(error.detail),
+        )
+        raise
+    except Exception:
+        mark_sync_error(
+            connection,
+            db,
+            code="sync_failed",
+            message="Withings synchronization failed before data could be stored.",
+        )
+        raise
+
+    if complete_groups:
+        mark_sync_success(connection, db)
+    else:
+        missing_summary = ", ".join(sorted(unavailable_fields)) or "all vital fields"
+        mark_sync_error(
+            connection,
+            db,
+            code="missing_required_fields",
+            message=f"Provider data unavailable for required fields: {missing_summary}.",
         )
     return Response(status_code=204)
 
@@ -383,10 +503,42 @@ def connection_status(
         .filter(models.WithingsConnection.patient_id == patient_id)
         .first()
     )
+    last_successful_sync = (
+        connection.last_successful_sync or connection.last_sync_at
+        if connection
+        else None
+    )
+    data_stale = (
+        not last_successful_sync
+        or utc_now_naive() - last_successful_sync > WITHINGS_STALE_AFTER
+    ) if connection else True
+    error_is_current = bool(
+        connection
+        and connection.last_error_at
+        and (
+            not last_successful_sync
+            or connection.last_error_at >= last_successful_sync
+        )
+    )
+    sync_state = (
+        "disconnected"
+        if not connection
+        else "error"
+        if error_is_current
+        else "stale"
+        if data_stale
+        else "healthy"
+    )
     return {
         "configured": integration_configured(),
         "connected": bool(connection),
         "last_sync_at": connection.last_sync_at if connection else None,
+        "last_successful_sync": last_successful_sync,
+        "last_error_at": connection.last_error_at if connection else None,
+        "last_error_code": connection.last_error_code if connection else None,
+        "last_error_message": connection.last_error_message if connection else None,
+        "data_stale": data_stale,
+        "sync_state": sync_state,
     }
 
 

@@ -14,7 +14,6 @@ import { useNavigate } from "react-router";
 import {
   getAuthToken,
   getNotifications,
-  getWebSocketUrl,
   markAllNotificationsRead,
   markNotificationRead,
   type AppNotification,
@@ -24,6 +23,7 @@ import {
   subscribeToNotificationChanges,
 } from "../services/notificationEvents";
 import { useAuth } from "../context/AuthContext";
+import { getTicketedWebSocketUrl } from "../services/socketAuth";
 function notificationIcon(type: string) {
   if (["critical", "alert", "escalation"].includes(type)) return ShieldAlert;
   if (["warning", "referral", "assignment"].includes(type)) return AlertTriangle;
@@ -107,12 +107,25 @@ export default function NotificationDropdown() {
     let reconnectTimer: number | undefined;
     let attempts = 0;
 
-    const connect = () => {
+    const connect = async () => {
       if (cancelled) return;
       setConnectionState("connecting");
-      socket = new WebSocket(
-        getWebSocketUrl(`/notifications/ws?token=${encodeURIComponent(token)}`)
-      );
+      try {
+        const socketUrl = await getTicketedWebSocketUrl(
+          "/notifications/ws",
+          "notifications"
+        );
+        if (cancelled) return;
+        socket = new WebSocket(socketUrl);
+      } catch {
+        if (!cancelled) {
+          setConnectionState("fallback");
+          attempts += 1;
+          const delay = Math.min(30000, 1000 * 2 ** Math.min(attempts, 5));
+          reconnectTimer = window.setTimeout(() => void connect(), delay);
+        }
+        return;
+      }
       socket.addEventListener("open", () => {
         attempts = 0;
         setConnectionState("live");
@@ -126,12 +139,12 @@ export default function NotificationDropdown() {
         setConnectionState("fallback");
         attempts += 1;
         const delay = Math.min(30000, 1000 * 2 ** Math.min(attempts, 5));
-        reconnectTimer = window.setTimeout(connect, delay);
+        reconnectTimer = window.setTimeout(() => void connect(), delay);
       });
       socket.addEventListener("error", () => socket?.close());
     };
 
-    const connectTimer = window.setTimeout(connect, 50);
+    const connectTimer = window.setTimeout(() => void connect(), 50);
 
     return () => {
       cancelled = true;

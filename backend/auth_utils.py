@@ -25,6 +25,7 @@ ALGORITHM = settings.jwt_algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
 REFRESH_TOKEN_EXPIRE_DAYS = settings.refresh_token_expire_days
+WEBSOCKET_TICKET_EXPIRE_SECONDS = 60
 
 bearer_scheme = HTTPBearer(auto_error=False)
 password_hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
@@ -133,6 +134,26 @@ def create_refresh_token(data: dict):
     )
 
 
+def create_websocket_ticket(
+    user: models.User,
+    audience: str,
+    patient_id: int | None = None,
+) -> str:
+    payload = {
+        "sub": user.email,
+        "user_id": user.id,
+        "token_type": "websocket",
+        "socket_audience": audience,
+        "jti": secrets.token_urlsafe(16),
+    }
+    if patient_id is not None:
+        payload["patient_id"] = patient_id
+    return create_token(
+        payload,
+        timedelta(seconds=WEBSOCKET_TICKET_EXPIRE_SECONDS),
+    )
+
+
 def decode_access_token(token: str):
     try:
         return jwt.decode(
@@ -151,7 +172,7 @@ def get_user_from_token(token: str | None, db: Session):
 
     payload = decode_access_token(token)
 
-    if not payload or payload.get("token_type") == "refresh":
+    if not payload or payload.get("token_type") in {"refresh", "websocket"}:
         return None
 
     user_id = payload.get("user_id")
@@ -175,6 +196,33 @@ def get_user_from_token(token: str | None, db: Session):
             detail="User account is not active",
         )
 
+    return user
+
+
+def get_user_from_websocket_ticket(
+    ticket: str | None,
+    db: Session,
+    *,
+    audience: str,
+    patient_id: int | None = None,
+):
+    if not ticket:
+        return None
+    payload = decode_access_token(ticket)
+    if (
+        not payload
+        or payload.get("token_type") != "websocket"
+        or payload.get("socket_audience") != audience
+        or payload.get("patient_id") != patient_id
+    ):
+        return None
+
+    user_id = payload.get("user_id")
+    if user_id is None:
+        return None
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user or user.status != "active":
+        return None
     return user
 
 

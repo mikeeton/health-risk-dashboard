@@ -1,0 +1,4 @@
+injected_abnormality,canonical_level,critical_triggered,alert_created,passed
+spo2,critical,True,True,True
+heart_rate,critical,True,True,True
+blood_pressure,critical,True,True,True

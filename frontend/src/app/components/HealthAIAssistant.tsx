@@ -30,8 +30,8 @@ type Props = { patientId: number };
 
 const profiles = {
   patient: {
-    heading: "My Health AI Assistant",
-    subtitle: "Plain-language, evidence-linked support for your health record",
+    heading: "My Groq AI Assistant",
+    subtitle: "Pre-trained LLM support with evidence controls and deterministic fallback",
     defaultQuestion: "Can you explain my latest readings simply?",
     prompts: [
       "Explain my risk level simply.",
@@ -41,8 +41,8 @@ const profiles = {
     ],
   },
   doctor: {
-    heading: "Clinician AI Assistant",
-    subtitle: "Evidence-linked clinical review with mandatory human verification",
+    heading: "Clinician Groq AI Assistant",
+    subtitle: "Pre-trained LLM review with evidence controls and mandatory human verification",
     defaultQuestion: "Summarise the current risk and evidence.",
     prompts: [
       "Summarise this patient with evidence.",
@@ -52,8 +52,8 @@ const profiles = {
     ],
   },
   nurse: {
-    heading: "Nursing AI Assistant",
-    subtitle: "Evidence-linked monitoring, adherence, and escalation support",
+    heading: "Nursing Groq AI Assistant",
+    subtitle: "Pre-trained LLM support with evidence controls and deterministic fallback",
     defaultQuestion: "What should nursing monitor and escalate?",
     prompts: [
       "What should I monitor next?",
@@ -153,7 +153,7 @@ function StructuredResponseCard({
             <ShieldAlert className="h-5 w-5" /> Risk level
           </div>
           <p className="mt-3 text-3xl font-black">{output.risk_level}</p>
-          <p className="mt-5 text-xs font-bold">Confidence {confidence}%</p>
+          <p className="mt-5 text-xs font-bold">Evidence support indicator {confidence}%</p>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/10">
             <div className="h-full rounded-full bg-current" style={{ width: `${confidence}%` }} />
           </div>
@@ -295,7 +295,7 @@ export default function HealthAIAssistant({ patientId }: Props) {
       <div role="note" className="mb-5 flex gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
         <ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0" />
         <span>
-          <strong>AI-assisted—not a diagnosis.</strong> Every statement must be verified against its timestamped evidence before use.
+          <strong>Groq LLM-assisted—not a diagnosis.</strong> Safety Rules and deterministic fallback operate separately. Verify every statement against its timestamped evidence.
         </span>
       </div>
 

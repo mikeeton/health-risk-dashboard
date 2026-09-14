@@ -79,6 +79,6 @@ These cannot be honestly completed by code or by a local development agent:
 - Enable `AI_ENABLED=true` only after all AI activation gates pass.
 - Execute the final staged deployment, smoke test, and go-live sign-off.
 
-Follow `DEPLOYMENT_CHECKLIST.md` for these remaining actions. Until the human
+Follow the [deployment checklist](../setup/DEPLOYMENT_CHECKLIST.md) for these remaining actions. Until the human
 approval items are complete, deploy only with synthetic data and keep AI
 disabled.

@@ -11,9 +11,9 @@ export default function PredictiveRiskPanel({ prediction }: Props) {
       <div className="mb-5 flex items-center gap-3">
         <ShieldAlert className="h-6 w-6 text-red-600" />
         <div>
-          <h2 className="text-xl font-bold">Predictive Deterioration Score</h2>
+          <h2 className="text-xl font-bold">Calculated Trend Risk</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Forward-looking AI risk estimate
+            Frontend rule-based indicator from recent readings — not the trained ML model
           </p>
         </div>
       </div>

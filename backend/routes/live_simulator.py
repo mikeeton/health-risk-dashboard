@@ -1,15 +1,14 @@
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 import models
-from early_warning import evaluate_new_vital
+from measurement_ingestion import AuditMetadata, PatientUpdate, ingest_vital
 from access_control import get_accessible_patient, require_roles
 from auth_utils import get_current_user
 from database import get_db
-from routes.audit import write_audit_log
 
 router = APIRouter(
     prefix="/live-simulator",
@@ -278,27 +277,24 @@ def generate_live_vital(
 
     generated = generate_vitals(patient)
 
-    vital = models.Vital(
-        patient_id=patient.id,
-        timestamp=datetime.now().isoformat(timespec="seconds"),
-        **generated,
+    result = ingest_vital(
+        db,
+        {
+            "patient_id": patient.id,
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            **generated,
+        },
+        source="simulator",
+        patient_update=PatientUpdate(
+            risk_level=get_risk_level(generated["risk_score"]),
+            last_checkup=datetime.now().date().isoformat(),
+        ),
+        audit=AuditMetadata(
+            action="CONDITION_BASED_SIMULATOR_GENERATE_VITAL",
+            user_email=current_user.email,
+        ),
     )
-
-    patient.risk_level = get_risk_level(generated["risk_score"])
-    patient.last_checkup = datetime.now().date().isoformat()
-
-    db.add(vital)
-    db.commit()
-    db.refresh(vital)
-    evaluate_new_vital(db, vital)
-
-    write_audit_log(
-        db=db,
-        action="CONDITION_BASED_SIMULATOR_GENERATE_VITAL",
-        entity="Vital",
-        entity_id=str(vital.id),
-        user_email=current_user.email,
-    )
+    vital = result.vital
 
     return {
         "message": "Condition-based simulated vital generated",

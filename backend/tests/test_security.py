@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -266,7 +266,7 @@ def test_complete_role_based_clinical_workflow(
         assert assignment.status_code == 200
         created_ids["assignment"] = assignment.json()["id"]
 
-        timestamp = datetime.now().isoformat(timespec="microseconds")
+        timestamp = datetime.now(timezone.utc).isoformat(timespec="microseconds")
         vital = client.post(
             "/vitals/",
             headers=doctor_headers,
@@ -298,7 +298,7 @@ def test_complete_role_based_clinical_workflow(
             headers=patient_headers,
             json={
                 "patient_id": patient.id,
-                "timestamp": f"{timestamp}-forbidden",
+                    "timestamp": timestamp,
                 "heart_rate": 82,
                 "spo2": 97,
                 "systolic_bp": 124,
@@ -900,10 +900,19 @@ def test_ai_context_is_pseudonymised(db, cleanup):
     assert f"patient-{patient.id}" in context
 
 
-def test_withings_webhook_verification_and_unknown_notifications_are_safe(client):
-    assert client.head("/integrations/withings/webhook").status_code == 204
+def test_withings_webhook_verification_and_unknown_notifications_are_safe(
+    client, monkeypatch
+):
+    monkeypatch.setenv("WITHINGS_WEBHOOK_SECRET", "test-webhook-secret")
+    assert client.head("/integrations/withings/webhook").status_code == 401
+    assert client.head(
+        "/integrations/withings/webhook?withings_token=wrong"
+    ).status_code == 401
+    assert client.head(
+        "/integrations/withings/webhook?withings_token=test-webhook-secret"
+    ).status_code == 204
     response = client.post(
-        "/integrations/withings/webhook",
+        "/integrations/withings/webhook?withings_token=test-webhook-secret",
         content="userid=unknown&appli=4&startdate=1&enddate=2",
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )

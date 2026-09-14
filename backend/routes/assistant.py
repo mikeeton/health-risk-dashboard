@@ -171,6 +171,8 @@ def retrieve_clinical_context(patient_id: int, db: Session) -> dict | None:
                 "diastolic_bp": item.diastolic_bp,
                 "sleep_hours": item.sleep_hours,
                 "risk_score": item.risk_score,
+                "data_source": item.source,
+                "synthetic_demonstration_data": item.source in {"simulator", "demo_seed"},
             }
             for item in vitals
         ],

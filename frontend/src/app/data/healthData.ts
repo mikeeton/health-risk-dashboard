@@ -20,7 +20,8 @@ export type HealthData = {
   calories: number;
   riskScore: number;
   activityState: ActivityState;
-  source?: "simulator" | "withings" | "manual";
+  source?: "simulator" | "demo_seed" | "withings" | "wearable" | "csv_upload" | "manual";
+  verificationStatus?: string;
   persisted?: boolean;
 };
 
@@ -39,6 +40,7 @@ export const healthData: HealthData[] = [
     calories: 1900,
     riskScore: 5,
     activityState: "resting",
+    source: "demo_seed",
   },
   {
     id: "sarah-2",
@@ -54,6 +56,7 @@ export const healthData: HealthData[] = [
     calories: 1850,
     riskScore: 7,
     activityState: "resting",
+    source: "demo_seed",
   },
   {
     id: "david-1",
@@ -69,6 +72,7 @@ export const healthData: HealthData[] = [
     calories: 2100,
     riskScore: 4,
     activityState: "walking",
+    source: "demo_seed",
   },
   {
     id: "david-2",
@@ -84,6 +88,7 @@ export const healthData: HealthData[] = [
     calories: 2050,
     riskScore: 5,
     activityState: "walking",
+    source: "demo_seed",
   },
   {
     id: "amina-1",
@@ -99,6 +104,7 @@ export const healthData: HealthData[] = [
     calories: 2200,
     riskScore: 2,
     activityState: "walking",
+    source: "demo_seed",
   },
   {
     id: "amina-2",
@@ -114,6 +120,7 @@ export const healthData: HealthData[] = [
     calories: 2150,
     riskScore: 3,
     activityState: "resting",
+    source: "demo_seed",
   },
   {
     id: "james-1",
@@ -129,6 +136,7 @@ export const healthData: HealthData[] = [
     calories: 1750,
     riskScore: 8,
     activityState: "resting",
+    source: "demo_seed",
   },
   {
     id: "james-2",
@@ -144,5 +152,6 @@ export const healthData: HealthData[] = [
     calories: 1700,
     riskScore: 9,
     activityState: "resting",
+    source: "demo_seed",
   },
 ];

@@ -7,8 +7,7 @@ import schemas
 from access_control import get_accessible_patient, require_roles
 from auth_utils import get_current_user
 from database import get_db
-from routes.audit import write_audit_log
-from early_warning import evaluate_new_vital
+from measurement_ingestion import AuditMetadata, ingest_vital
 
 router = APIRouter(
     prefix="/vitals",
@@ -25,36 +24,24 @@ def create_vital(
     require_roles(current_user, {"doctor", "nurse"})
     get_accessible_patient(db, vital.patient_id, current_user)
 
-    existing_vital = (
-        db.query(models.Vital)
-        .filter(models.Vital.patient_id == vital.patient_id)
-        .filter(models.Vital.timestamp == vital.timestamp)
-        .first()
+    result = ingest_vital(
+        db,
+        vital,
+        source=vital.source,
+        audit=AuditMetadata(
+            action="CREATE_VITAL",
+            user_email=current_user.email,
+        ),
     )
 
-    if existing_vital:
+    if not result.created:
         logging.error(f"Vital record already exists for patient {vital.patient_id} at timestamp {vital.timestamp}")
         raise HTTPException(
             status_code=409,
             detail="Vital record already exists for this patient and timestamp"
         )
 
-    new_vital = models.Vital(**vital.model_dump())
-
-    db.add(new_vital)
-    db.commit()
-    db.refresh(new_vital)
-    evaluate_new_vital(db, new_vital)
-
-    write_audit_log(
-        db=db,
-        action="CREATE_VITAL",
-        entity="Vital",
-        entity_id=str(new_vital.id),
-        user_email=current_user.email,
-    )
-
-    return new_vital
+    return result.vital
 
 
 @router.get("/{patient_id}", response_model=list[schemas.VitalResponse])

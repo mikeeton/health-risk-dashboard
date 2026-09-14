@@ -1,4 +1,4 @@
-# Development Issues and Fixes
+# Development issues and fixes
 
 This document records the main issues found during the project review and the
 actions taken to make the system more suitable for a Final Year Computer
@@ -244,7 +244,7 @@ reinforced by database constraints where possible.
 Resolution: Playwright E2E smoke tests were added, the admin user-management
 screen now supports admin-verified password resets, Alembic adds workflow
 constraints and partial unique indexes, notification polling is backed by an
-authenticated WebSocket update channel, and `DEPLOYMENT.md` documents production
+authenticated WebSocket update channel, and the [deployment guide](../setup/DEPLOYMENT.md) documents production
 setup.
 
 Lessons Learned: A final-year healthcare platform should demonstrate both

@@ -1,0 +1,74 @@
+{
+  "api_origin": "https://health-risk-dashboard-api.onrender.com",
+  "checks": [
+    {
+      "http_status": 200,
+      "name": "frontend",
+      "security_headers": {
+        "Content-Security-Policy": true,
+        "Strict-Transport-Security": true,
+        "X-Content-Type-Options": true,
+        "X-Frame-Options": true
+      },
+      "status": "passed"
+    },
+    {
+      "classification": "service_suspended",
+      "http_status": 503,
+      "name": "backend_liveness",
+      "reported_status": null,
+      "status": "failed"
+    },
+    {
+      "components": {},
+      "http_status": 503,
+      "name": "backend_readiness",
+      "status": "failed"
+    },
+    {
+      "name": "login",
+      "reason": "backend_not_ready",
+      "status": "skipped"
+    },
+    {
+      "name": "patient_dashboard",
+      "reason": "backend_not_ready",
+      "status": "skipped"
+    },
+    {
+      "name": "health_data",
+      "reason": "backend_not_ready",
+      "status": "skipped"
+    },
+    {
+      "name": "canonical_assessment",
+      "reason": "backend_not_ready",
+      "status": "skipped"
+    },
+    {
+      "name": "ml_evidence_and_attribution",
+      "reason": "backend_not_ready",
+      "status": "skipped"
+    },
+    {
+      "name": "alert_workflow",
+      "reason": "backend_not_ready",
+      "status": "skipped"
+    },
+    {
+      "name": "groq_assistant",
+      "reason": "backend_not_ready",
+      "status": "skipped"
+    }
+  ],
+  "contains_secrets": false,
+  "frontend_origin": "https://aihealthcaredashboard.vercel.app",
+  "generated_at": "2026-09-14T10:26:56.566844+00:00",
+  "schema_version": "production-smoke-v1",
+  "summary": {
+    "failed": 2,
+    "passed": 1,
+    "skipped": 7,
+    "unavailable": 0
+  }
+}

@@ -69,11 +69,11 @@ export default function AIExplanationPanel({
           <h2
             className={`text-xl font-bold ${styles.text}`}
           >
-            AI Clinical Interpretation
+            Calculated Risk Indicator
           </h2>
 
           <p className="text-sm text-gray-600 dark:text-slate-400">
-            Personalized physiological analysis
+            Deterministic thresholds compared with the patient baseline — not ML or Groq
           </p>
         </div>
       </div>

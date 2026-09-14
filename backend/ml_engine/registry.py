@@ -2,62 +2,82 @@ from __future__ import annotations
 
 import json
 import os
-from time import perf_counter
 from functools import lru_cache
 from pathlib import Path
-
-import joblib
-import numpy as np
+from time import perf_counter
 
 from observability import component_tracker
 
-from .features import ENGINEERED_FEATURES, vitals_to_frame
+
+ARTIFACT_DIR = Path(
+    os.getenv(
+        "ML_ARTIFACT_DIR",
+        Path(__file__).resolve().parents[1] / "artifacts" / "ml",
+    )
+)
 
 
-ARTIFACT_DIR = Path(os.getenv("ML_ARTIFACT_DIR", Path(__file__).resolve().parents[1] / "artifacts" / "ml"))
+@lru_cache(maxsize=1)
+def artifact_status() -> dict:
+    """Validate artifact metadata without importing or deserialising the ML stack."""
+    model_path = ARTIFACT_DIR / "model.joblib"
+    report_path = ARTIFACT_DIR / "evaluation.json"
+    if not model_path.is_file() or not report_path.is_file():
+        return {
+            "available": False,
+            "reason": "No validated model artifact has been installed.",
+        }
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"available": False, "reason": "ML evaluation metadata is invalid."}
+    if not report.get("schema_version"):
+        return {"available": False, "reason": "ML artifact metadata has no schema version."}
+    if not report.get("approved_for_inference", False):
+        return {"available": False, "reason": "ML artifact is not approved for inference."}
+    return {"available": True, **report}
 
 
 @lru_cache(maxsize=1)
 def load_bundle():
-    model_path = ARTIFACT_DIR / "model.joblib"
-    report_path = ARTIFACT_DIR / "evaluation.json"
-    if not model_path.exists() or not report_path.exists():
+    status = artifact_status()
+    if not status.get("available"):
         return None
-    report = json.loads(report_path.read_text(encoding="utf-8"))
-    bundle = joblib.load(model_path)
-    if bundle.get("schema_version") != report.get("schema_version"):
+
+    # joblib imports NumPy and scikit-learn. Keep it out of API startup and
+    # deserialize exactly once, on the first endpoint that requires inference.
+    import joblib
+
+    bundle = joblib.load(ARTIFACT_DIR / "model.joblib")
+    if bundle.get("schema_version") != status.get("schema_version"):
         raise RuntimeError("ML artifact and evaluation schema versions do not match")
-    if not report.get("approved_for_inference", False):
-        return None
-    return bundle, report
+    return bundle, status
 
 
 def model_status() -> dict:
-    loaded = load_bundle()
-    if not loaded:
-        return {
-            "available": False,
-            "reason": "No validated model artifact has been installed.",
-            "artifact_directory": str(ARTIFACT_DIR),
-        }
-    _, report = loaded
-    return {"available": True, **report}
+    return artifact_status()
 
 
-def predict(vitals, patient_id: int) -> dict | None:
+def predict(vitals, patient_id: int, *, include_explanation: bool = True) -> dict | None:
     started = perf_counter()
     loaded = load_bundle()
     if not loaded:
         return None
     bundle, report = loaded
+
+    from .features import ENGINEERED_FEATURES, vitals_to_frame
+
     frame = vitals_to_frame(vitals, patient_id)
     latest = frame.iloc[[-1]][ENGINEERED_FEATURES]
     probability = float(bundle["classifier"].predict_proba(latest)[0, 1])
     threshold = float(report.get("operating_threshold", 0.5))
     anomaly_score = float(-bundle["anomaly_detector"].decision_function(latest)[0])
-    shap_started = perf_counter()
-    explanation = explain(bundle, latest)
-    shap_ms = (perf_counter() - shap_started) * 1000
+    explanation = []
+    shap_ms = 0.0
+    if include_explanation:
+        shap_started = perf_counter()
+        explanation = explain(bundle, latest)
+        shap_ms = (perf_counter() - shap_started) * 1000
     component_tracker.increment("ml_predictions_total")
     component_tracker.set(
         ml_prediction_ms_last=round((perf_counter() - started) * 1000, 2),
@@ -66,7 +86,6 @@ def predict(vitals, patient_id: int) -> dict | None:
     return {
         "prediction_score": round(probability * 10, 2),
         "prediction_level": "High" if probability >= threshold else "Moderate" if probability >= threshold * 0.7 else "Low",
-        "confidence": round(max(probability, 1 - probability), 4),
         "probability": probability,
         "anomaly_score": anomaly_score,
         "anomaly_detected": bool(bundle["anomaly_detector"].predict(latest)[0] == -1),
@@ -91,6 +110,10 @@ def calculate_drift(latest, report: dict) -> dict:
 
 
 def explain(bundle, latest) -> list[dict]:
+    import numpy as np
+
+    from .features import ENGINEERED_FEATURES
+
     pipeline = bundle["explanation_pipeline"]
     transformed = pipeline[:-1].transform(latest)
     model = pipeline.named_steps["model"]

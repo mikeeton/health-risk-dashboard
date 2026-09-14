@@ -1,9 +1,7 @@
 import asyncio
 import json
 import os
-import random
 from contextlib import asynccontextmanager, suppress
-from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +12,7 @@ from sqlalchemy import inspect, text
 import models
 from access_control import can_access_patient, require_admin
 from auth_utils import get_current_user
-from auth_utils import get_user_from_token
+from auth_utils import get_user_from_websocket_ticket
 from config import get_settings
 from database import SessionLocal, engine, get_db
 from middleware import (
@@ -40,6 +38,7 @@ from routes import wearables
 from routes import integrations_withings
 from routes import care_workflows
 from routes import research
+from simulator_service import generate_websocket_vital
 
 settings = get_settings()
 initialize_error_reporting()
@@ -329,6 +328,7 @@ async def readiness_check(db: Session = Depends(get_db)):
             redis_status = "unavailable"
     if settings.require_redis and redis_status != "ok":
         raise HTTPException(status_code=503, detail="Redis is unavailable")
+    # Metadata/file validation deliberately avoids deserialising the model.
     ml_status = model_status()
     if settings.require_ml_model and not ml_status.get("available"):
         raise HTTPException(status_code=503, detail="Approved ML model is unavailable")
@@ -337,6 +337,7 @@ async def readiness_check(db: Session = Depends(get_db)):
         "status": "ready",
         "database": "ok",
         "redis": redis_status,
+        "degraded": redis_status == "unavailable" and not settings.require_redis,
         "error_reporting": "configured" if settings.sentry_dsn else "disabled",
         "ml_model": "approved" if ml_status.get("available") else "unavailable",
         "ml_model_version": ml_status.get("model_version"),
@@ -358,11 +359,16 @@ def metrics(current_user: models.User = Depends(get_current_user)):
 
 @app.websocket("/ws/live/{patient_id}")
 async def websocket_live_monitoring(websocket: WebSocket, patient_id: int):
-    token = websocket.query_params.get("token")
+    ticket = websocket.query_params.get("ticket")
     db = SessionLocal()
 
     try:
-        current_user = get_user_from_token(token, db)
+        current_user = get_user_from_websocket_ticket(
+            ticket,
+            db,
+            audience="live_vitals",
+            patient_id=patient_id,
+        )
 
         if not current_user or not can_access_patient(db, patient_id, current_user):
             await websocket.close(code=1008)
@@ -388,48 +394,7 @@ async def websocket_live_monitoring(websocket: WebSocket, patient_id: int):
             except asyncio.TimeoutError:
                 pass
 
-            heart_rate = random.randint(72, 145)
-            spo2 = round(random.uniform(88, 99), 1)
-            systolic_bp = random.randint(115, 185)
-            diastolic_bp = random.randint(75, 115)
-
-            risk_score = 2
-
-            if heart_rate > 110:
-                risk_score += 2
-
-            if spo2 < 94:
-                risk_score += 2
-
-            if systolic_bp > 150:
-                risk_score += 2
-
-            if diastolic_bp > 95:
-                risk_score += 1
-
-            risk_score = min(risk_score, 10)
-
-            record = {
-                "id": f"ws-{datetime.now().timestamp()}",
-                "patientId": patient_id,
-                "timestamp": datetime.now().isoformat(timespec="seconds"),
-                "heartRate": heart_rate,
-                "spo2": spo2,
-                "systolicBP": systolic_bp,
-                "diastolicBP": diastolic_bp,
-                "steps": random.randint(0, 10000),
-                "sleepHours": round(random.uniform(3.5, 8.5), 1),
-                "activeMinutes": random.randint(0, 90),
-                "calories": random.randint(1500, 2800),
-                "riskScore": risk_score,
-                "activityState": random.choice(
-                    ["resting", "walking", "sleeping", "active"]
-                ),
-                "source": "simulator",
-                "persisted": False,
-            }
-
-            await websocket.send_json(record)
+            await websocket.send_json(generate_websocket_vital(patient_id))
             await asyncio.sleep(settings.websocket_interval_seconds)
 
     except WebSocketDisconnect:

@@ -9,7 +9,7 @@ from auth_utils import get_current_user
 from database import get_db
 from notification_utils import create_notification, notify_role
 from routes.audit import write_audit_log
-from early_warning import evaluate_new_vital
+from measurement_ingestion import AuditMetadata, ingest_vital
 
 router = APIRouter(
     prefix="/role-actions",
@@ -153,35 +153,17 @@ def nurse_record_vitals(
     require_roles(current_user, {"nurse"})
     get_accessible_patient(db, vital.patient_id, current_user)
 
-    new_vital = models.Vital(
-        patient_id=vital.patient_id,
-        timestamp=vital.timestamp,
-        heart_rate=vital.heart_rate,
-        spo2=vital.spo2,
-        systolic_bp=vital.systolic_bp,
-        diastolic_bp=vital.diastolic_bp,
-        steps=vital.steps,
-        sleep_hours=vital.sleep_hours,
-        active_minutes=vital.active_minutes,
-        calories=vital.calories,
-        risk_score=vital.risk_score,
-        activity_state=vital.activity_state,
+    result = ingest_vital(
+        db,
+        vital,
+        source=vital.source,
+        audit=AuditMetadata(
+            action="NURSE_RECORD_VITALS",
+            user_email=current_user.email,
+        ),
     )
 
-    db.add(new_vital)
-    db.commit()
-    db.refresh(new_vital)
-    evaluate_new_vital(db, new_vital)
-
-    write_audit_log(
-        db=db,
-        action="NURSE_RECORD_VITALS",
-        entity="Vital",
-        entity_id=str(new_vital.id),
-        user_email=current_user.email,
-    )
-
-    return new_vital
+    return result.vital
 
 
 @router.post(

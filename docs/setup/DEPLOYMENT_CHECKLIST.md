@@ -13,7 +13,7 @@
 - [ ] `APP_ENV=production`
 - [ ] Unique random `SECRET_KEY` of at least 32 characters
 - [ ] PostgreSQL production `DATABASE_URL`
-- [ ] Private `REDIS_URL` and `REQUIRE_REDIS=true`
+- [ ] Optional Upstash TLS `REDIS_URL`; keep `REQUIRE_REDIS=false` for the single-instance demo
 - [ ] HTTPS-only `CORS_ORIGINS`
 - [ ] Exact production `ALLOWED_HOSTS`
 - [ ] `FORCE_HTTPS=true`
@@ -21,6 +21,7 @@
 - [ ] `RUN_STARTUP_SCHEMA_CHECK=false`
 - [ ] Exact `FRONTEND_URL` also listed in `CORS_ORIGINS`
 - [ ] Withings callback and webhook are public HTTPS URLs on the API domain
+- [ ] Independent random `WITHINGS_WEBHOOK_SECRET` is stored only in Render
 - [ ] `REQUIRE_WITHINGS=true` and all Withings secrets supplied
 - [ ] `REQUIRE_SENTRY=true` and backend/frontend Sentry DSNs supplied
 - [ ] `AI_ENABLED=false` until the AI governance approval below is complete
@@ -30,7 +31,7 @@
 
 - [ ] Paid production-grade database/hosting plan selected
 - [ ] Encryption in transit and at rest confirmed
-- [ ] Automated backups, retention, PITR, and restore drill verified
+- [ ] Manual encrypted PostgreSQL backup schedule and isolated restore drill documented
 - [ ] Monitoring, alerting, on-call ownership, incident plan, RPO, and RTO agreed
 - [ ] Staging smoke, load, failure, rollback, and penetration tests passed
 - [ ] Production admin created with MFA-capable identity controls

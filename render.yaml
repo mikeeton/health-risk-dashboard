@@ -3,33 +3,34 @@ services:
     name: health-risk-dashboard-api
     runtime: python
     rootDir: backend
-    plan: starter
+    plan: free
     region: frankfurt
     buildCommand: pip install -r requirements.txt
     startCommand: python scripts/start_render.py
     healthCheckPath: /health/ready
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: health-risk-dashboard-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: health-risk-dashboard-events
-          property: connectionString
-      - key: REQUIRE_REDIS
-        value: true
-      - key: DATABASE_POOL_SIZE
-        value: 5
-      - key: DATABASE_MAX_OVERFLOW
-        value: 10
-      - key: DATABASE_POOL_RECYCLE_SECONDS
-        value: 300
       - key: PYTHON_VERSION
         value: 3.12.3
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSLMODE
+        value: require
+      - key: DATABASE_POOL_SIZE
+        value: 2
+      - key: DATABASE_MAX_OVERFLOW
+        value: 1
+      - key: DATABASE_POOL_TIMEOUT
+        value: 15
+      - key: DATABASE_POOL_RECYCLE_SECONDS
+        value: 300
+      - key: REDIS_URL
+        sync: false
+      - key: REQUIRE_REDIS
+        value: false
       - key: SECRET_KEY
-        generateValue: true
+        sync: false
       - key: JWT_ALGORITHM
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
@@ -38,12 +39,12 @@ services:
         value: 7
       - key: CORS_ORIGINS
         value: https://aihealthcaredashboard.vercel.app
-      - key: APP_ENV
-        value: production
+      - key: FRONTEND_URL
+        value: https://aihealthcaredashboard.vercel.app
+      - key: ALLOWED_HOSTS
+        sync: false
       - key: FORCE_HTTPS
         value: true
-      - key: ALLOWED_HOSTS
-        value: health-risk-dashboard-api.onrender.com
       - key: PUBLIC_API_DOCS
         value: false
       - key: RUN_STARTUP_SCHEMA_CHECK
@@ -64,40 +65,16 @@ services:
         value: 60
       - key: TRUSTED_PROXY_COUNT
         value: 1
-      - key: GROQ_API_KEY
-        sync: false
       - key: AI_ENABLED
         value: false
+      - key: GROQ_API_KEY
+        sync: false
       - key: AI_MODEL
         value: llama-3.1-8b-instant
-      - key: AI_MAX_RETRIES
-        value: 1
-      - key: AI_MAX_TOKENS
-        value: 700
-      - key: AI_DAILY_REQUEST_LIMIT
-        value: 200
-      - key: AI_CIRCUIT_FAILURE_THRESHOLD
-        value: 3
-      - key: AI_CIRCUIT_RESET_SECONDS
-        value: 60
-      - key: AI_DATA_STALE_HOURS
-        value: 24
       - key: AI_MEMORY_ENCRYPTION_KEY
-        generateValue: true
-      - key: AI_DATA_CLASSIFICATION
-        value: real
-      - key: AI_PROVIDER_DPA_APPROVED
-        value: false
-      - key: AI_RETENTION_REVIEWED
-        value: false
-      - key: AI_REGIONAL_PROCESSING_APPROVED
-        value: false
-      - key: AI_AUDIT_ENABLED
-        value: true
-      - key: AI_CLINICAL_APPROVAL
-        value: false
-      - key: FRONTEND_URL
-        value: https://aihealthcaredashboard.vercel.app
+        sync: false
+      - key: INTEGRATION_ENCRYPTION_KEY
+        sync: false
       - key: WITHINGS_CLIENT_ID
         sync: false
       - key: WITHINGS_CLIENT_SECRET
@@ -106,63 +83,13 @@ services:
         sync: false
       - key: WITHINGS_WEBHOOK_URL
         sync: false
+      - key: WITHINGS_WEBHOOK_SECRET
+        sync: false
       - key: REQUIRE_WITHINGS
         value: false
-      - key: INTEGRATION_ENCRYPTION_KEY
-        sync: false
       - key: SENTRY_DSN
         sync: false
       - key: REQUIRE_SENTRY
         value: false
-      - key: SENTRY_TRACES_SAMPLE_RATE
-        value: 0.1
       - key: RELEASE
         sync: false
-
-  - type: keyvalue
-    name: health-risk-dashboard-events
-    plan: starter
-    region: frankfurt
-    ipAllowList: []
-    maxmemoryPolicy: noeviction
-    persistenceMode: journal-snapshot
-
-  - type: cron
-    name: health-risk-dashboard-backup
-    runtime: python
-    rootDir: backend
-    plan: starter
-    region: frankfurt
-    schedule: "0 3 * * *"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python scripts/backup_postgres.py
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: health-risk-dashboard-db
-          property: connectionString
-      - key: BACKUP_S3_BUCKET
-        sync: false
-      - key: BACKUP_S3_PREFIX
-        value: health-risk-dashboard
-      - key: BACKUP_S3_ENDPOINT
-        sync: false
-      - key: BACKUP_ENCRYPTION_KEY
-        generateValue: true
-      - key: BACKUP_RETENTION_DAYS
-        value: 30
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: AWS_DEFAULT_REGION
-        value: eu-west-2
-
-databases:
-  - name: health-risk-dashboard-db
-    plan: basic-256mb
-    region: frankfurt
-    postgresMajorVersion: "16"
-    ipAllowList: []
-    databaseName: health_ai
-    user: health_ai_user

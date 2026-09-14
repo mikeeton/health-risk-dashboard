@@ -5,6 +5,10 @@ const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30_000,
+  // The suite shares one Vite development server and uses route-level API
+  // mocks. Serial workers avoid intermittent worker crashes and navigation
+  // timeouts observed when several Windows Chromium processes start together.
+  workers: 1,
   expect: {
     timeout: 7_500,
   },

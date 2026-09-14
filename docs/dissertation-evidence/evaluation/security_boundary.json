@@ -1,0 +1,8 @@
+{
+  "assistant_context_patient_name_absent": true,
+  "assistant_context_pseudonym_present": true,
+  "passed": true,
+  "synthetic_data_only": true,
+  "unauthorized_access_denied": true,
+  "unauthorized_canonical_access_status": 404
+}

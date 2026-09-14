@@ -1,0 +1,11 @@
+injected_abnormality,repeat,seed,expected_feature_prefix,top_1_feature,top_3_features,top_1_match,top_3_match,methods,model_version
+heart_rate,1,20260911,heart_rate,heart_rate,"[""heart_rate"", ""heart_rate_std_3"", ""heart_rate_slope_5""]",True,True,"[""model coefficient fallback""]",physionet-critical-v1
+heart_rate,2,20260912,heart_rate,heart_rate,"[""heart_rate"", ""heart_rate_std_3"", ""heart_rate_slope_5""]",True,True,"[""model coefficient fallback""]",physionet-critical-v1
+heart_rate,3,20260913,heart_rate,heart_rate,"[""heart_rate"", ""heart_rate_std_3"", ""heart_rate_slope_5""]",True,True,"[""model coefficient fallback""]",physionet-critical-v1
+heart_rate,4,20260914,heart_rate,heart_rate,"[""heart_rate"", ""heart_rate_std_3"", ""heart_rate_slope_5""]",True,True,"[""model coefficient fallback""]",physionet-critical-v1
+heart_rate,5,20260915,heart_rate,heart_rate,"[""heart_rate"", ""heart_rate_std_3"", ""heart_rate_slope_5""]",True,True,"[""model coefficient fallback""]",physionet-critical-v1
+spo2,1,20260911,spo2,heart_rate,"[""heart_rate"", ""diastolic_bp_mean_3"", ""heart_rate_mean_3""]",False,False,"[""model coefficient fallback""]",physionet-critical-v1
+spo2,2,20260912,spo2,heart_rate,"[""heart_rate"", ""diastolic_bp_mean_3"", ""heart_rate_mean_3""]",False,False,"[""model coefficient fallback""]",physionet-critical-v1
+spo2,3,20260913,spo2,heart_rate,"[""heart_rate"", ""heart_rate_mean_3"", ""diastolic_bp_mean_3""]",False,False,"[""model coefficient fallback""]",physionet-critical-v1
+spo2,4,20260914,spo2,heart_rate,"[""heart_rate"", ""heart_rate_mean_3"", ""diastolic_bp_mean_3""]",False,False,"[""model coefficient fallback""]",physionet-critical-v1
+spo2,5,20260915,spo2,heart_rate,"[""heart_rate"", ""diastolic_bp_mean_3"", ""heart_rate_mean_3""]",False,False,"[""model coefficient fallback""]",physionet-critical-v1

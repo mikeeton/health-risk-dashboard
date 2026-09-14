@@ -2,7 +2,9 @@ from datetime import datetime, date
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from datetime import datetime, timezone
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 COMMON_PASSWORDS = {
@@ -49,6 +51,24 @@ class UserLogin(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+
+class WebSocketTicketRequest(BaseModel):
+    audience: Literal["live_vitals", "notifications"]
+    patient_id: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_scope(self):
+        if self.audience == "live_vitals" and self.patient_id is None:
+            raise ValueError("patient_id is required for live-vital tickets")
+        if self.audience == "notifications" and self.patient_id is not None:
+            raise ValueError("patient_id is not valid for notification tickets")
+        return self
+
+
+class WebSocketTicketResponse(BaseModel):
+    ticket: str
+    expires_in_seconds: int
 
 
 class PasswordResetConfirm(BaseModel):
@@ -171,6 +191,17 @@ class StaffAssignmentResponse(BaseModel):
 # VITALS
 # =========================
 
+def normalize_vital_timestamp(value: str) -> str:
+    """Return a timezone-aware vital timestamp normalized to UTC."""
+    candidate = value.strip()
+    try:
+        parsed = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("timestamp must be a valid ISO-8601 datetime") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("timestamp must include a timezone offset")
+    return parsed.astimezone(timezone.utc).isoformat()
+
 class VitalCreate(BaseModel):
     """Validated vital reading.
 
@@ -181,19 +212,28 @@ class VitalCreate(BaseModel):
     patient_id: int = Field(gt=0)
     timestamp: str = Field(min_length=1, max_length=80)
 
-    heart_rate: int = Field(ge=20, le=240)
-    spo2: float = Field(ge=50, le=100)
+    heart_rate: int = Field(ge=20, le=240, description="Beats per minute (bpm)")
+    spo2: float = Field(ge=50, le=100, description="Peripheral oxygen saturation (%)")
 
-    systolic_bp: int = Field(ge=40, le=260)
-    diastolic_bp: int = Field(ge=20, le=180)
+    systolic_bp: int = Field(ge=40, le=260, description="Millimetres of mercury (mmHg)")
+    diastolic_bp: int = Field(ge=20, le=180, description="Millimetres of mercury (mmHg)")
 
-    steps: int = Field(ge=0, le=200000)
-    sleep_hours: float = Field(ge=0, le=24)
-    active_minutes: int = Field(ge=0, le=1440)
-    calories: int = Field(ge=0, le=20000)
+    steps: int = Field(ge=0, le=200000, description="Step count")
+    sleep_hours: float = Field(ge=0, le=24, description="Hours")
+    active_minutes: int = Field(ge=0, le=1440, description="Minutes")
+    calories: int = Field(ge=0, le=20000, description="Kilocalories (kcal)")
 
     risk_score: int = Field(ge=0, le=10)
     activity_state: str = Field(min_length=1, max_length=80)
+    source: Literal["manual", "csv_upload", "simulator", "demo_seed", "withings", "wearable"] = "manual"
+
+    _normalize_timestamp = field_validator("timestamp")(normalize_vital_timestamp)
+
+    @model_validator(mode="after")
+    def validate_blood_pressure_order(self):
+        if self.diastolic_bp > self.systolic_bp:
+            raise ValueError("diastolic blood pressure cannot exceed systolic blood pressure")
+        return self
 
 
 class VitalResponse(BaseModel):
@@ -217,6 +257,8 @@ class VitalResponse(BaseModel):
 
     risk_score: int
     activity_state: str
+    source: str
+    verification_status: str
 
 # =========================
 # REVIEW CASES
@@ -358,8 +400,140 @@ class MLPredictionResponse(BaseModel):
     patient_id: int
     prediction_score: int
     prediction_level: str
-    confidence: float
+    probability: float | None = None
+    source: str
     message: str
+
+
+# =========================
+# CANONICAL RISK ASSESSMENT
+# =========================
+
+CanonicalRiskLevel = Literal["low", "moderate", "high", "critical"]
+
+
+class BaselineValues(BaseModel):
+    heart_rate: float
+    spo2: float
+    systolic_bp: float
+    diastolic_bp: float
+    sleep_hours: float
+    steps: float
+
+
+class BaselineDeviations(BaseModel):
+    heart_rate_percent: float
+    spo2_percent: float
+    systolic_bp_percent: float
+    sleep_hours_percent: float
+    steps_percent: float
+
+
+class BaselineMetricAssessment(BaseModel):
+    unit: str
+    mean: float | None = None
+    std_dev: float | None = None
+    current: float | None = None
+    deviation: float | None = None
+    deviation_percent: float | None = None
+    z_score: float | None = None
+    raw_sample_count: int
+    sample_count: int
+    excluded_outliers: int
+
+
+class BaselineAssessment(BaseModel):
+    ready: bool
+    version: str
+    method: str
+    ordering: Literal["oldest_to_newest"]
+    sample_count: int
+    required_sample_count: int
+    maximum_sample_count: int
+    outlier_method: str
+    reason: str | None = None
+    relative_score: int | None = None
+    relative_level: CanonicalRiskLevel | None = None
+    values: BaselineValues | None = None
+    deviations: BaselineDeviations | None = None
+    metrics: dict[str, BaselineMetricAssessment] = Field(default_factory=dict)
+    reasons: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class DeterministicAssessment(BaseModel):
+    triggered: bool
+    level: Literal["critical"] | None = None
+    reasons: list[str] = Field(default_factory=list)
+
+
+class MLRiskAssessment(BaseModel):
+    available: bool
+    reason: str | None = None
+    probability: float | None = None
+    classification: Literal["low", "moderate", "high"] | None = None
+    operating_threshold: float | None = None
+    model_version: str | None = None
+    governance_mode: str
+    prediction_window_hours: int = 6
+    target_semantics: str
+    source: Literal["stored_prediction", "live_read_only", "unavailable"]
+    based_on_vital_id: int | None = None
+    generated_at: datetime | None = None
+    consecutive_positive_count: int = 0
+    active_alert_eligible: bool = False
+
+
+class AnomalyAssessment(BaseModel):
+    available: bool
+    score: float | None = None
+    is_anomalous: bool | None = None
+    reason: str | None = None
+    semantics: str
+
+
+class RiskEvidence(BaseModel):
+    feature: str
+    value: float | str | None = None
+    contribution: float | None = None
+    source: Literal["critical_rule", "trend_rule", "shap"]
+    description: str
+
+
+class AlertAssessment(BaseModel):
+    exists: bool
+    alert_id: int | None = None
+    status: str | None = None
+    severity: str | None = None
+    score: int | None = None
+    alert_type: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class DataQualityAssessment(BaseModel):
+    stale: bool
+    complete: bool
+    last_reading_at: datetime | None = None
+    missing_metrics: list[str] = Field(default_factory=list)
+    source: str | None = None
+    verification_status: str | None = None
+
+
+class CanonicalRiskAssessment(BaseModel):
+    patient_id: int
+    assessment_version: str
+    generated_at: datetime
+    overall_level: CanonicalRiskLevel
+    overall_score: float | None = None
+    reason: str
+    baseline: BaselineAssessment
+    deterministic: DeterministicAssessment
+    ml: MLRiskAssessment
+    anomaly: AnomalyAssessment
+    evidence: list[RiskEvidence] = Field(default_factory=list)
+    alert: AlertAssessment
+    data_quality: DataQualityAssessment
 
 # =========================
 # NOTIFICATIONS 
@@ -455,18 +629,20 @@ class ReferralResponse(BaseModel):
 # =========================
 
 class WearableVitalCreate(BaseModel):
-    patient_id: int
+    patient_id: int = Field(gt=0)
 
     device_name: str
 
-    heart_rate: int
-    spo2: float
+    heart_rate: int = Field(ge=20, le=240, description="Beats per minute (bpm)")
+    spo2: float = Field(ge=50, le=100, description="Peripheral oxygen saturation (%)")
 
-    steps: int
+    steps: int = Field(ge=0, le=200000, description="Step count")
 
-    sleep_hours: float
+    sleep_hours: float = Field(ge=0, le=24, description="Hours")
 
-    timestamp: str
+    timestamp: str = Field(min_length=1, max_length=80)
+
+    _normalize_timestamp = field_validator("timestamp")(normalize_vital_timestamp)
 
 
 class WearableDeviceResponse(BaseModel):

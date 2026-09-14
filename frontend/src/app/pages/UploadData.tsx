@@ -18,8 +18,9 @@ export default function UploadData() {
   const { selectedPatient, healthData, refreshVitals } = useHealthData();
 
   const [fileName, setFileName] = useState("");
-  const [dataPreview, setDataPreview] = useState<HealthData[]>([]);
+  const [parsedData, setParsedData] = useState<HealthData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const dataPreview = parsedData.slice(0, 5);
 
   const cleanActivityState = (value: string): ActivityState => {
     const state = value?.toLowerCase().trim();
@@ -85,13 +86,13 @@ export default function UploadData() {
           };
         });
 
-        setDataPreview(cleanedData.slice(0, 5));
+        setParsedData(cleanedData);
       },
     });
   };
 
   const handleUpload = async () => {
-    if (dataPreview.length === 0) {
+    if (parsedData.length === 0) {
       alert("Please choose a CSV file first.");
       return;
     }
@@ -99,7 +100,7 @@ export default function UploadData() {
     try {
       setIsUploading(true);
 
-      for (const record of dataPreview) {
+      for (const record of parsedData) {
         await createVital({
           patient_id: record.patientId,
           timestamp: record.timestamp,
@@ -113,6 +114,7 @@ export default function UploadData() {
           calories: record.calories,
           risk_score: record.riskScore,
           activity_state: record.activityState,
+          source: "csv_upload",
         });
       }
 
@@ -137,7 +139,7 @@ export default function UploadData() {
         </h1>
 
         <p className="mt-2 text-gray-600 dark:text-slate-400">
-          Upload smartwatch-style patient health data for AI-assisted risk
+          Upload smartwatch-style patient health data for calculated risk indicators
           analysis.
         </p>
       </div>
@@ -160,7 +162,7 @@ export default function UploadData() {
           </p>
 
           <p className="mt-3 text-gray-600 dark:text-slate-400">
-            Risk score will be calculated automatically by the AI risk engine and
+            Risk score will be calculated automatically by deterministic thresholds and
             saved into the backend database.
           </p>
 
@@ -181,9 +183,14 @@ export default function UploadData() {
           </label>
 
           {fileName && (
-            <div className="mt-6 flex items-center justify-center gap-2 font-medium text-green-600">
-              <CheckCircle className="h-5 w-5" />
-              <span>{fileName} loaded</span>
+            <div className="mt-6 text-green-600" aria-live="polite">
+              <div className="flex items-center justify-center gap-2 font-medium">
+                <CheckCircle className="h-5 w-5" />
+                <span>{fileName} loaded</span>
+              </div>
+              <p className="mt-2 text-sm">
+                {parsedData.length} parsed rows; previewing {dataPreview.length}.
+              </p>
             </div>
           )}
         </div>

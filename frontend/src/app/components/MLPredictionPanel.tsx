@@ -6,9 +6,11 @@ type MLPrediction = {
   patient_id: number;
   prediction_score: number;
   prediction_level: string;
-  confidence: number;
+  probability?: number;
   message: string;
   source?: string;
+  input_data_sources?: string[];
+  contains_synthetic_data?: boolean;
   model_version?: string;
   anomaly_detected?: boolean;
   anomaly_score?: number;
@@ -28,9 +30,9 @@ export default function MLPredictionPanel({ patientId }: Props) {
       setError("");
       const data = await getMLPrediction(patientId);
       setPrediction(data);
-    } catch {
+    } catch (requestError) {
       setPrediction(null);
-      setError("At least 5 vital records are needed for ML prediction.");
+      setError(requestError instanceof Error ? requestError.message : "Six-hour ML prediction is unavailable.");
     }
   };
 
@@ -44,9 +46,9 @@ export default function MLPredictionPanel({ patientId }: Props) {
         <BrainCircuit className="h-6 w-6 text-blue-600" />
 
         <div>
-          <h2 className="text-xl font-bold">Scikit-Learn Prediction</h2>
+          <h2 className="text-xl font-bold">Six-Hour ML Prediction</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Versioned prediction with deterministic safety override
+            Trained PhysioNet model, with independent deterministic safety rules
           </p>
         </div>
       </div>
@@ -57,6 +59,11 @@ export default function MLPredictionPanel({ patientId }: Props) {
         </p>
       ) : prediction ? (
         <div>
+          {prediction.contains_synthetic_data && (
+            <p className="mb-4 rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-sm font-bold text-violet-900 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-100">
+              Synthetic demonstration data was included in this calculation.
+            </p>
+          )}
           <p className="text-5xl font-extrabold">
             {prediction.prediction_score}/10
           </p>
@@ -69,12 +76,20 @@ export default function MLPredictionPanel({ patientId }: Props) {
             {prediction.message}
           </p>
 
-          <p className="mt-3 text-xs text-slate-400">
-            Confidence: {(prediction.confidence * 100).toFixed(0)}%
-          </p>
+          {prediction.source === "versioned_model" && prediction.probability !== undefined ? (
+            <p className="mt-3 text-sm font-bold text-blue-700 dark:text-blue-300">
+              Predicted 6-hour critical-event probability: {(prediction.probability * 100).toFixed(1)}%
+            </p>
+          ) : (
+            <p className="mt-3 text-sm font-bold text-amber-700 dark:text-amber-300">
+              {prediction.source === "deterministic_safety_override"
+                ? "Safety Rules triggered — model probability was not calculated."
+                : "Calculated fallback — no trained-model probability is available."}
+            </p>
+          )}
 
           <p className="mt-1 text-xs text-slate-400">
-            Source: {prediction.source?.replaceAll("_", " ") ?? "unknown"}
+            Method: {prediction.source === "versioned_model" ? "trained six-hour ML model" : prediction.source === "deterministic_safety_override" ? "Safety Rules" : "calculated fallback"}
             {prediction.model_version ? ` · model ${prediction.model_version}` : ""}
           </p>
 

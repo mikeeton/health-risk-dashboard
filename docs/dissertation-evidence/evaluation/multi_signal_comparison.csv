@@ -1,0 +1,3 @@
+case,canonical_level,relative_level,relative_score,baseline_reasons,trend_evidence
+heart_rate_only,moderate,moderate,5,"[""Resting heart rate differs from baseline by more than 40%.""]","[""heart rate varied by 42 bpm across recent readings""]"
+heart_rate_and_spo2,high,high,7,"[""Resting heart rate differs from baseline by more than 40%."", ""SpO2 is below the patient-relative expected range.""]","[""heart rate varied by 42 bpm across recent readings""]"

@@ -1,0 +1,16 @@
+{
+  "alembic_head": "20260914_0018",
+  "contains_secrets": false,
+  "database": "Disposable PostgreSQL 16 container",
+  "external_deployment_proven": false,
+  "generated_at": "2026-09-14T10:29:00+00:00",
+  "migration_rehearsal": {
+    "downgrade_target": "20260728_0005",
+    "empty_upgrade": "passed",
+    "return_to_head": "passed"
+  },
+  "optional_redis": "not_configured",
+  "production_configuration_validation": "passed",
+  "production_preflight": "passed",
+  "schema_version": "local-production-preflight-v1"
+}

@@ -1,5 +1,6 @@
 import { Wifi, WifiOff, Activity } from "lucide-react";
 import type { HealthData } from "../data/healthData";
+import DataProvenanceBadge from "./DataProvenanceBadge";
 
 type Props = {
   connected: boolean;
@@ -50,7 +51,9 @@ export default function WebSocketLivePanel({
           Start live monitoring to stream new vitals.
         </p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div>
+          <div className="mb-4"><DataProvenanceBadge source={latestRecord.source} /></div>
+          <div className="grid gap-4 md:grid-cols-4">
           <div className="rounded-2xl bg-white/70 p-4 dark:bg-slate-900/70">
             <Activity className="mb-2 h-5 w-5 text-red-500" />
             <p className="text-xs text-slate-500">Heart Rate</p>
@@ -72,6 +75,7 @@ export default function WebSocketLivePanel({
           <div className="rounded-2xl bg-white/70 p-4 dark:bg-slate-900/70">
             <p className="text-xs text-slate-500">Risk</p>
             <p className="text-2xl font-bold">{latestRecord.riskScore}/10</p>
+          </div>
           </div>
         </div>
       )}

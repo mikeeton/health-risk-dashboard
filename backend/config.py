@@ -16,48 +16,6 @@ def normalize_database_url(value: str) -> str:
     return value
 
 
-def _normalise_render_environment() -> None:
-    """Repair blank values retained by an existing Render service.
-
-    Render dashboard values override later Blueprint defaults. Apply these
-    deployment-specific fallbacks before ``Settings`` reads the environment so
-    both the legacy shell command and the current launcher start consistently.
-    """
-    is_render = os.getenv("RENDER", "").lower() == "true" or bool(
-        os.getenv("RENDER_SERVICE_ID", "").strip()
-    )
-    if not is_render:
-        return
-
-    frontend_url = (
-        "https://aihealthcaredashboard.vercel.app"
-    )
-    defaults = {
-        "FRONTEND_URL": frontend_url,
-        "CORS_ORIGINS": frontend_url,
-        "ALLOWED_HOSTS": "health-risk-dashboard-api.onrender.com",
-    }
-    for name, value in defaults.items():
-        if not os.getenv(name, "").strip():
-            os.environ[name] = value
-
-    withings_names = (
-        "WITHINGS_CLIENT_ID",
-        "WITHINGS_CLIENT_SECRET",
-        "WITHINGS_REDIRECT_URI",
-        "WITHINGS_WEBHOOK_URL",
-    )
-    if not any(os.getenv(name, "").strip() for name in withings_names):
-        os.environ["REQUIRE_WITHINGS"] = "false"
-        os.environ.pop("INTEGRATION_ENCRYPTION_KEY", None)
-
-    if not os.getenv("SENTRY_DSN", "").strip():
-        os.environ["REQUIRE_SENTRY"] = "false"
-
-
-_normalise_render_environment()
-
-
 def _csv_env(name: str, default: str) -> list[str]:
     raw_value = os.getenv(name, default)
 
@@ -90,8 +48,8 @@ class Settings:
     websocket_interval_seconds = int(os.getenv("WEBSOCKET_INTERVAL_SECONDS", "5"))
     redis_url = os.getenv("REDIS_URL", "").strip()
     require_redis = os.getenv("REQUIRE_REDIS", "false").lower() == "true"
-    database_pool_size = int(os.getenv("DATABASE_POOL_SIZE", "5"))
-    database_max_overflow = int(os.getenv("DATABASE_MAX_OVERFLOW", "10"))
+    database_pool_size = int(os.getenv("DATABASE_POOL_SIZE", "2"))
+    database_max_overflow = int(os.getenv("DATABASE_MAX_OVERFLOW", "1"))
     database_pool_timeout = int(os.getenv("DATABASE_POOL_TIMEOUT", "30"))
     database_pool_recycle_seconds = int(
         os.getenv("DATABASE_POOL_RECYCLE_SECONDS", "300")
@@ -148,6 +106,7 @@ class Settings:
     withings_client_secret = os.getenv("WITHINGS_CLIENT_SECRET", "")
     withings_redirect_uri = os.getenv("WITHINGS_REDIRECT_URI", "")
     withings_webhook_url = os.getenv("WITHINGS_WEBHOOK_URL", "")
+    withings_webhook_secret = os.getenv("WITHINGS_WEBHOOK_SECRET", "").strip()
     integration_encryption_key = os.getenv("INTEGRATION_ENCRYPTION_KEY", "")
     require_withings = os.getenv("REQUIRE_WITHINGS", "false").lower() == "true"
     sentry_dsn = os.getenv("SENTRY_DSN", "").strip()
@@ -248,12 +207,14 @@ class Settings:
             self.withings_client_secret,
             self.withings_redirect_uri,
             self.withings_webhook_url,
+            self.withings_webhook_secret,
             self.integration_encryption_key,
         )
         if any(withings_values) and not all(withings_values):
             raise RuntimeError(
                 "Withings integration requires CLIENT_ID, CLIENT_SECRET, "
-                "REDIRECT_URI, WEBHOOK_URL, and INTEGRATION_ENCRYPTION_KEY."
+                "REDIRECT_URI, WEBHOOK_URL, WEBHOOK_SECRET, and "
+                "INTEGRATION_ENCRYPTION_KEY."
             )
         if self.require_withings and not all(withings_values):
             raise RuntimeError(
