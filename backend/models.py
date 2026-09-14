@@ -167,6 +167,10 @@ class WithingsConnection(Base):
     token_expires_at = Column(DateTime, nullable=False)
     scopes = Column(String, nullable=True)
     last_sync_at = Column(DateTime, nullable=True)
+    last_successful_sync = Column(DateTime, nullable=True)
+    last_error_at = Column(DateTime, nullable=True)
+    last_error_code = Column(String, nullable=True)
+    last_error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
     updated_at = Column(DateTime, default=utc_now_naive, nullable=False)
 

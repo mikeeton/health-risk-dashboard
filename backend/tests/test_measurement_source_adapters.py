@@ -184,6 +184,7 @@ def test_simulator_adapter_delegates_patient_update_and_audit(monkeypatch):
 
 
 def test_withings_adapter_preserves_external_id_and_live_hook(monkeypatch):
+    monkeypatch.setenv("WITHINGS_WEBHOOK_SECRET", "adapter-secret")
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
     db = sessionmaker(bind=engine)()
@@ -295,7 +296,12 @@ def test_withings_adapter_preserves_external_id_and_live_hook(monkeypatch):
             )
 
     try:
-        response = asyncio.run(integrations_withings.webhook(WebhookRequest(), db))
+        response = asyncio.run(
+            integrations_withings.webhook(WebhookRequest(), db, "adapter-secret")
+        )
+        db.refresh(connection)
+        last_successful_sync = connection.last_successful_sync
+        last_error_code = connection.last_error_code
     finally:
         db.close()
 
@@ -307,6 +313,8 @@ def test_withings_adapter_preserves_external_id_and_live_hook(monkeypatch):
     assert published[0][0] == patient_id
     assert published[0][1]["source"] == "withings"
     assert published[0][1]["persisted"] is True
+    assert last_successful_sync is not None
+    assert last_error_code is None
 
 
 def test_withings_mapping_reports_missing_fields_without_defaults():
