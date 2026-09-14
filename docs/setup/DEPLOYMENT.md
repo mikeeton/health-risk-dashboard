@@ -50,6 +50,7 @@ WITHINGS_CLIENT_ID=
 WITHINGS_CLIENT_SECRET=
 WITHINGS_REDIRECT_URI=https://your-api-domain.example/integrations/withings/callback
 WITHINGS_WEBHOOK_URL=https://your-api-domain.example/integrations/withings/webhook
+WITHINGS_WEBHOOK_SECRET=
 INTEGRATION_ENCRYPTION_KEY=
 REQUIRE_WITHINGS=true
 SENTRY_DSN=

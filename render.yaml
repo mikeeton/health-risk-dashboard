@@ -106,6 +106,8 @@ services:
         sync: false
       - key: WITHINGS_WEBHOOK_URL
         sync: false
+      - key: WITHINGS_WEBHOOK_SECRET
+        sync: false
       - key: REQUIRE_WITHINGS
         value: false
       - key: INTEGRATION_ENCRYPTION_KEY

@@ -21,6 +21,7 @@
 - [ ] `RUN_STARTUP_SCHEMA_CHECK=false`
 - [ ] Exact `FRONTEND_URL` also listed in `CORS_ORIGINS`
 - [ ] Withings callback and webhook are public HTTPS URLs on the API domain
+- [ ] Independent random `WITHINGS_WEBHOOK_SECRET` is stored only in Render
 - [ ] `REQUIRE_WITHINGS=true` and all Withings secrets supplied
 - [ ] `REQUIRE_SENTRY=true` and backend/frontend Sentry DSNs supplied
 - [ ] `AI_ENABLED=false` until the AI governance approval below is complete
