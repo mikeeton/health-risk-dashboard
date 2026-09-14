@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from access_control import require_admin, role_name
-from auth_utils import get_current_user, get_user_from_token
+from auth_utils import get_current_user, get_user_from_websocket_ticket
 from database import SessionLocal, get_db
 from config import get_settings
 from notification_utils import create_notification as add_notification
@@ -97,7 +97,7 @@ def serialize_notification(
 
 
 @router.websocket("/ws")
-async def notification_socket(websocket: WebSocket, token: str | None = None):
+async def notification_socket(websocket: WebSocket, ticket: str | None = None):
     """Push notification badge metadata to authenticated users.
 
     The REST API remains the source of truth for notification lists. This
@@ -109,7 +109,11 @@ async def notification_socket(websocket: WebSocket, token: str | None = None):
     db = SessionLocal()
 
     try:
-        current_user = get_user_from_token(token, db)
+        current_user = get_user_from_websocket_ticket(
+            ticket,
+            db,
+            audience="notifications",
+        )
 
         if not current_user:
             await websocket.close(code=1008)
