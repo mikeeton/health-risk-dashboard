@@ -13,6 +13,19 @@ Docker Desktop must be running. From the repository root on PowerShell, run:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-postgresql.ps1
 ```
 
+If Docker Desktop is unavailable but a local PostgreSQL server and `backend/.env`
+are configured, use the local runner instead:
+
+```powershell
+.\backend\venv\Scripts\python.exe .\scripts\run-local-backend-tests.py
+```
+
+It creates a random local `*_test` database, rehearses the same migrations,
+runs pytest, and removes that database when finished. A plain pytest command
+requires `APP_ENV=test` and an explicit loopback PostgreSQL `*_test` URL;
+otherwise the suite exits before collection. This guard prevents tests from
+writing to the configured development or hosted database.
+
 The process-scoped bypass also works on Windows installations that require
 local scripts to be signed; it does not modify the machine or user execution
 policy.

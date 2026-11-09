@@ -4,29 +4,10 @@ import {
   getReviewCases,
   updateReviewCase,
 } from "../services/api";
-
-type ReviewCase = {
-  id: number;
-
-  patient_id: number;
-
-  patient_name: string;
-
-  risk_level: string;
-
-  risk_score: number;
-
-  status: string;
-
-  note?: string;
-
-  created_at: string;
-
-  updated_at?: string;
-};
+import type { ReviewCaseRecord } from "../types/api";
 
 export default function ReviewCases() {
-  const [cases, setCases] = useState<ReviewCase[]>([]);
+  const [cases, setCases] = useState<ReviewCaseRecord[]>([]);
 
   const [loading, setLoading] =
     useState(true);
@@ -57,7 +38,7 @@ export default function ReviewCases() {
   const updateStatus = async (
     caseId: number,
     status: string,
-    note?: string
+    note: string
   ) => {
     try {
       setSavingId(caseId);

@@ -114,31 +114,3 @@ def get_default_active_user_id(db: Session, role: str) -> int | None:
         .first()
     )
     return row[0] if row else None
-
-
-def validate_user_for_role(
-    db: Session,
-    user_id: int | None,
-    role: str,
-    label: str,
-) -> int | None:
-    """Validate care-team references before writing assignment-related fields."""
-
-    if user_id is None:
-        return None
-
-    user = (
-        db.query(models.User)
-        .filter(models.User.id == user_id)
-        .filter(models.User.role == role)
-        .filter((models.User.status == "active") | (models.User.status.is_(None)))
-        .first()
-    )
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"{label} must be an active {role}",
-        )
-
-    return user.id

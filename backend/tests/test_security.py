@@ -379,6 +379,17 @@ def test_complete_role_based_clinical_workflow(
         )
         assert referral.status_code == 200
         created_ids["referral"] = referral.json()["id"]
+        receiving_doctor.status = "suspended"
+        db.commit()
+        blocked_approval = client.post(
+            f"/referrals/{created_ids['referral']}/approve",
+            headers=admin_headers,
+            json={"admin_note": "Must recheck recipient"},
+        )
+        assert blocked_approval.status_code == 400
+        db.refresh(receiving_doctor)
+        receiving_doctor.status = "active"
+        db.commit()
         approval = client.post(
             f"/referrals/{created_ids['referral']}/approve",
             headers=admin_headers,
@@ -926,6 +937,42 @@ def test_clinician_actions_use_validated_payloads_and_block_admin(
     assert admin_patient_records_response.status_code == 403
 
 
+def test_analytics_summary_scopes_audit_count_to_current_user(client, db, cleanup):
+    doctor = create_user(db, cleanup, "doctor")
+    other = create_user(db, cleanup, "nurse")
+    db.add(models.AuditLog(
+        user_email=other.email,
+        action="TEST_EVENT",
+        entity="Test",
+        timestamp=datetime.now(timezone.utc).replace(tzinfo=None),
+    ))
+    db.commit()
+
+    token = login_token(client, doctor.email)
+    response = client.get("/analytics/system-summary", headers=auth_header(token))
+
+    assert response.status_code == 200
+    assert response.json()["audit_logs"] == db.query(models.AuditLog).filter(
+        models.AuditLog.user_email == doctor.email
+    ).count()
+    assert db.query(models.AuditLog).count() > response.json()["audit_logs"]
+
+
+def test_care_team_excludes_account_after_patient_role_changes(db, cleanup):
+    from routes.care_workflows import active_care_user_ids
+
+    doctor = create_user(db, cleanup, "doctor")
+    patient_user = create_user(db, cleanup, "patient")
+    patient = create_patient(
+        db, cleanup, name=f"Role Changed {uuid4().hex[:8]}",
+        doctor_id=doctor.id, user_id=patient_user.id,
+    )
+    assert patient_user.id in active_care_user_ids(db, patient)
+    patient_user.role = "admin"
+    db.commit()
+    assert patient_user.id not in active_care_user_ids(db, patient)
+
+
 def test_refresh_tokens_rotate_and_reuse_is_rejected(client, db, cleanup):
     user = create_user(db, cleanup, "doctor")
     login_response = client.post(
@@ -951,6 +998,7 @@ def test_refresh_tokens_rotate_and_reuse_is_rejected(client, db, cleanup):
 
 def test_logout_revokes_access_token_and_socket_ticket(client, db, cleanup):
     user = create_user(db, cleanup, "doctor")
+    patient = create_patient(db, cleanup, name="Socket Session Patient", doctor_id=user.id)
     login = client.post("/auth/login", json={"email": user.email, "password": TEST_PASSWORD})
     assert login.status_code == 200
     access = login.json()["access_token"]
@@ -959,12 +1007,21 @@ def test_logout_revokes_access_token_and_socket_ticket(client, db, cleanup):
     assert client.get("/care/account/profile", headers=headers).status_code == 200
     ticket = client.post("/auth/websocket-ticket", headers=headers, json={"audience": "notifications"})
     assert ticket.status_code == 200
-    from auth_utils import get_user_from_websocket_ticket
+    from auth_utils import decode_access_token, get_user_from_websocket_ticket, socket_session_is_active
+    from routes import notifications
+    access_payload = decode_access_token(access)
+    session_jti = access_payload["session_jti"]
+    ticket_expiry = decode_access_token(ticket.json()["ticket"])["exp"]
+    assert main_module.live_socket_access_valid(user.id, patient.id, session_jti, ticket_expiry)
+    assert notifications.notification_socket_signature(user.id, session_jti, ticket_expiry) is not None
     assert get_user_from_websocket_ticket(ticket.json()["ticket"], db, audience="notifications") is not None
 
     assert client.post("/auth/logout", json={"refresh_token": refresh}).status_code == 204
     assert client.get("/care/account/profile", headers=headers).status_code == 401
     assert get_user_from_websocket_ticket(ticket.json()["ticket"], db, audience="notifications") is None
+    assert not main_module.live_socket_access_valid(user.id, patient.id, session_jti, ticket_expiry)
+    assert notifications.notification_socket_signature(user.id, session_jti, ticket_expiry) is None
+    assert not socket_session_is_active(db, user.id, None, 0)
 
 
 def test_refresh_rotation_revokes_previous_access_token(client, db, cleanup):
@@ -1321,9 +1378,9 @@ def test_admin_password_reset_link_is_single_use_and_revokes_sessions(
     assert verify_password(new_password, target.password_hash)
 
 
-def test_patient_creation_handles_multiple_active_nurses(client, db, cleanup):
+def test_doctor_patient_creation_does_not_auto_assign_nurses(client, db, cleanup):
     doctor = create_user(db, cleanup, "doctor")
-    first_nurse = create_user(db, cleanup, "nurse")
+    create_user(db, cleanup, "nurse")
     create_user(db, cleanup, "nurse")
     token = login_token(client, doctor.email)
     response = client.post(
@@ -1339,7 +1396,47 @@ def test_patient_creation_handles_multiple_active_nurses(client, db, cleanup):
     )
     assert response.status_code == 200
     cleanup["patient_ids"].append(response.json()["id"])
-    assert response.json()["assigned_nurse_id"] is not None
+    assert response.json()["assigned_nurse_id"] is None
+    assert db.query(models.PatientStaffAssignment).filter(
+        models.PatientStaffAssignment.patient_id == response.json()["id"],
+        models.PatientStaffAssignment.role == "nurse",
+    ).count() == 0
+    same_name = client.post(
+        "/patients/", headers=auth_header(token),
+        json={
+            "name": response.json()["name"],
+            "age": 46,
+            "condition": "Another record with a shared name",
+            "risk_level": "Low",
+            "last_checkup": datetime.now().date().isoformat(),
+        },
+    )
+    assert same_name.status_code == 200
+    cleanup["patient_ids"].append(same_name.json()["id"])
+
+
+def test_doctor_cannot_link_patient_account_or_assign_other_staff(client, db, cleanup):
+    doctor = create_user(db, cleanup, "doctor")
+    other_doctor = create_user(db, cleanup, "doctor")
+    nurse = create_user(db, cleanup, "nurse")
+    patient_user = create_user(db, cleanup, "patient")
+    token = login_token(client, doctor.email)
+    name = f"Unauthorized Link {uuid4().hex[:8]}"
+    base = {
+        "name": name,
+        "age": 45,
+        "condition": "General Monitoring",
+        "risk_level": "Low",
+        "last_checkup": datetime.now().date().isoformat(),
+    }
+    for override in (
+        {"user_id": patient_user.id},
+        {"assigned_nurse_id": nurse.id},
+        {"primary_doctor_id": other_doctor.id},
+    ):
+        response = client.post("/patients/", headers=auth_header(token), json={**base, **override})
+        assert response.status_code == 403
+    assert db.query(models.Patient).filter(models.Patient.name == name).count() == 0
 
 
 def test_complete_extended_care_workspace_workflow(client, db, cleanup):

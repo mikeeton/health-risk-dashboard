@@ -160,25 +160,20 @@ def _trend_reasons(vitals) -> list[str]:
 
 
 def _assigned_clinicians(db, patient) -> list[models.User]:
-    assignment_ids = [
-        row.staff_user_id
-        for row in db.query(models.PatientStaffAssignment)
+    return (
+        db.query(models.User)
+        .join(
+            models.PatientStaffAssignment,
+            models.PatientStaffAssignment.staff_user_id == models.User.id,
+        )
         .filter(
             models.PatientStaffAssignment.patient_id == patient.id,
             models.PatientStaffAssignment.status == "active",
-            models.PatientStaffAssignment.role.in_(["doctor", "nurse"]),
-        )
-        .all()
-    ]
-    if not assignment_ids:
-        return []
-    return (
-        db.query(models.User)
-        .filter(
-            models.User.id.in_(set(assignment_ids)),
+            models.PatientStaffAssignment.role == models.User.role,
             models.User.role.in_(["doctor", "nurse"]),
             (models.User.status == "active") | (models.User.status.is_(None)),
         )
+        .distinct()
         .all()
     )
 

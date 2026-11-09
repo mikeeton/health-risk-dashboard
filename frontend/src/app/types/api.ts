@@ -53,5 +53,25 @@ export type VitalRecord = {
 };
 
 export type VitalCreateRequest = Omit<VitalRecord, "id" | "verification_status">;
+
+export type ReviewCaseCreateRequest = {
+  patient_id: number;
+  patient_name: string;
+  risk_level: string;
+  risk_score: number;
+  note: string;
+};
+
+export type ReviewCaseUpdateRequest = {
+  status: string;
+  note: string;
+};
+
+export type ReviewCaseRecord = ReviewCaseCreateRequest & {
+  id: number;
+  status: string;
+  created_at: string;
+  updated_at: string | null;
+};
 import type { HealthData } from "../data/healthData";
 import type { RiskLevel } from "../../types/patient";

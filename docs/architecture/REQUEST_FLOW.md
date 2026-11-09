@@ -15,4 +15,4 @@ Validated measurements enter the canonical assessment path described in [Canonic
 
 ## Operational boundary
 
-The browser stores access and refresh tokens in session storage. Refresh tokens are revocable, while an issued access token may remain usable until expiry. Local rate limits are process-local unless shared state is configured. Real wearable, AI, database, and alert-delivery behavior must be verified in the target environment before a deployment claim. Live deployment is paused.
+The browser stores access and refresh tokens in session storage. Current session-bound access tokens are rejected after logout or refresh rotation; older unbound tokens can remain usable until expiry. Open live and notification sockets recheck the session before each delivery; legacy unbound tickets expire after their short ticket lifetime. PostgreSQL row locking serializes refresh rotation across workers. Local rate limits are process-local unless shared state is configured. Real wearable, AI, database, and alert-delivery behavior must be verified in the target environment before a deployment claim. Live deployment is paused.

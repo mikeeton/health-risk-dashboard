@@ -173,8 +173,7 @@ def assign_staff_to_patient(
         db.add(assignment)
 
     if role == "doctor" and patient.primary_doctor_id is None:
-        # Legacy columns are maintained only as fallback compatibility fields.
-        # The assignment table is the primary access-control source.
+        # Preserve the old display field; only active assignment rows grant access.
         patient.primary_doctor_id = staff.id
 
     if role == "nurse" and patient.assigned_nurse_id is None:

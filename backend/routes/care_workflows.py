@@ -47,12 +47,26 @@ def row_dict(row, fields):
 
 
 def active_care_user_ids(db: Session, patient: models.Patient) -> set[int]:
-    ids = {patient.user_id} if patient.user_id else set()
+    ids = {
+        row[0]
+        for row in db.query(models.User.id)
+        .filter(models.User.id == patient.user_id)
+        .filter(models.User.role == "patient")
+        .filter((models.User.status == "active") | (models.User.status.is_(None)))
+        .all()
+    }
     ids.update(
         item[0]
-        for item in db.query(models.PatientStaffAssignment.staff_user_id)
+        for item in db.query(models.User.id)
+        .join(
+            models.PatientStaffAssignment,
+            models.PatientStaffAssignment.staff_user_id == models.User.id,
+        )
         .filter(models.PatientStaffAssignment.patient_id == patient.id)
         .filter(models.PatientStaffAssignment.status == "active")
+        .filter(models.PatientStaffAssignment.role == models.User.role)
+        .filter(models.User.role.in_(["doctor", "nurse"]))
+        .filter((models.User.status == "active") | (models.User.status.is_(None)))
         .all()
     )
     return ids

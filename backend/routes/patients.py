@@ -7,11 +7,8 @@ import models
 import schemas
 from access_control import (
     get_accessible_patient,
-    get_default_active_user_id,
     patient_query_for_user,
     require_roles,
-    role_name,
-    validate_user_for_role,
 )
 from auth_utils import get_current_user
 from database import get_db
@@ -32,61 +29,20 @@ def create_patient(
 ):
     require_roles(current_user, {"doctor"})
 
-    existing_patient = (
-        db.query(models.Patient)
-        .filter(models.Patient.name.ilike(patient.name.strip()))
-        .first()
-    )
-
-    if existing_patient:
+    if (
+        patient.user_id is not None
+        or patient.assigned_nurse_id is not None
+        or patient.primary_doctor_id not in {None, current_user.id}
+    ):
         raise HTTPException(
-            status_code=409,
-            detail="Patient already exists"
+            status_code=403,
+            detail="Patient account links and staff assignments require administrator approval.",
         )
-
-    primary_doctor_id = patient.primary_doctor_id
-
-    if role_name(current_user) == "doctor":
-        primary_doctor_id = current_user.id
-    elif primary_doctor_id is None:
-        primary_doctor_id = get_default_active_user_id(db, "doctor")
-
-    primary_doctor_id = validate_user_for_role(
-        db=db,
-        user_id=primary_doctor_id,
-        role="doctor",
-        label="Primary doctor",
-    )
-
-    if primary_doctor_id is None:
-        raise HTTPException(
-            status_code=400,
-            detail="A patient must have one primary doctor",
-        )
-
-    assigned_nurse_id = patient.assigned_nurse_id
-
-    if assigned_nurse_id is None:
-        assigned_nurse_id = get_default_active_user_id(db, "nurse")
-
-    assigned_nurse_id = validate_user_for_role(
-        db=db,
-        user_id=assigned_nurse_id,
-        role="nurse",
-        label="Assigned nurse",
-    )
-
-    user_id = validate_user_for_role(
-        db=db,
-        user_id=patient.user_id,
-        role="patient",
-        label="Linked user",
-    )
 
     new_patient = models.Patient(
-        user_id=user_id,
-        primary_doctor_id=primary_doctor_id,
-        assigned_nurse_id=assigned_nurse_id,
+        user_id=None,
+        primary_doctor_id=current_user.id,
+        assigned_nurse_id=None,
         name=patient.name.strip(),
         age=patient.age,
         condition=patient.condition.strip(),
@@ -100,25 +56,13 @@ def create_patient(
     db.add(
         models.PatientStaffAssignment(
             patient_id=new_patient.id,
-            staff_user_id=primary_doctor_id,
+            staff_user_id=current_user.id,
             role="doctor",
             status="active",
             assigned_at=datetime.now().isoformat(timespec="seconds"),
             assigned_by_user_id=current_user.id,
         )
     )
-
-    if assigned_nurse_id is not None:
-        db.add(
-            models.PatientStaffAssignment(
-                patient_id=new_patient.id,
-                staff_user_id=assigned_nurse_id,
-                role="nurse",
-                status="active",
-                assigned_at=datetime.now().isoformat(timespec="seconds"),
-                assigned_by_user_id=current_user.id,
-            )
-        )
 
     db.commit()
     db.refresh(new_patient)

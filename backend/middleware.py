@@ -1,6 +1,6 @@
 from collections import defaultdict, deque
 from time import monotonic
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -39,7 +39,11 @@ class EnforceHTTPSMiddleware(BaseHTTPMiddleware):
 
 class RequestMetricsMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        request_id = request.headers.get("x-request-id", str(uuid4()))
+        supplied_id = request.headers.get("x-request-id", "")
+        try:
+            request_id = str(uuid4()) if not supplied_id else str(UUID(supplied_id))
+        except ValueError:
+            request_id = str(uuid4())
         started_at = monotonic()
         request_tracker.start_request()
 

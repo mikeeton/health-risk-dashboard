@@ -164,6 +164,9 @@ def refresh_token(
             == hashlib.sha256(jti.encode()).hexdigest(),
             models.AuthSession.revoked_at.is_(None),
         )
+        # Serialize rotation across API workers. PostgreSQL rechecks the
+        # revoked filter after a waiting transaction obtains this row lock.
+        .with_for_update()
         .first()
     )
     if not session or session.expires_at <= utc_now_naive():
