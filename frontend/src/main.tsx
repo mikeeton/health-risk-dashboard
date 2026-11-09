@@ -2,8 +2,17 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import App from "./app/App";
+import { applyTheme, getSavedTheme, loadTheme } from "./app/utils/storage";
 
 import "./styles/index.css";
+
+applyTheme(loadTheme());
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => {
+  if (!getSavedTheme()) applyTheme(event.matches ? "dark" : "light");
+});
+window.addEventListener("storage", (event) => {
+  if (event.key === "health-risk-dashboard-theme") applyTheme(loadTheme());
+});
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
 if (import.meta.env.PROD && sentryDsn && !sentryDsn.startsWith("https://")) {

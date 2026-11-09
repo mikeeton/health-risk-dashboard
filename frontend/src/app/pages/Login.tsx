@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Activity, HeartPulse, ShieldCheck, Sparkles } from "lucide-react";
+import { HeartPulse } from "lucide-react";
 
 import PasswordField from "../components/PasswordField";
 import { Button } from "../components/ui/button";
@@ -45,57 +45,24 @@ export default function Login() {
 
   return (
     <div className="app-canvas relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8 sm:p-8">
-      <div className="pointer-events-none absolute left-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-blue-400/10 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-[-10rem] right-[-8rem] h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" />
-      <div className="relative grid w-full max-w-5xl overflow-hidden rounded-[28px] border border-white/70 bg-white/70 shadow-[0_30px_90px_rgba(16,42,44,.14)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/60 lg:grid-cols-[1.08fr_.92fr]">
-        <section className="relative hidden overflow-hidden bg-gradient-to-br from-[#1e3a8a] via-[#1d4ed8] to-[#0284c7] p-12 text-white lg:flex lg:flex-col lg:justify-between">
-          <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full border border-white/15" />
-          <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full border border-white/10" />
+      <div className="relative grid w-full max-w-4xl overflow-hidden rounded-2xl border border-[var(--panel-border)] bg-[var(--panel-bg)] shadow-[var(--panel-shadow)] lg:grid-cols-[.9fr_1.1fr]">
+        <section className="hidden flex-col justify-between bg-[#17324d] p-12 text-white lg:flex">
           <div>
-            <div className="brand-mark flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 shadow-none">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10">
               <HeartPulse className="h-6 w-6" />
             </div>
-            <p className="mt-10 text-xs font-bold uppercase tracking-[0.22em] text-blue-100">Clinical intelligence</p>
-            <h1 className="mt-4 max-w-md text-4xl font-extrabold leading-tight tracking-[-0.04em]">
-              Better signals.<br />Clearer decisions.
-            </h1>
-            <p className="mt-5 max-w-md text-base leading-7 text-blue-50/80">
-              Real-time patient monitoring and AI-assisted insight in one secure clinical workspace.
+            <p className="mt-12 text-xs font-bold uppercase tracking-[0.18em] text-blue-200">Research prototype</p>
+            <p className="mt-4 max-w-sm text-3xl font-semibold leading-tight">
+              Health observations, in context.
+            </p>
+            <p className="mt-5 max-w-sm text-sm leading-7 text-slate-200">
+              Review recorded measurements, alerts and experimental risk estimates in one workspace.
             </p>
           </div>
-
-          <div>
-            <label htmlFor="login-mfa" className="text-sm font-semibold">
-              Authenticator code <span className="font-normal text-slate-500">(if enabled)</span>
-            </label>
-            <input
-              id="login-mfa"
-              name="mfa_code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              value={mfaCode}
-              onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="6-digit code"
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 tracking-[0.3em] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950/80"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
-              <ShieldCheck className="mb-3 h-5 w-5 text-blue-200" />
-              Secure by design
-            </div>
-            <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
-              <Sparkles className="mb-3 h-5 w-5 text-blue-200" />
-              AI-assisted care
-            </div>
-          </div>
+          <p className="text-xs leading-5 text-slate-300">Experimental predictions are not a diagnosis or a substitute for clinical judgement.</p>
         </section>
         <Card className="w-full rounded-none border-0 bg-transparent p-6 shadow-none hover:translate-y-0 hover:shadow-none sm:p-10 lg:p-12">
         <div className="mb-8 text-center">
-          <div className="brand-mark mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl text-white lg:hidden">
-            <Activity className="h-7 w-7" />
-          </div>
-
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Health AI workspace</p>
           <h1 className="text-2xl font-extrabold sm:text-3xl">Welcome Back</h1>
 
@@ -115,6 +82,7 @@ export default function Login() {
               type="email"
               autoComplete="email"
               value={email}
+              required
               onChange={(event) => setEmail(event.target.value)}
                 className="mt-2 w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950/80 dark:focus:ring-blue-950"
             />
@@ -133,6 +101,22 @@ export default function Login() {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="login-mfa" className="text-sm font-semibold">
+              Authenticator code <span className="font-normal text-slate-500 dark:text-slate-400">(if enabled)</span>
+            </label>
+            <input
+              id="login-mfa"
+              name="mfa_code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={mfaCode}
+              onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="6-digit code"
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-3 tracking-[0.3em] dark:border-slate-700 dark:bg-slate-950/80"
+            />
           </div>
 
           <Button

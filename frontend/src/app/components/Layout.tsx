@@ -24,6 +24,7 @@ import {
   User,
   Users,
   UserRound,
+  Watch,
   X,
 } from "lucide-react";
 
@@ -213,6 +214,12 @@ export default function Layout() {
       show: isDoctor || isNurse || isPatient,
     },
     {
+      label: "Connected Devices",
+      path: "/devices",
+      icon: Watch,
+      show: isDoctor || isNurse || isPatient,
+    },
+    {
       label: "Notifications",
       path: "/notifications",
       icon: BellRing,
@@ -395,14 +402,14 @@ export default function Layout() {
 
                   {user?.role && (
                     <span
-                      className={`hidden rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-wide sm:inline-flex ${roleBadgeClass}`}
+                    className={`hidden rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-wide xl:inline-flex ${roleBadgeClass}`}
                     >
                       {user.role}
                     </span>
                   )}
                 </div>
 
-                <p className="hidden truncate text-xs font-medium text-slate-500 dark:text-slate-400 sm:block">
+                <p className="hidden truncate text-xs font-medium text-slate-500 dark:text-slate-400 xl:block">
                   {roleSubtitle}
                 </p>
               </div>
@@ -418,11 +425,11 @@ export default function Layout() {
                   whileHover={{ y: -1 }}
                   className="flex items-center gap-3"
                 >
-                  <div className="hidden h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white sm:flex">
+                  <div className="hidden h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white xl:flex">
                     <User className="h-5 w-5" />
                   </div>
 
-                  <div className="hidden leading-tight sm:block">
+                  <div className="hidden leading-tight xl:block">
                     <p className="text-sm font-bold text-slate-900 dark:text-white">
                       {user.full_name}
                     </p>
@@ -434,11 +441,11 @@ export default function Layout() {
 
                   <button
                     onClick={logout}
-                    className="clinical-button flex h-11 w-11 items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 sm:w-auto sm:px-4"
+                    className="clinical-button flex h-11 w-11 items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 xl:w-auto xl:px-4"
                     aria-label="Logout"
                   >
                     <LogOut className="h-4 w-4" />
-                    <span className="hidden sm:inline">Logout</span>
+                    <span className="hidden xl:inline">Logout</span>
                   </button>
                 </motion.div>
               ) : (

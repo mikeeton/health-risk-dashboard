@@ -1,4 +1,13 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function mockNotificationSocket(page: Page) {
+  await page.route("**/auth/websocket-ticket", (route) => route.fulfill({
+    json: { ticket: "test-notification-ticket", expires_in_seconds: 60 },
+  }));
+  await page.routeWebSocket("**/notifications/ws?*", () => {
+    // Keep this connection local to the test, without contacting the real API.
+  });
+}
 
 test("login page renders the public access workflow", async ({ page }) => {
   await page.goto("/login");
@@ -6,11 +15,48 @@ test("login page renders the public access workflow", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Welcome Back" })).toBeVisible();
   await expect(page.getByLabel("Email")).toBeVisible();
   await expect(page.getByLabel("Password")).toBeVisible();
+  await expect(page.getByLabel("Authenticator code (if enabled)")).toBeVisible();
   await expect(page.getByRole("button", { name: "Show characters" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Sign In" })).toBeVisible();
+  await expect(page.locator(".premium-sidebar")).toHaveCount(0);
+  await expect(page.locator("button[aria-pressed][title*='mode']")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Request Doctor, Nurse, or Patient Access" })
   ).toBeVisible();
+});
+
+test("saved theme applies on public pages and survives switching and reload", async ({ page }) => {
+  await mockNotificationSocket(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("health-risk-dashboard-theme")) {
+      localStorage.setItem("health-risk-dashboard-theme", "dark");
+    }
+  });
+  await page.route("**/patients", (route) => route.fulfill({ json: [] }));
+  await page.route("**/notifications/**", (route) => route.fulfill({ json: [] }));
+
+  await page.goto("/login");
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const darkBackground = await page.locator("body").evaluate((body) => getComputedStyle(body).backgroundColor);
+
+  await page.evaluate(() => {
+    sessionStorage.setItem("health-auth-user", JSON.stringify({
+      id: 1, email: "patient@example.com", full_name: "Theme Patient", role: "patient",
+    }));
+    sessionStorage.setItem("health-auth-token", "theme-test-token");
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Switch to light mode" }).click();
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto("/login");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  const lightBackground = await page.locator("body").evaluate((body) => getComputedStyle(body).backgroundColor);
+  expect(lightBackground).not.toBe(darkBackground);
 });
 
 test("password visibility toggle works on login and register", async ({ page }) => {
@@ -34,6 +80,7 @@ test("password visibility toggle works on login and register", async ({ page }) 
 });
 
 test("invalid login shows a useful error message", async ({ page }) => {
+  await page.route("**/auth/login", (route) => route.fulfill({ status: 401, json: { detail: "Invalid credentials" } }));
   await page.goto("/login");
 
   await page.getByLabel("Email").fill("unknown@example.com");
@@ -57,6 +104,7 @@ test("core pages avoid horizontal overflow on common device widths", async ({ pa
     await page.setViewportSize(size);
     await page.goto("/login");
     await expect(page.getByRole("heading", { name: "Welcome Back" })).toBeVisible();
+    await expect(page.getByLabel("Authenticator code (if enabled)")).toBeVisible();
 
     let hasHorizontalOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth + 1
@@ -74,6 +122,7 @@ test("core pages avoid horizontal overflow on common device widths", async ({ pa
 });
 
 test("authenticated app shell fits phone and tablet widths", async ({ page }) => {
+  await mockNotificationSocket(page);
   await page.route("**/patients", async (route) => {
     await route.fulfill({ json: [] });
   });
@@ -145,6 +194,7 @@ test("all four roles receive the correct protected workspace navigation", async 
   for (const definition of roles) {
     const context = await browser.newContext();
     const page = await context.newPage();
+    await mockNotificationSocket(page);
     await page.route("**/patients", (route) => route.fulfill({ json: [] }));
     await page.route("**/notifications/**", (route) =>
       route.fulfill({ json: [] })
@@ -210,6 +260,7 @@ test("admin navigation highlights exactly one current section", async ({ page })
 test("assigned clinicians can switch patients and the selection persists", async ({
   page,
 }) => {
+  await mockNotificationSocket(page);
   const assignedPatients = [
     {
       id: 71,
@@ -259,6 +310,7 @@ test("assigned clinicians can switch patients and the selection persists", async
 test("an expired session refreshes once and redirects cleanly when renewal fails", async ({
   page,
 }) => {
+  await mockNotificationSocket(page);
   let refreshCalls = 0;
   await page.route("**/auth/refresh", async (route) => {
     refreshCalls += 1;
@@ -335,6 +387,7 @@ test("admin can reach protected admin workspace", async ({ page }) => {
 });
 
 test("notification bell moves read items into persistent history", async ({ page }) => {
+  await mockNotificationSocket(page);
   const notification = {
     id: 901,
     user_email: "notification.doctor@example.com",

@@ -96,15 +96,15 @@ export default function AccountSecurity() {
   }
 
   return (
-    <div className="dashboard-shell space-y-6">
+    <div className="account-security-workspace dashboard-shell space-y-6">
       <section className="glass-card rounded-3xl p-6">
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white"><ShieldCheck className="h-6 w-6" /></div>
           <div><h1 className="text-3xl font-black">Profile & security</h1><p className="mt-1 text-sm text-slate-500">Identity, contact details, password, MFA status, and active sessions.</p></div>
         </div>
       </section>
-      {message && <div className="rounded-2xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{message}</div>}
-      {error && <div role="alert" className="rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
+      {message && <div role="status" className="state-positive rounded-2xl p-4 text-sm font-semibold">{message}</div>}
+      {error && <div role="alert" className="state-negative rounded-2xl p-4 text-sm font-semibold">{error}</div>}
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="glass-card rounded-3xl p-6">
           <h2 className="flex items-center gap-2 text-xl font-extrabold"><UserRound className="h-5 w-5 text-blue-600" /> Profile</h2>
@@ -146,13 +146,13 @@ export default function AccountSecurity() {
             <p className="text-xs leading-5 text-slate-500">At least 12 characters with upper/lowercase letters, a number, and a symbol.</p>
             <button disabled={!passwords.current_password || !passwords.new_password} onClick={changePassword} className="h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-50">Change password</button>
           </div>
-          <div className={`mt-6 rounded-2xl border p-4 text-sm ${profile.mfa_enabled ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+          <div className={`mt-6 rounded-2xl p-4 text-sm ${profile.mfa_enabled ? "state-positive" : "state-warning"}`}>
             <div className="flex items-center gap-2 font-extrabold"><Smartphone className="h-4 w-4" /> MFA status: {profile.mfa_enabled ? "Enabled" : "Not enrolled"}</div>
             {!profile.mfa_enabled && !mfaEnrollment && <button onClick={async () => setMfaEnrollment(await enrolMFA())} className="mt-3 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white">Set up authenticator</button>}
             {mfaEnrollment && (
               <div className="mt-3 space-y-3">
                 <p>Add this secret to your authenticator application:</p>
-                <code className="block break-all rounded-lg bg-white p-3 text-xs text-slate-900">{mfaEnrollment.secret}</code>
+                <code className="block break-all rounded-lg bg-white p-3 text-xs text-slate-900 dark:bg-slate-950 dark:text-slate-100">{mfaEnrollment.secret}</code>
                 <input name="mfa_confirmation_code" aria-label="MFA confirmation code" autoComplete="one-time-code" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Current 6-digit code" className={inputClass} />
                 <button disabled={mfaCode.length !== 6} onClick={async () => { await confirmMFA(mfaCode); setMfaEnrollment(null); setMfaCode(""); await load(); }} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Confirm and enable</button>
               </div>
@@ -161,7 +161,7 @@ export default function AccountSecurity() {
               <div className="mt-3 grid gap-2">
                 <input name="mfa_disable_password" aria-label="Password to disable MFA" autoComplete="current-password" type="password" value={mfaPassword} onChange={(event) => setMfaPassword(event.target.value)} placeholder="Password to disable MFA" className={inputClass} />
                 <input name="mfa_disable_code" aria-label="MFA code to disable MFA" autoComplete="one-time-code" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Current 6-digit code" className={inputClass} />
-                <button disabled={!mfaPassword || mfaCode.length !== 6} onClick={async () => { await disableMFA(mfaPassword, mfaCode); setMfaPassword(""); setMfaCode(""); await load(); }} className="w-fit rounded-lg border border-red-300 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Disable MFA</button>
+                <button disabled={!mfaPassword || mfaCode.length !== 6} onClick={async () => { await disableMFA(mfaPassword, mfaCode); setMfaPassword(""); setMfaCode(""); await load(); }} className="w-fit rounded-lg border border-red-300 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50 dark:border-red-700 dark:text-red-300">Disable MFA</button>
               </div>
             )}
           </div>
@@ -174,7 +174,7 @@ export default function AccountSecurity() {
           {sessions.map((session) => (
             <div key={session.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
               <div><p className="font-bold">Session #{session.id}</p><p className="text-xs text-slate-500">Created {new Date(session.created_at).toLocaleString()} · expires {new Date(session.expires_at).toLocaleString()}</p></div>
-              <button disabled={Boolean(session.revoked_at)} onClick={async () => { await revokeOwnSession(session.id); await load(); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-40">{session.revoked_at ? "Revoked" : "Revoke"}</button>
+              <button disabled={Boolean(session.revoked_at)} onClick={async () => { await revokeOwnSession(session.id); await load(); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-40 dark:border-red-800 dark:text-red-300">{session.revoked_at ? "Revoked" : "Revoke"}</button>
             </div>
           ))}
         </div>

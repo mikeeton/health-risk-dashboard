@@ -5,6 +5,8 @@ import logging
 import json
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import and_, or_
+
 import models
 from ml_engine.registry import model_status, predict
 from notification_utils import create_notification
@@ -69,20 +71,58 @@ def _data_quality(vital) -> dict:
 
 def _reconcile_predictions(db, vital, critical: bool) -> None:
     now = _now().replace(tzinfo=None)
+    # Stored vital timestamps are ISO strings. Compare their observation time,
+    # not arrival time, so delayed or out-of-order deliveries cannot relabel a
+    # prediction with a reading taken outside its six-hour window.
+    def measured_at(value) -> datetime | None:
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+        return parsed.astimezone(timezone.utc).replace(tzinfo=None) if parsed.tzinfo else parsed
+
+    current_time = measured_at(vital.timestamp)
+    candidates = [models.ModelPredictionRecord.outcome_observed.is_(None)]
+    if critical and current_time is not None and current_time <= now:
+        candidates.append(and_(
+            models.ModelPredictionRecord.outcome_observed.is_(False),
+            models.ModelPredictionRecord.created_at < current_time,
+            models.ModelPredictionRecord.window_end >= current_time,
+        ))
     pending = (
         db.query(models.ModelPredictionRecord)
         .filter(
             models.ModelPredictionRecord.patient_id == vital.patient_id,
-            models.ModelPredictionRecord.outcome_observed.is_(None),
+            or_(*candidates),
+            models.ModelPredictionRecord.id.notin_(db.query(models.ProspectiveValidationOutcome.prediction_id)),
         )
         .all()
     )
+    if not pending:
+        return
+    observations = db.query(models.Vital).filter(models.Vital.patient_id == vital.patient_id).all()
     for record in pending:
-        if critical and record.window_end >= now:
+        in_window = [
+            observation for observation in observations
+            if observation.id != record.vital_id
+            and (timestamp := measured_at(observation.timestamp)) is not None
+            and record.created_at < timestamp <= min(record.window_end, now)
+        ]
+        current_in_window = (
+            vital.id != record.vital_id
+            and current_time is not None
+            and record.created_at < current_time <= min(record.window_end, now)
+        )
+        observed_critical = any(_critical_reasons(observation) for observation in in_window)
+        if current_in_window and critical:
+            observed_critical = True
+        if observed_critical:
             record.outcome_observed = True
             record.outcome_recorded_at = now
             record.classification = "TP" if record.predicted_positive else "FN"
-        elif record.window_end < now:
+        elif record.window_end < now and (in_window or current_in_window):
+            # This is an observed-field proxy negative, not proof that no
+            # clinical event occurred between measurements.
             record.outcome_observed = False
             record.outcome_recorded_at = now
             record.classification = "FP" if record.predicted_positive else "TN"
@@ -232,7 +272,7 @@ def _create_or_update(
                     + ("Follow the urgent escalation procedure." if kind == "urgent" else "Clinical review is recommended.")
                 ),
                 notification_type="critical" if kind == "urgent" else "warning",
-                link=f"/care?patientId={patient.id}#alerts",
+                link=f"/care?patientId={patient.id}&tab=clinical#alerts",
                 related_entity="ReviewCase",
                 related_entity_id=str(case.id),
             )
@@ -243,6 +283,16 @@ def _create_or_update(
         entity_id=str(case.id),
         timestamp=_now().replace(tzinfo=None),
     ))
+    if getattr(vital, "id", None) is not None:
+        assessment = db.query(models.VitalAssessment).filter(models.VitalAssessment.vital_id == vital.id).first()
+        if assessment is not None:
+            assessment.state = "completed"
+            assessment.last_error = None
+            assessment.updated_at = _now().replace(tzinfo=None)
+    if getattr(vital, "device_observation_id", None) is not None:
+        observation = db.get(models.DeviceObservation, vital.device_observation_id)
+        if observation is not None:
+            observation.assessment_state = "deterministic_alert"
     db.commit()
     return case
 
@@ -357,7 +407,43 @@ def evaluate_new_vital(db, vital):
     except Exception:
         logger.exception("Pre-emptive alert evaluation failed", extra={"vital_id": getattr(vital, "id", None)})
         db.rollback()
+        raise
+
+
+def evaluate_partial_device_observation(db, observation):
+    """Apply deterministic thresholds only to fields actually received."""
+    values = observation.measurements
+    reasons = []
+    if values.get("spo2") is not None and values["spo2"] < 90:
+        reasons.append(f"SpO2 {values['spo2']}% is below 90%")
+    if values.get("heart_rate") is not None and (values["heart_rate"] < 40 or values["heart_rate"] > 140):
+        reasons.append(f"heart rate {values['heart_rate']} bpm is outside 40–140 bpm")
+    if values.get("systolic_bp") is not None and values["systolic_bp"] >= 180:
+        reasons.append(f"systolic blood pressure {values['systolic_bp']} mmHg is critical")
+    if values.get("diastolic_bp") is not None and values["diastolic_bp"] >= 120:
+        reasons.append(f"diastolic blood pressure {values['diastolic_bp']} mmHg is critical")
+    patient = db.query(models.Patient).filter(models.Patient.id == observation.patient_id).first()
+    if patient is None:
+        observation.assessment_state = "patient_missing"
+        db.commit()
         return None
+    case = None
+    if reasons:
+        from types import SimpleNamespace
+
+        case = _create_or_update(
+            db,
+            patient=patient,
+            kind="urgent",
+            level="Critical",
+            score=10,
+            reasons=reasons,
+            vital=SimpleNamespace(timestamp=observation.measured_at, device_observation_id=observation.id),
+            data_quality={"source": observation.source, "complete": False, "missing_fields": observation.missing_fields},
+        )
+    observation.assessment_state = "deterministic_alert" if reasons else "observed_fields_clear"
+    db.commit()
+    return case
 
 
 def notify_alert_status_change(db, case, actor) -> None:
@@ -373,7 +459,7 @@ def notify_alert_status_change(db, case, actor) -> None:
             title="Clinical alert status updated",
             message=f"{patient.name}: alert is now {case.status}; updated by {actor.full_name}.",
             notification_type="info",
-            link=f"/care?patientId={patient.id}#alerts",
+            link=f"/care?patientId={patient.id}&tab=clinical#alerts",
             related_entity="ReviewCase",
             related_entity_id=str(case.id),
         )

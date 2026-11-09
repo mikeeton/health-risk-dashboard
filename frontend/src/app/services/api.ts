@@ -172,6 +172,14 @@ export async function getVitals(patientId: number) {
   return response.json();
 }
 
+export class VitalSaveError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export async function createVital(vital: unknown) {
   const response = await apiFetch(`${API_BASE_URL}/vitals`, {
     method: "POST",
@@ -182,7 +190,13 @@ export async function createVital(vital: unknown) {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to create vital");
+    const body = await response.json().catch(() => null);
+    const detail = typeof body?.detail === "string"
+      ? body.detail
+      : Array.isArray(body?.detail)
+        ? body.detail.map((item: { msg: string }) => item.msg).join("; ")
+        : "Failed to save reading";
+    throw new VitalSaveError(response.status, detail);
   }
 
   return response.json();
@@ -632,8 +646,11 @@ export type ModelEvaluation = {
   selected_model?: string;
   operating_threshold?: number;
   approved_for_inference?: boolean;
-  records?: { total: number; train: number; validation: number; test: number };
+  records?: { total: number; train: number; selection?: number; calibration?: number; threshold?: number; validation?: number; test: number };
+  preparation?: { label_mode?: string; outcome_policy?: string };
+  test_confidence_intervals?: { method: string; patients: number; metrics: Record<string, { lower: number; upper: number; valid_iterations: number } | null> };
   test_metrics?: Record<string, number | null | object>;
+  candidate_validation?: Record<string, { roc_auc?: number; pr_auc?: number; precision?: number; recall_sensitivity?: number }>;
   fairness?: Record<string, unknown>;
   external_validation?: Record<string, unknown> | null;
   acceptance_gates?: Record<string, boolean>;
@@ -643,6 +660,12 @@ export type ModelEvaluation = {
 export async function getModelEvaluation(): Promise<ModelEvaluation> {
   const response = await apiFetch(`${API_BASE_URL}/ml/evaluation`);
   if (!response.ok) throw new Error("Failed to fetch model evaluation");
+  return response.json();
+}
+
+export async function getResearchCandidateEvaluation(): Promise<ModelEvaluation> {
+  const response = await apiFetch(`${API_BASE_URL}/ml/research-candidate`);
+  if (!response.ok) throw new Error("Failed to fetch research candidate");
   return response.json();
 }
 
@@ -657,6 +680,41 @@ export async function getWithingsStatus(patientId: number) {
     `${API_BASE_URL}/integrations/withings/status/${patientId}`
   );
   if (!response.ok) throw new Error("Failed to load Withings status");
+  return response.json();
+}
+
+export type DeviceObservation = {
+  id: number;
+  source: "withings" | "wearable";
+  measured_at: string;
+  received_at: string;
+  measurements: Record<string, number>;
+  missing_fields: string[];
+  assessment_state: string;
+};
+
+export async function getDeviceObservations(patientId: number): Promise<DeviceObservation[]> {
+  const response = await apiFetch(`${API_BASE_URL}/integrations/withings/observations/${patientId}`);
+  if (!response.ok) throw new Error("Failed to load device observations");
+  return response.json();
+}
+
+export type DeviceSyncAttempt = {
+  id: number;
+  provider: string;
+  attempted_at: string;
+  completed_at: string | null;
+  state: "pending" | "success" | "error";
+  accepted_complete: number;
+  accepted_partial: number;
+  rejected: number;
+  error_code: string | null;
+  error_message: string | null;
+};
+
+export async function getDeviceSyncHistory(patientId: number): Promise<DeviceSyncAttempt[]> {
+  const response = await apiFetch(`${API_BASE_URL}/integrations/withings/sync-history/${patientId}`);
+  if (!response.ok) throw new Error("Failed to load device sync history");
   return response.json();
 }
 

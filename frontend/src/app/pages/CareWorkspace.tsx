@@ -106,7 +106,7 @@ export default function CareWorkspace() {
   const { user, isPatient, isDoctor, isNurse } = useAuth();
   const { selectedPatient, hasPatients } = useHealthData();
   const [params, setParams] = useSearchParams();
-  const activeTab = params.get("tab") ?? "overview";
+  const activeTab = params.get("tab") ?? (window.location.hash === "#alerts" ? "clinical" : "overview");
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [appointments, setAppointments] = useState<CareAppointment[]>([]);
   const [messages, setMessages] = useState<CareMessage[]>([]);
@@ -267,7 +267,7 @@ export default function CareWorkspace() {
       <section className="glass-card rounded-3xl p-5 sm:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-blue-600">
+            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-blue-700 dark:text-blue-300">
               {isPatient ? "My care" : "Assigned caseload"}
             </p>
             <h1 className="mt-2 text-3xl font-black">Care workspace</h1>
@@ -277,11 +277,13 @@ export default function CareWorkspace() {
           </div>
           {!isPatient && <div className="w-full max-w-md"><PatientSwitcher /></div>}
         </div>
-        <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
+        <nav className="mt-6 flex gap-2 overflow-x-auto pb-1" aria-label="Care tasks">
           {tabs.map(([value, label]) => (
             <button
               key={value}
-              onClick={() => setParams({ tab: value })}
+              type="button"
+              aria-current={activeTab === value ? "page" : undefined}
+              onClick={() => setParams((current) => { const next = new URLSearchParams(current); next.set("tab", value); return next; })}
               className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-bold ${
                 activeTab === value
                   ? "bg-blue-600 text-white"
@@ -291,7 +293,7 @@ export default function CareWorkspace() {
               {label}
             </button>
           ))}
-        </div>
+        </nav>
       </section>
 
       {notice && <div className="rounded-2xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{notice}</div>}

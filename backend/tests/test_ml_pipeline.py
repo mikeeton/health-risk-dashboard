@@ -1,14 +1,19 @@
 from datetime import datetime, timedelta, timezone
+from importlib.util import find_spec
 from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import joblib
+import json
+import pytest
 
-from ml_engine.evaluation import classification_metrics, fairness_metrics
+from ml_engine.evaluation import classification_metrics, fairness_metrics, patient_bootstrap_intervals
 from ml_engine.features import ENGINEERED_FEATURES, engineer_features
 from ml_engine.registry import explain
-from scripts.train_ml_models import run
+from ml_engine import registry
+from scripts.train_ml_models import run, split
+from routes.ml import get_research_candidate
 
 
 def sample_frame(patient_count=6, records=8):
@@ -41,14 +46,73 @@ def test_feature_engineering_is_patient_scoped_and_complete():
     assert (result["heart_rate_mean_3"] > 0).all()
 
 
+def test_training_partitions_never_share_patient_ids():
+    partitions = split(sample_frame(patient_count=40))
+    patient_sets = [set(part["patient_id"]) for part in partitions]
+    assert all(patient_sets)
+    assert sum(map(len, patient_sets)) == len(set.union(*patient_sets))
+
+
+def test_training_refuses_dataset_without_matching_manifest(tmp_path):
+    dataset = tmp_path / "train.csv"
+    sample_frame(patient_count=15).to_csv(dataset, index=False)
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"sets": {"set-a": {"csv_sha256": "wrong"}}}))
+    with pytest.raises(ValueError, match="does not match"):
+        run(SimpleNamespace(dataset=str(dataset), dataset_manifest=str(manifest), output=str(tmp_path / "model"), external_dataset=None))
+
+
 def test_metrics_include_discrimination_calibration_and_confusion_matrix():
     y_true = np.array([0, 0, 0, 1, 1, 1])
     probability = np.array([0.05, 0.2, 0.4, 0.6, 0.8, 0.95])
-    metrics = classification_metrics(y_true, probability)
+    metrics = classification_metrics(y_true, probability, include_curves=True)
     assert metrics["roc_auc"] == 1.0
     assert metrics["brier_score"] < 0.2
     assert metrics["confusion_matrix"] == {"tn": 3, "fp": 0, "fn": 0, "tp": 3}
     assert metrics["calibration"]
+    assert metrics["roc_curve"][0]["false_positive_rate"] == 0.0
+    assert metrics["precision_recall_curve"]
+
+
+def test_bootstrap_intervals_resample_patients_and_are_reproducible():
+    labels = np.array([0, 1] * 8)
+    scores = np.array([0.2, 0.8] * 8)
+    patients = np.repeat(np.arange(8), 2)
+    first = patient_bootstrap_intervals(labels, scores, patients, 0.5, iterations=20)
+    second = patient_bootstrap_intervals(labels, scores, patients, 0.5, iterations=20)
+    assert first == second
+    assert first["patients"] == 8
+    assert first["metrics"]["roc_auc"]["lower"] == 1.0
+
+
+def test_research_candidate_requires_observed_target_provenance(tmp_path, monkeypatch):
+    monkeypatch.setenv("ML_CANDIDATE_ARTIFACT_DIR", str(tmp_path))
+    (tmp_path / "evaluation.json").write_text(json.dumps({"model_version": "candidate", "preparation": {"label_mode": "legacy_forward_fill"}}))
+    assert get_research_candidate(current_user=object())["available"] is False
+    (tmp_path / "evaluation.json").write_text(json.dumps({"model_version": "candidate", "preparation": {"label_mode": "observed_next_window"}}))
+    response = get_research_candidate(current_user=object())
+    assert response["available"] is True
+    assert response["serving_inference"] is False
+
+
+def test_inference_metadata_cannot_override_a_failed_acceptance_gate(tmp_path, monkeypatch):
+    monkeypatch.setattr(registry, "ARTIFACT_DIR", tmp_path)
+    (tmp_path / "model.joblib").write_bytes(b"not loaded by status check")
+    report = {
+        "schema_version": "wearable-risk-v1",
+        "approved_for_inference": True,
+        "acceptance_gates": {"test_sensitivity_at_least_0_60": False},
+    }
+    (tmp_path / "evaluation.json").write_text(json.dumps(report))
+    registry.artifact_status.cache_clear()
+    try:
+        assert registry.model_status()["available"] is False
+        report["acceptance_gates"]["test_sensitivity_at_least_0_60"] = True
+        (tmp_path / "evaluation.json").write_text(json.dumps(report))
+        registry.artifact_status.cache_clear()
+        assert registry.model_status()["available"] is True
+    finally:
+        registry.artifact_status.cache_clear()
 
 
 def test_fairness_report_marks_small_subgroups_as_insufficient():
@@ -82,4 +146,5 @@ def test_training_writes_versioned_model_and_evaluation(tmp_path):
     latest = engineer_features(sample_frame(patient_count=1, records=8)).iloc[[-1]][ENGINEERED_FEATURES]
     explanations = explain(bundle, latest)
     assert explanations
-    assert all(item["method"] == "SHAP" for item in explanations)
+    expected_method = "SHAP" if find_spec("shap") else "model coefficient fallback"
+    assert all(item["method"] == expected_method for item in explanations)

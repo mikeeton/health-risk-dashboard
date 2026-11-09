@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from assessment_processing import process_vital_assessment
 from early_warning import evaluate_new_vital
 
 
@@ -154,6 +155,8 @@ def ingest_vital(
                 )
             )
 
+        db.add(models.VitalAssessment(vital_id=vital.id, state="pending", attempts=0, updated_at=datetime.now()))
+
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -170,6 +173,6 @@ def ingest_vital(
         raise
 
     db.refresh(vital)
-    evaluate_new_vital(db, vital)
+    process_vital_assessment(db, vital.id, evaluator=evaluate_new_vital)
     hook_result = post_ingest_hook(vital) if post_ingest_hook else None
     return IngestionResult(vital=vital, created=True, hook_result=hook_result)

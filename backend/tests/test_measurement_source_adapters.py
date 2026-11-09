@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -44,6 +44,39 @@ def allow_access(monkeypatch, module, patient=None):
         "get_accessible_patient",
         lambda *_: patient or SimpleNamespace(id=42),
     )
+
+
+def test_failed_withings_sync_updates_attempt_time_without_erasing_last_success():
+    previous_success = datetime(2026, 10, 18, 10, 0)
+    connection = SimpleNamespace(last_sync_at=previous_success, last_successful_sync=previous_success)
+    commits = []
+    database = SimpleNamespace(commit=lambda: commits.append(True))
+
+    integrations_withings.mark_sync_error(connection, database, code="provider_unavailable", message="Temporary error")
+
+    assert connection.last_sync_at > previous_success
+    assert connection.last_error_at == connection.last_sync_at
+    assert connection.last_successful_sync == previous_success
+    assert connection.last_error_code == "provider_unavailable"
+    assert commits == [True]
+
+
+def test_failed_sync_finishes_persistent_attempt_marker():
+    previous_success = datetime(2026, 10, 18, 10, 0)
+    connection = SimpleNamespace(last_sync_at=previous_success, last_successful_sync=previous_success)
+    attempt = SimpleNamespace(state="pending", completed_at=None, error_code=None, error_message=None)
+    database = SimpleNamespace(commit=lambda: None)
+
+    integrations_withings.mark_sync_error(connection, database, code="provider_request_failed", message="Temporary provider error", attempt=attempt)
+
+    assert attempt.state == "error"
+    assert attempt.completed_at == connection.last_error_at
+    assert attempt.error_code == "provider_request_failed"
+
+
+def test_withings_api_timestamps_explicitly_preserve_utc():
+    assert integrations_withings.utc_iso(datetime(2026, 10, 19, 9)) == "2026-10-19T09:00:00+00:00"
+    assert integrations_withings.utc_iso(datetime(2026, 10, 19, 10, tzinfo=timezone(timedelta(hours=1)))) == "2026-10-19T09:00:00+00:00"
 
 
 def test_manual_api_delegates_legacy_dedup_and_audit(monkeypatch):
@@ -302,6 +335,7 @@ def test_withings_adapter_preserves_external_id_and_live_hook(monkeypatch):
         db.refresh(connection)
         last_successful_sync = connection.last_successful_sync
         last_error_code = connection.last_error_code
+        sparse = db.query(models.DeviceObservation).filter(models.DeviceObservation.patient_id == patient_id).all()
     finally:
         db.close()
 
@@ -315,6 +349,9 @@ def test_withings_adapter_preserves_external_id_and_live_hook(monkeypatch):
     assert published[0][1]["persisted"] is True
     assert last_successful_sync is not None
     assert last_error_code is None
+    assert len(sparse) == 1
+    assert sparse[0].measurements == {"heart_rate": 73}
+    assert "spo2" in sparse[0].missing_fields
 
 
 def test_withings_mapping_reports_missing_fields_without_defaults():
@@ -331,3 +368,14 @@ def test_withings_mapping_reports_missing_fields_without_defaults():
         "active_minutes",
         "calories",
     ]
+
+
+def test_withings_measurement_values_reject_invalid_units_and_non_finite_values():
+    values = integrations_withings.measurement_values({"measures": [
+        {"type": 11, "value": 72, "unit": 0},
+        {"type": 54, "value": 98, "unit": 99},
+        {"type": 1, "value": "nan", "unit": 0},
+    ]})
+    assert values == {11: 72}
+    assert integrations_withings.measurement_values({"measures": None}) == {}
+    assert integrations_withings.measurement_values({"measures": [None, "bad", {"type": 11, "value": 80}]}) == {11: 80}

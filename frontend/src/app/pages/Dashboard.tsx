@@ -73,7 +73,7 @@ export default function Dashboard() {
   const patientData = useMemo(() => {
     return healthData.filter(
       (record) => record.patientId === selectedPatient.id
-    );
+    ).sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
   }, [healthData, selectedPatient.id]);
   const containsSyntheticData = patientData.some((record) => isSyntheticSource(record.source));
 

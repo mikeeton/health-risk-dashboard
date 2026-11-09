@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -52,11 +53,44 @@ def get_patient_vitals(
 ):
     get_accessible_patient(db, patient_id, current_user)
 
-    return (
+    records = (
         db.query(models.Vital)
         .filter(models.Vital.patient_id == patient_id)
         .all()
     )
+    # Legacy observations can have offsets or naive timestamps. Sort by the
+    # instant, not the text or insertion order; keep invalid legacy dates first.
+    def observation_order(vital):
+        try:
+            observed = datetime.fromisoformat(vital.timestamp.replace("Z", "+00:00"))
+            if observed.tzinfo is None:
+                observed = observed.replace(tzinfo=timezone.utc)
+            return observed.timestamp(), vital.id
+        except (ValueError, TypeError, AttributeError):
+            return float("-inf"), vital.id
+
+    return sorted(records, key=observation_order)
+
+
+@router.get("/{patient_id}/assessment-states")
+def get_assessment_states(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    get_accessible_patient(db, patient_id, current_user)
+    rows = (
+        db.query(models.VitalAssessment, models.Vital)
+        .join(models.Vital, models.Vital.id == models.VitalAssessment.vital_id)
+        .filter(models.Vital.patient_id == patient_id)
+        .order_by(models.VitalAssessment.id.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        {"vital_id": vital.id, "state": assessment.state, "attempts": assessment.attempts, "updated_at": assessment.updated_at}
+        for assessment, vital in rows
+    ]
 
 
 @router.delete("/{vital_id}")
@@ -82,15 +116,15 @@ def delete_vital(
     get_accessible_patient(db, vital.patient_id, current_user)
 
     db.delete(vital)
-    db.commit()
-
-    write_audit_log(
-        db=db,
+    db.add(models.AuditLog(
         action="DELETE_VITAL",
         entity="Vital",
         entity_id=str(vital_id),
         user_email=current_user.email,
-    )
+        timestamp=datetime.now(timezone.utc).replace(tzinfo=None),
+    ))
+    # The deletion and audit must either both succeed or both roll back.
+    db.commit()
 
     return {
         "message": f"Vital {vital_id} deleted successfully"

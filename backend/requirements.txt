@@ -6,9 +6,10 @@ python-dotenv
 python-jose[cryptography]
 pydantic[email]
 psycopg2-binary
+psycopg[binary]
 httpx
 numpy
-scikit-learn
+scikit-learn==1.8.0  # Matches the installed legacy model.joblib training version.
 pandas
 joblib
 shap

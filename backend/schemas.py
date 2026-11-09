@@ -236,6 +236,28 @@ class VitalCreate(BaseModel):
         return self
 
 
+class DeviceObservationCreate(BaseModel):
+    """Only measurements supplied by a provider are stored."""
+
+    timestamp: str = Field(min_length=1, max_length=80)
+    heart_rate: int | None = Field(default=None, ge=20, le=240)
+    spo2: float | None = Field(default=None, ge=50, le=100)
+    systolic_bp: int | None = Field(default=None, ge=40, le=260)
+    diastolic_bp: int | None = Field(default=None, ge=20, le=180)
+    weight_kg: float | None = Field(default=None, ge=1, le=500)
+
+    _normalise_timestamp = field_validator("timestamp")(normalize_vital_timestamp)
+
+    @model_validator(mode="after")
+    def validate_measurements(self):
+        values = (self.heart_rate, self.spo2, self.systolic_bp, self.diastolic_bp, self.weight_kg)
+        if all(value is None for value in values):
+            raise ValueError("at least one supported measurement is required")
+        if self.systolic_bp is not None and self.diastolic_bp is not None and self.diastolic_bp > self.systolic_bp:
+            raise ValueError("diastolic blood pressure cannot exceed systolic blood pressure")
+        return self
+
+
 class VitalResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -8,7 +8,7 @@ access-control helpers.
 
 from database import Base
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint, Text
+from sqlalchemy import Boolean, Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint, Text, JSON
 
 
 def utc_now_naive():
@@ -172,6 +172,53 @@ class WithingsConnection(Base):
     last_error_code = Column(String, nullable=True)
     last_error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+
+class DeviceObservation(Base):
+    """Sparse provider group; absent fields are never replaced by invented values."""
+
+    __tablename__ = "device_observations"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    source = Column(String, nullable=False)
+    external_id = Column(String, nullable=False, unique=True, index=True)
+    measured_at = Column(String, nullable=False)
+    received_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    measurements = Column(JSON, nullable=False)
+    missing_fields = Column(JSON, nullable=False)
+    assessment_state = Column(String, nullable=False, default="not_assessed")
+
+
+class DeviceSyncAttempt(Base):
+    """One provider delivery attempt, retained independently of connection state."""
+
+    __tablename__ = "device_sync_attempts"
+
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String, nullable=False)
+    attempted_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+    state = Column(String, nullable=False, default="pending")
+    accepted_complete = Column(Integer, nullable=False, default=0)
+    accepted_partial = Column(Integer, nullable=False, default=0)
+    rejected = Column(Integer, nullable=False, default=0)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class VitalAssessment(Base):
+    """Durable marker for downstream assessment of an accepted wide vital."""
+
+    __tablename__ = "vital_assessments"
+
+    id = Column(Integer, primary_key=True)
+    vital_id = Column(Integer, ForeignKey("vitals.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    state = Column(String, nullable=False, default="pending")
+    attempts = Column(Integer, nullable=False, default=0)
+    last_error = Column(String, nullable=True)
     updated_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
 

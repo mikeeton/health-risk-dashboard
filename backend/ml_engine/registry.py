@@ -35,6 +35,19 @@ def artifact_status() -> dict:
         return {"available": False, "reason": "ML artifact metadata has no schema version."}
     if not report.get("approved_for_inference", False):
         return {"available": False, "reason": "ML artifact is not approved for inference."}
+    gates = report.get("acceptance_gates")
+    if not isinstance(gates, dict) or not gates or not all(value is True for value in gates.values()):
+        return {"available": False, "reason": "ML artifact acceptance gates are missing or failed."}
+    if not report.get("preparation") and report.get("model_version") == "physionet-critical-v1":
+        report = {
+            **report,
+            "preparation": {
+                "label_mode": "legacy_forward_fill",
+                "outcome_policy": "Historical forward-filled next-bin research proxy; no observed-next-window claim.",
+            },
+            "research_only": True,
+            "clinical_approval": False,
+        }
     return {"available": True, **report}
 
 

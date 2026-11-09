@@ -1,23 +1,27 @@
-# Health Risk Dashboard frontend
+# Vitala frontend
 
-React, TypeScript, and Vite client for the Health Risk Dashboard.
+React, TypeScript, Vite, and Tailwind CSS power Vitala's role-specific workspaces. The browser client calls the FastAPI backend; it does not contain production patient data or a standalone database.
 
-```bash
-npm ci
-copy .env.example .env.local
-npm run dev
+## Local development
+
+Start the [backend](../README.md#run-locally) first. Then, in PowerShell from this directory:
+
+```powershell
+npm.cmd ci
+Copy-Item .env.example .env.local
+npm.cmd run dev
 ```
 
-Production verification:
+Open `http://localhost:5173`. Set `VITE_API_BASE_URL` in `.env.local` to the local API address if needed. Never put API secrets in a `VITE_` variable: those values are included in the browser bundle.
 
-```bash
-npm audit --audit-level=high
-npm run lint
-npm run build
-npm run test:e2e
+## Quality checks
+
+```powershell
+npm.cmd run lint
+npm.cmd run build
+npm.cmd run test:e2e
 ```
 
-Set `VITE_API_BASE_URL` to the HTTPS backend URL before building production.
-The production host must provide the security headers in `vercel.json`.
-See the root [`README.md`](../README.md), [deployment guide](../docs/setup/DEPLOYMENT.md),
-and [deployment checklist](../docs/setup/DEPLOYMENT_CHECKLIST.md).
+Playwright starts its own Vite server by default and uses synthetic API fixtures for most routes. The suite checks role navigation, light and dark themes, mobile layouts, keyboard access, selected accessibility rules, and main workflows. Fixture results do not establish live backend or provider reliability.
+
+See the [project overview](../README.md), [design system](../docs/reports/FRONTEND_DESIGN_SYSTEM.md), and [documentation index](../docs/README.md).

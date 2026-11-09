@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { createBrowserRouter } from "react-router";
 
 import Layout from "./components/Layout";
+import PublicLayout from "./components/PublicLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -27,6 +28,7 @@ const AccountSecurity = lazy(() => import("./pages/AccountSecurity"));
 const AdminOperations = lazy(() => import("./pages/AdminOperations"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ResearchWorkspace = lazy(() => import("./pages/ResearchWorkspace"));
+const DevicesHub = lazy(() => import("./pages/DevicesHub"));
 
 function PageLoader() {
   return (
@@ -44,6 +46,14 @@ function lazyPage(element: ReactNode) {
 
 export const router = createBrowserRouter([
   {
+    Component: PublicLayout,
+    children: [
+      { path: "/login", element: lazyPage(<Login />) },
+      { path: "/register", element: lazyPage(<RegisterAccess />) },
+      { path: "/reset-password", element: lazyPage(<ResetPassword />) },
+    ],
+  },
+  {
     path: "/",
     Component: Layout,
     children: [
@@ -54,21 +64,6 @@ export const router = createBrowserRouter([
             {lazyPage(<Dashboard />)}
           </ProtectedRoute>
         ),
-      },
-
-      {
-        path: "login",
-        element: lazyPage(<Login />),
-      },
-
-      {
-        path: "register",
-        element: lazyPage(<RegisterAccess />),
-      },
-
-      {
-        path: "reset-password",
-        element: lazyPage(<ResetPassword />),
       },
 
       {
@@ -237,6 +232,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={["doctor", "nurse", "patient"]}>
             {lazyPage(<AIAssistantPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "devices",
+        element: (
+          <ProtectedRoute allowedRoles={["doctor", "nurse", "patient"]}>
+            {lazyPage(<DevicesHub />)}
           </ProtectedRoute>
         ),
       },

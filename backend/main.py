@@ -27,6 +27,8 @@ from monitoring import initialize_error_reporting
 from notification_broadcast import redis_healthcheck
 from ml_engine.registry import model_status
 from early_warning import evaluate_overdue_observations
+from assessment_processing import reconcile_vital_assessments
+from device_sync_recovery import reconcile_stale_sync_attempts
 from live_updates import subscribe, unsubscribe
 from routes import analytics, assistant, admin_assignments, admin_users, referrals
 from routes import registration_requests
@@ -45,27 +47,42 @@ initialize_error_reporting()
 _monitor_task = None
 
 
+def run_monitor_cycle(elapsed_minutes: int) -> int:
+    """Keep blocking database and model work outside the ASGI event loop."""
+    db = None
+    try:
+        db = SessionLocal()
+        reconcile_vital_assessments(db, limit=20)
+        reconcile_stale_sync_attempts(db, limit=20)
+        row = db.query(models.SystemSetting).filter(models.SystemSetting.key == "preemptive_monitoring").first()
+        value = json.loads(row.value) if row else {"enabled": False, "interval_minutes": 5}
+        if not value.get("enabled"):
+            return 0
+        elapsed_minutes += 1
+        interval = max(1, min(60, int(value.get("interval_minutes", 5))))
+        if elapsed_minutes >= interval:
+            evaluate_overdue_observations(db)
+            return 0
+        return elapsed_minutes
+    except Exception:
+        if db is not None:
+            db.rollback()
+        return elapsed_minutes
+    finally:
+        if db is not None:
+            db.close()
+
+
+async def run_monitor_cycle_async(elapsed_minutes: int) -> int:
+    return await asyncio.to_thread(run_monitor_cycle, elapsed_minutes)
+
+
 async def preemptive_monitor_loop():
     """Run inside the existing API service; the database switch defaults off."""
     elapsed_minutes = 0
     while True:
         await asyncio.sleep(60)
-        db = SessionLocal()
-        try:
-            row = db.query(models.SystemSetting).filter(models.SystemSetting.key == "preemptive_monitoring").first()
-            value = json.loads(row.value) if row else {"enabled": False, "interval_minutes": 5}
-            if not value.get("enabled"):
-                elapsed_minutes = 0
-                continue
-            elapsed_minutes += 1
-            interval = max(1, min(60, int(value.get("interval_minutes", 5))))
-            if elapsed_minutes >= interval:
-                evaluate_overdue_observations(db)
-                elapsed_minutes = 0
-        except Exception:
-            db.rollback()
-        finally:
-            db.close()
+        elapsed_minutes = await run_monitor_cycle_async(elapsed_minutes)
 
 
 @asynccontextmanager
@@ -313,7 +330,7 @@ def health_check():
 
 
 @app.get("/health/live")
-def liveness_check():
+async def liveness_check():
     return {"status": "alive", "process_id": os.getpid()}
 
 
@@ -341,6 +358,8 @@ async def readiness_check(db: Session = Depends(get_db)):
         "error_reporting": "configured" if settings.sentry_dsn else "disabled",
         "ml_model": "approved" if ml_status.get("available") else "unavailable",
         "ml_model_version": ml_status.get("model_version"),
+        "ml_research_only": ml_status.get("research_only", True),
+        "ml_clinical_approval": ml_status.get("clinical_approval", False),
         "process_id": os.getpid(),
     }
 
@@ -357,27 +376,37 @@ def metrics(current_user: models.User = Depends(get_current_user)):
     }
 
 
+def live_socket_access_valid(user_id: int, patient_id: int) -> bool:
+    """Recheck persisted account and patient scope before each socket delivery."""
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        return bool(user and user.status == "active" and can_access_patient(db, patient_id, user))
+    finally:
+        db.close()
+
+
+def live_socket_user_id(ticket: str | None, patient_id: int) -> int | None:
+    with SessionLocal() as db:
+        current_user = get_user_from_websocket_ticket(
+            ticket, db, audience="live_vitals", patient_id=patient_id
+        )
+        if not current_user or not can_access_patient(db, patient_id, current_user):
+            return None
+        return current_user.id
+
+
 @app.websocket("/ws/live/{patient_id}")
 async def websocket_live_monitoring(websocket: WebSocket, patient_id: int):
     ticket = websocket.query_params.get("ticket")
-    db = SessionLocal()
-
     try:
-        current_user = get_user_from_websocket_ticket(
-            ticket,
-            db,
-            audience="live_vitals",
-            patient_id=patient_id,
-        )
-
-        if not current_user or not can_access_patient(db, patient_id, current_user):
+        user_id = await asyncio.to_thread(live_socket_user_id, ticket, patient_id)
+        if user_id is None:
             await websocket.close(code=1008)
             return
     except HTTPException:
         await websocket.close(code=1008)
         return
-    finally:
-        db.close()
 
     await websocket.accept()
     update_queue = subscribe(patient_id)
@@ -389,13 +418,18 @@ async def websocket_live_monitoring(websocket: WebSocket, patient_id: int):
                     update_queue.get(),
                     timeout=settings.websocket_interval_seconds,
                 )
+                if not await asyncio.to_thread(live_socket_access_valid, user_id, patient_id):
+                    await websocket.close(code=1008)
+                    break
                 await websocket.send_json(external_record)
                 continue
             except asyncio.TimeoutError:
                 pass
 
+            if not await asyncio.to_thread(live_socket_access_valid, user_id, patient_id):
+                await websocket.close(code=1008)
+                break
             await websocket.send_json(generate_websocket_vital(patient_id))
-            await asyncio.sleep(settings.websocket_interval_seconds)
 
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for patient {patient_id}")

@@ -96,6 +96,26 @@ def serialize_notification(
     }
 
 
+def notification_socket_user_id(ticket: str | None) -> int | None:
+    with SessionLocal() as db:
+        current_user = get_user_from_websocket_ticket(ticket, db, audience="notifications")
+        return current_user.id if current_user else None
+
+
+def notification_socket_signature(user_id: int) -> tuple[int, int | None] | None:
+    with SessionLocal() as db:
+        current_user = db.get(models.User, user_id)
+        if current_user is None or current_user.status != "active":
+            return None
+        latest = (
+            db.query(models.Notification)
+            .filter(notification_scope_filter(current_user))
+            .order_by(models.Notification.id.desc())
+            .first()
+        )
+        return unread_notification_count(db, current_user), latest.id if latest else None
+
+
 @router.websocket("/ws")
 async def notification_socket(websocket: WebSocket, ticket: str | None = None):
     """Push notification badge metadata to authenticated users.
@@ -106,34 +126,23 @@ async def notification_socket(websocket: WebSocket, ticket: str | None = None):
     blocks WebSockets.
     """
 
-    db = SessionLocal()
+    user_id = await asyncio.to_thread(notification_socket_user_id, ticket)
 
+    if user_id is None:
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
     try:
-        current_user = get_user_from_websocket_ticket(
-            ticket,
-            db,
-            audience="notifications",
-        )
-
-        if not current_user:
-            await websocket.close(code=1008)
-            return
-
-        await websocket.accept()
-
         last_signature: tuple[int, int | None] | None = None
 
         while True:
-            latest = (
-                db.query(models.Notification)
-                .filter(notification_scope_filter(current_user))
-                .order_by(models.Notification.id.desc())
-                .first()
-            )
-            signature = (
-                unread_notification_count(db, current_user),
-                latest.id if latest else None,
-            )
+            # Database pool waits must not block unrelated ASGI requests.
+            # Each check closes its session before the socket sends or sleeps.
+            signature = await asyncio.to_thread(notification_socket_signature, user_id)
+            if signature is None:
+                await websocket.close(code=1008)
+                return
 
             if signature != last_signature:
                 await websocket.send_json(
@@ -151,8 +160,6 @@ async def notification_socket(websocket: WebSocket, ticket: str | None = None):
                 await asyncio.sleep(settings.websocket_interval_seconds)
     except (asyncio.CancelledError, WebSocketDisconnect):
         pass
-    finally:
-        db.close()
 
 
 @router.post("/", response_model=schemas.NotificationResponse)

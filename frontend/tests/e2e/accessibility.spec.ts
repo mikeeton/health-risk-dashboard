@@ -17,7 +17,7 @@ test("keyboard users can skip directly to main content", async ({ page }) => {
   const skip = page.getByRole("link", { name: "Skip to main content" });
   await expect(skip).toBeFocused();
   await skip.press("Enter");
-  await expect(page.locator("#main-content")).toBeFocused();
+  await expect(page.locator("#public-content")).toBeFocused();
 });
 
 test("reduced-motion preference disables nonessential animation", async ({ page }) => {

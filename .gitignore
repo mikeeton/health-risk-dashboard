@@ -29,6 +29,7 @@ htmlcov/
 
 # Local working files and private learning material
 .runtime/
+verification-evidence-*.zip
 docs/learning/
 scripts/build_line_by_line_textbook.py
 scripts/build_project_textbook.py

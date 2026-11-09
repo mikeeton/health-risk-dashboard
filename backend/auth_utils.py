@@ -138,6 +138,7 @@ def create_websocket_ticket(
     user: models.User,
     audience: str,
     patient_id: int | None = None,
+    session_jti: str | None = None,
 ) -> str:
     payload = {
         "sub": user.email,
@@ -148,6 +149,8 @@ def create_websocket_ticket(
     }
     if patient_id is not None:
         payload["patient_id"] = patient_id
+    if session_jti is not None:
+        payload["session_jti"] = session_jti
     return create_token(
         payload,
         timedelta(seconds=WEBSOCKET_TICKET_EXPIRE_SECONDS),
@@ -166,13 +169,29 @@ def decode_access_token(token: str):
         return None
 
 
+def _session_is_active(payload: dict, db: Session) -> bool:
+    session_jti = payload.get("session_jti")
+    if session_jti is None:
+        # Tokens issued before session binding remain valid until their short expiry.
+        return True
+    if not isinstance(session_jti, str) or not session_jti:
+        return False
+    session = db.query(models.AuthSession).filter(
+        models.AuthSession.refresh_jti_hash == hashlib.sha256(session_jti.encode()).hexdigest(),
+        models.AuthSession.user_id == payload.get("user_id"),
+        models.AuthSession.revoked_at.is_(None),
+        models.AuthSession.expires_at > datetime.now(timezone.utc).replace(tzinfo=None),
+    ).first()
+    return session is not None
+
+
 def get_user_from_token(token: str | None, db: Session):
     if not token:
         return None
 
     payload = decode_access_token(token)
 
-    if not payload or payload.get("token_type") in {"refresh", "websocket"}:
+    if not payload or payload.get("token_type") in {"refresh", "websocket"} or not _session_is_active(payload, db):
         return None
 
     user_id = payload.get("user_id")
@@ -214,6 +233,7 @@ def get_user_from_websocket_ticket(
         or payload.get("token_type") != "websocket"
         or payload.get("socket_audience") != audience
         or payload.get("patient_id") != patient_id
+        or not _session_is_active(payload, db)
     ):
         return None
 

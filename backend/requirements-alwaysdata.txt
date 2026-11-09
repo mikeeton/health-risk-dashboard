@@ -1,0 +1,20 @@
+# Lean runtime for a no-card Alwaysdata Free research demonstration.
+# The optional SHAP, Redis and Sentry integrations are deliberately omitted.
+# If SHAP is unavailable, model explanations use the labelled coefficient fallback.
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+python-dotenv
+python-jose[cryptography]
+pydantic[email]
+psycopg2-binary
+psycopg[binary]
+httpx
+numpy
+scikit-learn==1.8.0  # Matches the installed legacy model.joblib training version.
+pandas
+joblib
+groq
+argon2-cffi
+pyotp>=2.9,<3

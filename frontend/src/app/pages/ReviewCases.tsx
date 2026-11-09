@@ -137,7 +137,7 @@ export default function ReviewCases() {
                       reviewCase.risk_level ===
                       "Critical"
                         ? "bg-red-600 text-white"
-                        : "bg-orange-500 text-white"
+                        : "bg-orange-700 text-white"
                     }`}
                   >
                     {
@@ -149,7 +149,7 @@ export default function ReviewCases() {
                     className={`rounded-full px-3 py-1 text-xs font-bold ${
                       reviewCase.status ===
                       "Resolved"
-                        ? "bg-green-600 text-white"
+                        ? "bg-green-700 text-white"
                         : reviewCase.status ===
                           "Under Review"
                         ? "bg-blue-600 text-white"
@@ -218,7 +218,7 @@ export default function ReviewCases() {
                       textarea.value
                     );
                   }}
-                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                  className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
                 >
                   Resolve Case
                 </button>
@@ -246,7 +246,7 @@ export default function ReviewCases() {
                 </button>
               </div>
 
-              <div className="mt-5 text-xs text-gray-500 dark:text-slate-500">
+              <div className="mt-5 text-xs text-gray-600 dark:text-slate-300">
                 Created:
                 {" "}
                 {

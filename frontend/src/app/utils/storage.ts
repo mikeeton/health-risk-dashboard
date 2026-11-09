@@ -40,3 +40,8 @@ export function loadTheme(): AppTheme {
     ? "dark"
     : "light";
 }
+
+export function applyTheme(theme: AppTheme) {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  document.documentElement.dataset.theme = theme;
+}

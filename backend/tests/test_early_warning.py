@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 
 import models
 from database import Base
-from early_warning import _critical_reasons, _trend_reasons, _patient_threshold, _data_quality, evaluate_new_vital
+from early_warning import _critical_reasons, _trend_reasons, _patient_threshold, _data_quality, evaluate_new_vital, evaluate_partial_device_observation
 
 
 def make_vital(patient_id, index, *, spo2=97, heart=75, systolic=120, risk=2):
@@ -61,8 +61,11 @@ def test_urgent_alert_is_deduplicated_and_only_assigned_clinician_is_notified():
     session.commit()
 
     first = make_vital(patient.id, 1, spo2=88)
-    session.add(first); session.commit(); session.refresh(first)
+    session.add(first); session.flush()
+    session.add(models.VitalAssessment(vital_id=first.id, state="processing", attempts=1))
+    session.commit(); session.refresh(first)
     evaluate_new_vital(session, first)
+    assert session.query(models.VitalAssessment).filter_by(vital_id=first.id).one().state == "completed"
     second = make_vital(patient.id, 2, spo2=88)
     session.add(second); session.commit(); session.refresh(second)
     evaluate_new_vital(session, second)
@@ -72,4 +75,26 @@ def test_urgent_alert_is_deduplicated_and_only_assigned_clinician_is_notified():
     assert [item.user_email for item in notifications] == [doctor.email]
     assert notifications[0].type == "critical"
     assert session.query(models.AuditLog).count() == 2
+    session.close()
+
+
+def test_sparse_critical_observation_is_assessed_without_invented_fields():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    session = sessionmaker(bind=engine)()
+    patient = models.Patient(name="Sparse Patient", age=62, condition="Monitoring", risk_level="Low")
+    session.add(patient)
+    session.flush()
+    observation = models.DeviceObservation(
+        patient_id=patient.id, source="withings", external_id="withings:test:1",
+        measured_at="2026-10-19T10:00:00+00:00", measurements={"heart_rate": 150},
+        missing_fields=["spo2", "systolic_bp", "diastolic_bp"],
+        assessment_state="not_assessed_partial",
+    )
+    session.add(observation)
+    session.commit()
+    evaluate_partial_device_observation(session, observation)
+    assert observation.assessment_state == "deterministic_alert"
+    assert session.query(models.ReviewCase).count() == 1
+    assert "heart rate 150" in session.query(models.ReviewCase).first().note
     session.close()

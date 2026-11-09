@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -13,6 +14,7 @@ import models
 from access_control import require_admin
 from auth_utils import get_current_user
 from database import get_db
+from early_warning import _critical_reasons
 from ml_engine.registry import model_status
 
 router = APIRouter(prefix="/research", tags=["Restricted research"])
@@ -91,19 +93,41 @@ def summary(db: Session = Depends(get_db), user: models.User = Depends(get_curre
 @router.get("/global-shap")
 def global_shap(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     require_admin(user)
-    totals, counts = {}, {}
     records = db.query(models.ModelPredictionRecord).filter(models.ModelPredictionRecord.shap_json.isnot(None)).all()
+    return aggregate_genuine_shap(records, model_version=model_status().get("model_version"))
+
+
+def aggregate_genuine_shap(records, *, model_version: str | None) -> dict:
+    """Never mix coefficient/importance fallbacks into SHAP aggregates."""
+    totals, counts = {}, {}
+    genuine_records = 0
+    excluded_records = 0
+    other_version_records = 0
     for record in records:
+        if getattr(record, "model_version", None) != model_version:
+            other_version_records += 1
+            continue
         try:
-            for item in json.loads(record.shap_json or "[]"):
-                feature, contribution = item.get("feature"), abs(float(item.get("contribution", 0)))
-                if feature:
-                    totals[feature] = totals.get(feature, 0) + contribution
-                    counts[feature] = counts.get(feature, 0) + 1
+            items = json.loads(record.shap_json or "[]")
+            genuine = [item for item in items if isinstance(item, dict) and item.get("method") == "SHAP"] if isinstance(items, list) else []
+            contributions = []
+            for item in genuine:
+                feature = item.get("feature")
+                contribution = float(item.get("contribution"))
+                if feature and math.isfinite(contribution):
+                    contributions.append((feature, abs(contribution)))
+            if not contributions:
+                excluded_records += 1
+                continue
+            genuine_records += 1
+            for feature, contribution in contributions:
+                totals[feature] = totals.get(feature, 0) + contribution
+                counts[feature] = counts.get(feature, 0) + 1
         except (TypeError, ValueError, json.JSONDecodeError):
+            excluded_records += 1
             continue
     features = sorted(({"feature": feature, "mean_absolute_shap": totals[feature] / counts[feature], "observations": counts[feature]} for feature in totals), key=lambda item: item["mean_absolute_shap"], reverse=True)
-    return {"model_version": model_status().get("model_version"), "prediction_records": len(records), "method": "mean absolute local SHAP across stored prospective predictions", "features": features, "warning": "Association with model output is not causal or clinical-effectiveness evidence."}
+    return {"model_version": model_version, "prediction_records": len(records), "shap_prediction_records": genuine_records, "excluded_non_shap_records": excluded_records, "excluded_other_version_records": other_version_records, "method": "mean absolute local SHAP across stored prospective predictions" if genuine_records else "SHAP unavailable in stored predictions", "features": features, "warning": "Only matching-version records explicitly marked SHAP are aggregated. Other versions and coefficient/importance fallbacks are excluded. Association with model output is not causal or clinical-effectiveness evidence."}
 
 
 @router.post("/usability-sessions")
@@ -120,7 +144,7 @@ def create_usability(payload: UsabilityCreate, db: Session = Depends(get_db), us
 def pending_predictions(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     require_admin(user)
     rows = db.query(models.ModelPredictionRecord).filter(models.ModelPredictionRecord.outcome_observed.is_(None)).order_by(models.ModelPredictionRecord.window_end).limit(200).all()
-    return [{"prediction_id": row.id, "created_at": row.created_at, "window_end": row.window_end, "probability": row.probability, "threshold": row.threshold, "predicted_positive": row.predicted_positive, "mode": row.mode, "model_version": row.model_version} for row in rows]
+    return [{"prediction_id": row.id, "created_at": row.created_at.replace(tzinfo=timezone.utc).isoformat(), "window_end": row.window_end.replace(tzinfo=timezone.utc).isoformat(), "window_expired": row.window_end <= now(), "probability": row.probability, "threshold": row.threshold, "predicted_positive": row.predicted_positive, "mode": row.mode, "model_version": row.model_version} for row in rows]
 
 
 @router.post("/prospective/outcomes")
@@ -131,11 +155,39 @@ def record_outcome(payload: OutcomeCreate, db: Session = Depends(get_db), user: 
         raise HTTPException(404, "Prediction not found")
     if db.query(models.ProspectiveValidationOutcome).filter(models.ProspectiveValidationOutcome.prediction_id == prediction.id).first():
         raise HTTPException(409, "This prediction already has an adjudicated outcome")
+    if payload.observed_at.tzinfo is None or payload.observed_at.utcoffset() is None:
+        raise HTTPException(422, "Outcome time must include a timezone offset")
+    observed_at = payload.observed_at.astimezone(timezone.utc).replace(tzinfo=None)
+    if observed_at > now():
+        raise HTTPException(422, "Outcome cannot be recorded in the future")
+    if not payload.notes or len(payload.notes.strip()) < 10:
+        raise HTTPException(422, "A source-based adjudication note of at least ten characters is required")
+    if payload.outcome_observed:
+        if not prediction.created_at < observed_at <= prediction.window_end:
+            raise HTTPException(422, "Positive outcome time must fall inside the prediction window")
+    else:
+        if observed_at < prediction.window_end:
+            raise HTTPException(422, "A negative outcome cannot be recorded before the prediction window ends")
+        followup = []
+        for observation in db.query(models.Vital).filter(models.Vital.patient_id == prediction.patient_id).all():
+            try:
+                timestamp = datetime.fromisoformat(observation.timestamp.replace("Z", "+00:00"))
+                timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None) if timestamp.tzinfo else timestamp
+            except (AttributeError, ValueError):
+                continue
+            if observation.id != prediction.vital_id and prediction.created_at < timestamp <= prediction.window_end:
+                followup.append(observation)
+        if not followup:
+            raise HTTPException(422, "No observed vital follow-up exists inside this prediction window")
+        if any(_critical_reasons(observation) for observation in followup):
+            raise HTTPException(422, "A critical observed vital contradicts a negative outcome")
     values = payload.model_dump()
-    values["observed_at"] = payload.observed_at.replace(tzinfo=None)
+    values["observed_at"] = observed_at
+    if not payload.outcome_observed:
+        values["notes"] = f"{payload.notes.strip()} | In-window vital IDs: {', '.join(str(item.id) for item in followup)}"
     item = models.ProspectiveValidationOutcome(**values, adjudicator_user_id=user.id, created_at=now())
     prediction.outcome_observed = payload.outcome_observed
-    prediction.outcome_recorded_at = payload.observed_at.replace(tzinfo=None)
+    prediction.outcome_recorded_at = observed_at
     prediction.classification = "TP" if prediction.predicted_positive and payload.outcome_observed else "FP" if prediction.predicted_positive else "FN" if payload.outcome_observed else "TN"
     db.add(item); db.commit(); db.refresh(item); audit(db, user, "ADJUDICATE_PROSPECTIVE_OUTCOME", "ModelPredictionRecord", prediction.id)
     return {"id": item.id, "classification": prediction.classification}

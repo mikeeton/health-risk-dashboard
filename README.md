@@ -1,208 +1,86 @@
-# Health Risk Dashboard
+# Vitala
 
-> Deployment target: Vercel Free (frontend), Render Free Web Service (FastAPI), Neon Free (PostgreSQL), and optional Upstash Redis Free/Groq. This is a portfolio/university system and is unsuitable for real patient data or clinical production use.
+**Health Risk Dashboard 2.0** is a full-stack healthcare research prototype for reviewing patient observations, care activity, alerts, and model evidence. It has separate workspaces for doctors, nurses, patients, and administrators.
 
-```mermaid
-flowchart LR
-    Browser[Browser] -->|HTTPS / WSS| Vercel[Vercel Free\nReact + Vite]
-    Vercel -->|HTTPS / WSS| Render[Render Free\nFastAPI, 1 worker]
-    Render -->|TLS PostgreSQL| Neon[Neon Free\nPostgreSQL]
-    Render -.->|optional rediss://| Upstash[Upstash Redis Free]
-    Render -.->|optional API call| Groq[Groq]
-    GitHub[GitHub Actions\n6-hour health monitor] --> Render
-    GitHub --> Vercel
-```
+> **Research use only.** Vitala is not clinically validated or approved as a medical device. Use synthetic or appropriately governed research data. Clinicians must verify every alert and model output. Live deployment is paused; this README focuses on local development.
 
-The exact manual provider steps, migration safety procedure, rollback, and troubleshooting are in [the deployment guide](docs/setup/DEPLOYMENT.md). Use [the free-tier checklist](FREE_TIER_MIGRATION.md) during cutover.
+## What is in the project
 
-A full-stack clinical monitoring and research prototype for role-based patient review, live observations, care workflows, and explainable risk analysis. It demonstrates production-minded software engineering around sensitive health data without claiming clinical validation or medical-device status.
+| Area | Purpose |
+| --- | --- |
+| Doctor | Patient summaries, vital trends, review cases, reports, and referrals |
+| Nurse | Care tasks, observations, medication activity, and escalation |
+| Patient | Personal measurements, care information, and connected devices |
+| Admin | Access approvals, user management, audit records, and operations |
+| Research | Model evaluation, provenance, calibration, and prospective evidence |
+| AI assistant | Optional governed summaries with source references and missing-data disclosures |
 
-> **Project status:** Functional portfolio and final-year research prototype. Use synthetic or appropriately governed research data only; the system is not a certified medical device and must not be used to make autonomous clinical decisions.
-
-## What it demonstrates
-
-- Four role-specific experiences for administrators, doctors, nurses, and patients.
-- Server-enforced patient access, staff assignments, referrals, registration approval, and audit trails.
-- PostgreSQL-backed records for patients, observations, medication, review cases, notifications, and research evidence.
-- Live observation updates through authenticated WebSockets, with PostgreSQL as the source of truth and optional Redis fan-out.
-- A versioned six-hour critical-event research model with longitudinal features, calibration, Isolation Forest anomaly signals, explanation evidence, drift indicators, and subgroup reporting.
-- Optional Groq-assisted summaries and Q&A behind configuration and governance gates, with bounded context, structured output validation, deterministic safety rules, and audit logging.
-- CI checks covering migrations, backend tests, frontend lint/build, Playwright browser tests, dependency audit, and secret scanning.
-
-## Screenshots
-
-| Clinician dashboard | Research workspace | Patient view |
-|---|---|---|
-| ![Doctor dashboard showing patient monitoring and review controls](docs/dissertation/screenshots/02-doctor-dashboard.png) | ![Research workspace showing model evidence](docs/dissertation/screenshots/07-research-workspace.png) | ![Patient dashboard showing personal health information](docs/dissertation/screenshots/08-patient-dashboard.png) |
-
-Additional captured screens are retained with the [dissertation evidence](docs/dissertation/).
-
-## Architecture
-
-```mermaid
-flowchart LR
-    User[Admin / Doctor / Nurse / Patient] --> UI[React + TypeScript + Vite]
-    UI -->|REST + JWT| API[FastAPI]
-    UI <-->|Authenticated WebSocket| API
-    API --> DB[(PostgreSQL)]
-    API --> Cache[(Redis, optional locally)]
-    API --> ML[Versioned ML artifact]
-    API -. governed and optional .-> Groq[Groq API]
-    API -. optional OAuth .-> Withings[Withings API]
-```
-
-The frontend centralises authenticated requests and keeps the browser session in `sessionStorage`. FastAPI validates requests, resolves the active user, applies role and patient scope, and only then reads or writes through SQLAlchemy. Alembic owns schema evolution; PostgreSQL is intentionally required.
-
-## Roles and access
-
-| Role | Main responsibilities |
-|---|---|
-| Admin | Approves access requests, manages users and staff assignments, reviews referrals, audit logs, and operational metrics. Admins are excluded from clinical records. |
-| Doctor | Reviews assigned patients, observations, risk outputs, cases, diagnoses, treatment notes, reports, referrals, and escalations. |
-| Nurse | Monitors assigned patients, records observations, updates medication state, adds nursing notes, raises alerts, and supports care workflows. |
-| Patient | Reads only the patient record linked to their own user account. |
-
-Detailed workflow and compatibility notes are in [Role workflows](docs/architecture/ROLE_WORKFLOWS.md).
-
-## Technology
-
-- **Frontend:** React 19, TypeScript, Vite, React Router, Tailwind CSS, Recharts, Radix UI, Playwright, Axe.
-- **Backend:** Python, FastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL, JWT, Argon2id, WebSockets.
-- **AI and ML:** Groq SDK, scikit-learn, pandas, NumPy, joblib, SHAP, calibrated classification, Isolation Forest.
-- **Operations:** Redis, Render blueprint, Vercel configuration, Sentry hooks, encrypted PostgreSQL backup tooling, GitHub Actions, Dependabot, gitleaks.
-
-## Engineering decisions
-
-- **Backend-enforced privacy:** hidden UI elements are not treated as authorisation. Protected routes resolve role and patient-level access centrally and return `404` for inaccessible patients to reduce information leakage.
-- **PostgreSQL-only persistence:** local and deployed environments use the same database family; the project does not silently fall back to SQLite.
-- **Revocable authentication:** short-lived access tokens are paired with rotating refresh sessions whose identifiers are stored as hashes and revoked on logout or reuse.
-- **Durable live workflows:** WebSocket messages provide update hints; persisted PostgreSQL state remains authoritative.
-- **Layered AI safety:** emergency rules run independently of the LLM, provider input is reduced and delimited, outputs are schema-validated, and clinical use requires human verification.
-- **Traceable ML inference:** runtime output identifies its source and model version. Missing artefacts produce a labelled deterministic fallback rather than a fabricated model probability.
-
-## AI and ML scope
-
-The repository contains two distinct capabilities:
-
-1. **Groq assistant (optional):** uses a pre-trained external model for summaries, questions, handovers, and report text. It is disabled by default and requires both credentials and explicit governance settings for real-data use. No LLM is trained or fine-tuned in this project.
-2. **Risk research model:** a committed, versioned scikit-learn artefact predicts a defined critical-vital event in a six-hour horizon. Its retrospective evaluation, limitations, calibration, fairness descriptors, and external-cohort result are documented in the [model card](docs/ML_MODEL_CARD.md). Deterministic safety thresholds remain independent of the model.
-
-These components are decision-support research, not diagnoses. The evidence does not establish prospective clinical effectiveness, generalisation to ordinary outpatient wearables, regulatory approval, or fairness across clinical populations.
-
-## Repository structure
-
-```text
-health-risk-dashboard/
-├── backend/                 FastAPI app, routes, models, migrations, ML and tests
-├── frontend/                React application and Playwright tests
-├── docs/                    Architecture, setup, security, testing and research evidence
-├── scripts/                 Dissertation source/visual build utilities
-├── .github/                 CI and dependency automation
-├── render.yaml              Single Render Free backend web service
-└── README.md
-```
+The frontend uses React, TypeScript, Vite, and Tailwind CSS. The backend uses FastAPI, SQLAlchemy, Alembic, and PostgreSQL. WebSockets provide live update hints; persisted database records remain authoritative. Redis, Withings, and Groq are optional integrations.
 
 ## Run locally
 
-### Prerequisites
+Install **Python 3.12**, **Node.js 22**, and **PostgreSQL**. The backend requires a PostgreSQL database; it does not silently switch to SQLite.
 
-- PostgreSQL
-- Python 3.12 (the CI/runtime version)
-- Node.js 22 (the CI version)
-
-### Backend
-
-From PowerShell:
+From the repository root, set up the backend in PowerShell:
 
 ```powershell
 cd backend
 python -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt
+.\venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 ```
 
-Set a PostgreSQL `DATABASE_URL` and a unique development `SECRET_KEY` in `backend/.env`, then run:
+Edit `backend/.env` with a local `DATABASE_URL`, a unique development `SECRET_KEY`, and the local frontend origin. Then start the API:
 
 ```powershell
-alembic upgrade head
-uvicorn main:app --reload
+.\venv\Scripts\alembic.exe upgrade head
+.\venv\Scripts\uvicorn.exe main:app --reload
 ```
 
-The API listens on `http://127.0.0.1:8000`. Create an administrator explicitly; no default production credentials are provided:
-
-```powershell
-python scripts/reset_admin.py --email admin@example.com --full-name "System Admin" --password "use-a-unique-password-manager-generated-password"
-```
-
-### Frontend
-
-In another terminal:
+The API runs at `http://127.0.0.1:8000`. In a second PowerShell terminal:
 
 ```powershell
 cd frontend
-npm ci
+npm.cmd ci
 Copy-Item .env.example .env.local
-npm run dev
+npm.cmd run dev
 ```
 
-The application listens on `http://localhost:5173` by default.
+The frontend runs at `http://localhost:5173` by default. Set `VITE_API_BASE_URL` in `frontend/.env.local` if the API uses another address. There are no default administrator credentials; use `backend/scripts/reset_admin.py` to create a local administrator.
 
-## Configuration
-
-Safe, documented placeholders are provided in:
-
-- [`backend/.env.example`](backend/.env.example) for database, authentication, CORS, live updates, AI, Withings, monitoring, and backup settings.
-- [`frontend/.env.example`](frontend/.env.example) for the API URL and optional frontend monitoring.
-
-Real `.env` files are ignored. AI and provider integrations remain inactive without configuration. See [Groq setup](docs/setup/AI_SETUP.md), [Withings setup](docs/setup/WITHINGS_SETUP.md), and the full [deployment guide](docs/setup/DEPLOYMENT.md).
-
-## Verification
-
-Backend tests use Pytest and FastAPI TestClient for authentication, access control, request safety, database configuration, assistant safety, backup encryption, early warning, ML, and research-evidence behaviour.
+## Check the project
 
 ```powershell
 cd backend
-.\venv\Scripts\Activate.ps1
-pytest -q
-alembic current
+.\venv\Scripts\python.exe -m pytest tests -q
 ```
-
-Frontend checks include TypeScript compilation, ESLint, a Vite production build, Playwright flows, responsive checks, and Axe accessibility assertions.
 
 ```powershell
 cd frontend
-npm ci
-npm run lint
-npm run build
-npm run test:e2e
+npm.cmd run lint
+npm.cmd run build
+npm.cmd run test:e2e
 ```
 
-Authenticated Playwright scenarios require the opt-in environment variables documented in [`frontend/tests/e2e/smoke.spec.ts`](frontend/tests/e2e/smoke.spec.ts). Current and historical evidence must be read separately; see the [claims-versus-code audit](docs/dissertation/CLAIMS_VS_CODE_AUDIT.md) for the latest recorded run and its known browser-test limitations.
+The latest completed local run (9 November 2026) passed **159 backend tests** and **38 browser tests**, with one existing browser skip. Frontend lint and the production build passed. Browser tests use synthetic API fixtures; they do not prove real provider delivery or production reliability. See the [test inventory](docs/testing/COMPLETE_TEST_INVENTORY.md) and [local verification record](docs/reports/LOCAL_VERIFICATION_2026-11-09.md).
 
-## Security
+## Clinical and ML boundaries
 
-Implemented controls include Argon2id password hashing, strong-password validation, rotating/revocable refresh sessions, role and patient scoping, secure response headers, clinical `no-store` caching, request-size limits, rate limiting, audit logs, production configuration validation, and secret scanning in CI.
+The observed-next-window HR/BP model candidate failed its preset sensitivity gate and **does not serve inference**. Its retrospective false-positive burden remains high. The older installed model measures a different, forward-filled proxy target and is labelled as research-only. Deterministic critical-reading checks are independent of both models. See the [model card](docs/ML_MODEL_CARD.md) and [validation report](docs/reports/ML_PIPELINE_VALIDATION_REPORT.md).
 
-The local limiter is process-scoped unless Redis is configured. Production use still requires independent security review, privacy and clinical-safety approval, monitored backups and restore exercises, provider agreements, and operational ownership. See the [security policy](docs/security/SECURITY.md) and [deployment checklist](docs/setup/DEPLOYMENT_CHECKLIST.md).
+Withings sync, alert retry, patient access, session revocation, and role-specific screens have local automated coverage. Real wearable delivery, prospective outcomes, clinical usability, and external safety approval are still required before any clinical use.
 
-## Documentation
+## Repository map
 
-- [Documentation index](docs/README.md)
-- [Research architecture](docs/RESEARCH_ARCHITECTURE.md)
-- [Model card](docs/ML_MODEL_CARD.md)
-- [Formal test matrix](docs/FORMAL_TEST_MATRIX.md)
-- [Validation and generalisation plan](docs/VALIDATION_AND_GENERALISATION.md)
-- [Regulatory preparation boundary](docs/REGULATORY_PREPARATION.md)
-- [Dissertation and reproducible evidence](docs/DISSERTATION_EVIDENCE.md)
+```text
+backend/              API, database models, migrations, ML, and tests
+frontend/             Web application and browser tests
+docs/                 Architecture, setup, research, and evidence
+docs/dissertation/    Final dissertation and presentation guide
+scripts/              Research and documentation utilities
+```
 
-## Known limitations
-
-- This is a portfolio/research prototype, not a clinically validated or regulated product.
-- The committed ML evidence is retrospective and population-specific; false-positive burden and subgroup uncertainty remain material.
-- Groq and Withings require external accounts, credentials, governance approval, and deployment configuration.
-- In-process behaviour and repository scripts do not prove sustained production reliability, successful disaster recovery, or completed human-factor evaluation.
-- The latest recorded Playwright rerun is not fully green; see the linked audit for the exact result and causes under investigation.
+Start with the [documentation index](docs/README.md) for deeper technical material. The two retained Word documents are the [dissertation](docs/dissertation/Health_Risk_Dashboard_Dissertation.docx) and [presentation and viva guide](docs/dissertation/Presentation_and_Viva_Guide.docx). Historical evaluation reports remain in Markdown so their claims can be checked against the code.
 
 ## Author
 

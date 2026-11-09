@@ -91,14 +91,14 @@ export default function AdminOperations() {
   }
 
   return (
-    <div className="dashboard-shell space-y-6">
+    <div className="operations-workspace dashboard-shell space-y-6">
       <section className="glass-card rounded-3xl p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div><p className="text-xs font-extrabold uppercase tracking-[0.14em] text-blue-600">Administration</p><h1 className="mt-2 text-3xl font-black">Operations & governance</h1><p className="mt-2 text-sm text-slate-500">Service readiness, AI approvals, privacy requests, backups, and incidents.</p></div>
           <button onClick={load} className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold dark:border-slate-700"><RefreshCw className="h-4 w-4" /> Refresh</button>
         </div>
       </section>
-      {error && <div role="alert" className="rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
+      {error && <div role="alert" className="state-negative rounded-2xl p-4 text-sm font-semibold">{error}</div>}
       {loading ? <div className="flex min-h-52 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-blue-600" /></div> : (
         <>
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -110,13 +110,13 @@ export default function AdminOperations() {
             <section className="glass-card rounded-3xl p-6">
               <h2 className="flex items-center gap-2 text-xl font-extrabold"><Database className="h-5 w-5 text-blue-600" /> Service health</h2>
               <div className="mt-5 space-y-2">
-                {Object.entries(operations.services ?? {}).map(([service, status]) => <div key={service} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 dark:border-slate-800"><span className="font-bold capitalize">{service.replaceAll("_", " ")}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${status === "ok" || status === true || status === "enabled" || status === "configured" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{String(status)}</span></div>)}
+                {Object.entries(operations.services ?? {}).map(([service, status]) => <div key={service} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 dark:border-slate-800"><span className="font-bold capitalize">{service.replaceAll("_", " ")}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${status === "ok" || status === true || status === "enabled" || status === "configured" ? "state-positive" : "state-warning"}`}>{String(status)}</span></div>)}
               </div>
             </section>
             <section className="glass-card rounded-3xl p-6">
               <h2 className="flex items-center gap-2 text-xl font-extrabold"><Bot className="h-5 w-5 text-blue-600" /> AI governance gates</h2>
               <div className="mt-5 space-y-2">
-                {Object.entries(operations.governance ?? {}).map(([gate, status]) => <div key={gate} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 dark:border-slate-800"><span className="font-bold capitalize">{gate.replaceAll("_", " ")}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${status === true || status === "synthetic" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{String(status)}</span></div>)}
+                {Object.entries(operations.governance ?? {}).map(([gate, status]) => <div key={gate} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 dark:border-slate-800"><span className="font-bold capitalize">{gate.replaceAll("_", " ")}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${status === true || status === "synthetic" ? "state-positive" : "state-negative"}`}>{String(status)}</span></div>)}
               </div>
             </section>
           </div>
@@ -142,16 +142,16 @@ export default function AdminOperations() {
           </section>
           <section className="glass-card rounded-3xl p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <div><h2 className="text-xl font-extrabold">Pre-emptive overdue monitoring</h2><p className="mt-1 max-w-2xl text-sm text-slate-500">Runs inside the existing API service, so no additional Render cron service is required. When disabled, no scheduled overdue-reading checks run.</p></div>
+              <div><h2 className="text-xl font-extrabold">Pre-emptive overdue monitoring</h2><p className="mt-1 max-w-2xl text-sm text-slate-500">Runs inside the API process while it is active. When disabled, no scheduled overdue-reading checks run.</p></div>
               <button
                 onClick={async () => { const next = await setPreemptiveMonitoring({ ...preemptive, enabled: !preemptive.enabled }); setPreemptive(next); }}
-                className={`h-11 rounded-xl px-5 text-sm font-bold text-white ${preemptive.enabled ? "bg-rose-600" : "bg-emerald-600"}`}
+                className={`h-11 rounded-xl px-5 text-sm font-bold text-white ${preemptive.enabled ? "bg-rose-700" : "bg-emerald-800"}`}
               >{preemptive.enabled ? "Turn off" : "Turn on"}</button>
             </div>
-            <div className="mt-5 flex flex-wrap items-center gap-3"><label htmlFor="preemptive-interval" className="text-sm font-bold">Check every</label><select id="preemptive-interval" name="preemptive_interval" value={preemptive.interval_minutes} onChange={async (event) => { const next = await setPreemptiveMonitoring({ enabled: preemptive.enabled, interval_minutes: Number(event.target.value) }); setPreemptive(next); }} className="h-10 rounded-xl border border-slate-200 px-3 text-sm"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">60 minutes</option></select><span className={`rounded-full px-3 py-1 text-xs font-bold ${preemptive.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{preemptive.enabled ? "Enabled" : "Disabled"}</span></div>
+            <div className="mt-5 flex flex-wrap items-center gap-3"><label htmlFor="preemptive-interval" className="text-sm font-bold">Check every</label><select id="preemptive-interval" name="preemptive_interval" value={preemptive.interval_minutes} onChange={async (event) => { const next = await setPreemptiveMonitoring({ enabled: preemptive.enabled, interval_minutes: Number(event.target.value) }); setPreemptive(next); }} className="h-10 rounded-xl border border-slate-200 px-3 text-sm"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">60 minutes</option></select><span className={`rounded-full px-3 py-1 text-xs font-bold ${preemptive.enabled ? "state-positive" : "state-neutral"}`}>{preemptive.enabled ? "Enabled" : "Disabled"}</span></div>
           </section>
           <section className="glass-card rounded-3xl p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-xl font-extrabold">Model governance and shadow validation</h2><p className="mt-1 max-w-3xl text-sm text-slate-500">Shadow mode stores and reconciles predictions without notifying clinicians. Deterministic urgent alerts always remain active.</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${modelGovernance.enabled ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{modelGovernance.enabled ? modelGovernance.mode : "suspended"}</span></div>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-xl font-extrabold">Model governance and shadow validation</h2><p className="mt-1 max-w-3xl text-sm text-slate-500">Shadow mode stores and reconciles predictions without notifying clinicians. Deterministic urgent alerts always remain active.</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${modelGovernance.enabled ? "state-positive" : "state-negative"}`}>{modelGovernance.enabled ? modelGovernance.mode : "suspended"}</span></div>
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <label className="text-sm font-bold">Operating mode<select name="model_mode" value={modelGovernance.mode} onChange={(event) => setModelGovernanceState({ ...modelGovernance, mode: event.target.value as "shadow" | "live" })} className="mt-2 h-10 w-full rounded-xl border border-slate-200 px-3 font-normal"><option value="shadow">Shadow validation</option><option value="live">Live review prompts</option></select></label>
               <label className="text-sm font-bold">Threshold<input name="model_threshold" aria-label="Model probability threshold" type="number" min="0.001" max="0.95" step="0.001" value={modelGovernance.threshold ?? ""} onChange={(event) => setModelGovernanceState({ ...modelGovernance, threshold: event.target.value ? Number(event.target.value) : null })} placeholder="Model default" className="mt-2 h-10 w-full rounded-xl border border-slate-200 px-3 font-normal" /></label>
@@ -167,7 +167,7 @@ export default function AdminOperations() {
           </section>
           <section className="glass-card rounded-3xl p-6">
             <h2 className="flex items-center gap-2 text-xl font-extrabold"><HardDrive className="h-5 w-5 text-blue-600" /> Backup assurance</h2>
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>Status: {String(operations.backup?.status ?? "unknown")}</strong><p className="mt-1">Production backup jobs and restore-test results must report through the external monitoring integration.</p></div>
+            <div className={`${operations.backup?.status === "verified" ? "state-positive" : "state-warning"} mt-4 rounded-2xl p-4 text-sm`}><strong>Status: {String(operations.backup?.status ?? "unknown")}</strong><p className="mt-1">Production backup jobs and restore-test results must report through the external monitoring integration.</p></div>
           </section>
           <div className="grid gap-6 xl:grid-cols-2">
             <section className="glass-card rounded-3xl p-6">

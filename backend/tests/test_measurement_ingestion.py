@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 import measurement_ingestion
+from assessment_processing import process_vital_assessment, reconcile_vital_assessments
 import models
 import schemas
 from database import Base
@@ -56,6 +57,45 @@ def measurement(patient_id, **overrides):
     }
     data.update(overrides)
     return data
+
+
+def test_interrupted_assessment_retries_once_and_keeps_failure_visible(db, patient, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    vital = models.Vital(**measurement(patient.id))
+    db.add(vital)
+    db.flush()
+    marker = models.VitalAssessment(
+        vital_id=vital.id,
+        state="processing",
+        attempts=1,
+        updated_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10),
+    )
+    db.add(marker)
+    db.commit()
+
+    import assessment_processing
+    calls = []
+
+    def fail_once(_db, _vital):
+        calls.append("attempt")
+        if len(calls) == 1:
+            raise RuntimeError("temporary worker failure")
+
+    monkeypatch.setattr(assessment_processing, "evaluate_new_vital", fail_once)
+    assert reconcile_vital_assessments(db) == {"attempted": 1, "completed": 0, "remaining_or_failed": 1}
+    db.refresh(marker)
+    assert marker.state == "failed"
+    assert marker.last_error == "RuntimeError"
+    assert marker.attempts == 2
+
+    assert reconcile_vital_assessments(db) == {"attempted": 1, "completed": 1, "remaining_or_failed": 0}
+    db.refresh(marker)
+    assert marker.state == "completed"
+    assert marker.last_error is None
+    assert marker.attempts == 3
+    assert reconcile_vital_assessments(db)["attempted"] == 0
+    assert calls == ["attempt", "attempt"]
 
 
 def test_ingestion_validates_persists_metadata_and_runs_downstream_hooks(
@@ -146,6 +186,23 @@ def test_external_id_takes_precedence_for_provider_idempotency(
     assert duplicate.created is False
     assert duplicate.vital.id == first.vital.id
     assert db.query(models.Vital).count() == 1
+
+
+def test_failed_assessment_is_durable_and_retryable(db, patient, monkeypatch):
+    def fail_once(_session, _vital):
+        raise RuntimeError("injected assessment failure")
+
+    monkeypatch.setattr(measurement_ingestion, "evaluate_new_vital", fail_once)
+    result = ingest_vital(db, measurement(patient.id), source="manual")
+    assessment = db.query(models.VitalAssessment).filter_by(vital_id=result.vital.id).one()
+    assert assessment.state == "failed"
+    assert assessment.attempts == 1
+    calls = []
+    assert process_vital_assessment(db, result.vital.id, evaluator=lambda _db, vital: calls.append(vital.id))
+    db.refresh(assessment)
+    assert assessment.state == "completed"
+    assert assessment.attempts == 2
+    assert calls == [result.vital.id]
 
 
 def test_same_patient_timestamp_is_distinct_for_different_sources(

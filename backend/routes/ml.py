@@ -1,4 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+import json
+import os
 from sqlalchemy.orm import Session
 
 import models
@@ -189,6 +192,10 @@ def get_model_evaluation(
             "candidate_validation",
             "operating_threshold",
             "test_metrics",
+            "test_confidence_intervals",
+            "preparation",
+            "research_only",
+            "clinical_approval",
             "fairness",
             "external_validation",
             "acceptance_gates",
@@ -196,6 +203,22 @@ def get_model_evaluation(
             "limitations",
         )
     }
+
+
+@router.get("/research-candidate")
+def get_research_candidate(current_user: models.User = Depends(get_current_user)):
+    """Expose saved research evidence without enabling candidate inference."""
+    candidate_dir = Path(os.getenv("ML_CANDIDATE_ARTIFACT_DIR", Path(__file__).resolve().parents[1] / "artifacts" / "ml-observed-v1"))
+    report_path = candidate_dir / "evaluation.json"
+    if not report_path.is_file():
+        return {"available": False, "reason": "No observed-target research candidate is installed."}
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"available": False, "reason": "Candidate evaluation metadata is invalid."}
+    if report.get("preparation", {}).get("label_mode") != "observed_next_window":
+        return {"available": False, "reason": "Candidate target provenance is unverified."}
+    return {"available": True, "serving_inference": False, **report}
 
 
 @router.get("/usability-protocol")

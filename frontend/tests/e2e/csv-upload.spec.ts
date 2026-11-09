@@ -124,3 +124,36 @@ for (const rowCount of [3, 5, 20]) {
     );
   });
 }
+
+test("interrupted CSV resumes remaining rows and skips a committed duplicate", async ({ page }) => {
+  await prepareUploadPage(page);
+  const attempts: string[] = [];
+  let interrupted = false;
+  await page.route("**/vitals", async (route) => {
+    const payload = route.request().postDataJSON();
+    attempts.push(payload.timestamp);
+    if (payload.timestamp.includes("T01:") && !interrupted) {
+      interrupted = true;
+      await route.fulfill({ status: 503, json: { detail: "Temporary interruption" } });
+    } else if (payload.timestamp.includes("T01:")) {
+      await route.fulfill({ status: 409, json: { detail: "Reading already exists" } });
+    } else {
+      await route.fulfill({ json: { id: attempts.length, ...payload } });
+    }
+  });
+  await page.getByLabel("Choose vitals CSV file").setInputFiles({
+    name: "resume.csv", mimeType: "text/csv", buffer: Buffer.from(csvWithRows(3)),
+  });
+  await page.getByRole("button", { name: "Upload Dataset" }).click();
+  await expect(page.getByRole("alert")).toContainText("1 rows saved; 0 already present; 2 remaining");
+  expect(attempts).toHaveLength(2);
+  const successDialog = page.waitForEvent("dialog");
+  await page.getByRole("button", { name: "Retry Upload" }).click();
+  const dialog = await successDialog;
+  expect(dialog.message()).toContain("2 rows saved; 1 already present");
+  await dialog.accept();
+  expect(attempts).toEqual([
+    "2026-09-11T00:00:00Z", "2026-09-11T01:00:00Z",
+    "2026-09-11T01:00:00Z", "2026-09-11T02:00:00Z",
+  ]);
+});

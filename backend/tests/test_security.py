@@ -3,10 +3,12 @@ from uuid import uuid4
 
 import pytest
 import pyotp
+from starlette.websockets import WebSocketDisconnect
 from fastapi.testclient import TestClient
 
+import main as main_module
 import models
-from auth_utils import create_access_token, hash_password, verify_password
+from auth_utils import create_access_token, create_websocket_ticket, hash_password, verify_password
 from database import SessionLocal
 from main import app
 
@@ -738,6 +740,69 @@ def test_admin_staff_assignment_grants_and_removes_patient_access(client, db, cl
     assert denied_after_removal.status_code == 404
 
 
+def test_live_socket_permission_tracks_assignment_and_account_revocation(db, cleanup):
+    doctor = create_user(db, cleanup, "doctor")
+    other_doctor = create_user(db, cleanup, "doctor")
+    patient = create_patient(db, cleanup, name="Socket Scope Patient", doctor_id=other_doctor.id)
+    assignment = models.PatientStaffAssignment(
+        patient_id=patient.id,
+        staff_user_id=doctor.id,
+        role="doctor",
+        status="active",
+        assigned_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    db.add(assignment)
+    db.commit()
+
+    assert main_module.live_socket_access_valid(doctor.id, patient.id)
+    assignment.status = "removed"
+    db.commit()
+    assert not main_module.live_socket_access_valid(doctor.id, patient.id)
+
+    assignment.status = "active"
+    doctor.status = "suspended"
+    db.commit()
+    assert not main_module.live_socket_access_valid(doctor.id, patient.id)
+
+    doctor.status = "active"
+    doctor.role = "patient"
+    db.commit()
+    assert not main_module.live_socket_access_valid(doctor.id, patient.id)
+
+
+def test_live_socket_closes_before_delivery_when_scope_is_revoked(client, db, cleanup, monkeypatch):
+    doctor = create_user(db, cleanup, "doctor")
+    patient = create_patient(db, cleanup, name="Socket Delivery Patient", doctor_id=doctor.id)
+    ticket = create_websocket_ticket(doctor, "live_vitals", patient.id)
+    queue = main_module.asyncio.Queue()
+    queue.put_nowait({"patient_id": patient.id, "kind": "synthetic_test_event"})
+    monkeypatch.setattr(main_module, "subscribe", lambda _patient_id: queue)
+    monkeypatch.setattr(main_module, "live_socket_access_valid", lambda *_args: False)
+
+    with client.websocket_connect(f"/ws/live/{patient.id}?ticket={ticket}") as socket:
+        with pytest.raises(WebSocketDisconnect) as closed:
+            socket.receive_json()
+    assert closed.value.code == 1008
+
+
+def test_device_observation_reads_respect_patient_scope(client, db, cleanup):
+    first_doctor = create_user(db, cleanup, "doctor")
+    second_doctor = create_user(db, cleanup, "doctor")
+    first_patient_user = create_user(db, cleanup, "patient")
+    second_patient_user = create_user(db, cleanup, "patient")
+    first = create_patient(db, cleanup, name="First Device Patient", doctor_id=first_doctor.id, user_id=first_patient_user.id)
+    second = create_patient(db, cleanup, name="Second Device Patient", doctor_id=second_doctor.id, user_id=second_patient_user.id)
+
+    first_patient_headers = auth_header(create_access_token({"sub": first_patient_user.email, "role": "patient", "user_id": first_patient_user.id}))
+    first_doctor_headers = auth_header(create_access_token({"sub": first_doctor.email, "role": "doctor", "user_id": first_doctor.id}))
+    admin = create_user(db, cleanup, "admin")
+    admin_headers = auth_header(create_access_token({"sub": admin.email, "role": "admin", "user_id": admin.id}))
+
+    assert client.get(f"/integrations/withings/observations/{first.id}", headers=first_patient_headers).status_code == 200
+    for headers in (first_patient_headers, first_doctor_headers, admin_headers):
+        assert client.get(f"/integrations/withings/observations/{second.id}", headers=headers).status_code == 404
+
+
 def test_clinician_actions_use_validated_payloads_and_block_admin(
     client,
     db,
@@ -827,6 +892,35 @@ def test_refresh_tokens_rotate_and_reuse_is_rejected(client, db, cleanup):
         json={"refresh_token": original_refresh},
     )
     assert replay.status_code == 401
+
+
+def test_logout_revokes_access_token_and_socket_ticket(client, db, cleanup):
+    user = create_user(db, cleanup, "doctor")
+    login = client.post("/auth/login", json={"email": user.email, "password": TEST_PASSWORD})
+    assert login.status_code == 200
+    access = login.json()["access_token"]
+    refresh = login.json()["refresh_token"]
+    headers = auth_header(access)
+    assert client.get("/care/account/profile", headers=headers).status_code == 200
+    ticket = client.post("/auth/websocket-ticket", headers=headers, json={"audience": "notifications"})
+    assert ticket.status_code == 200
+    from auth_utils import get_user_from_websocket_ticket
+    assert get_user_from_websocket_ticket(ticket.json()["ticket"], db, audience="notifications") is not None
+
+    assert client.post("/auth/logout", json={"refresh_token": refresh}).status_code == 204
+    assert client.get("/care/account/profile", headers=headers).status_code == 401
+    assert get_user_from_websocket_ticket(ticket.json()["ticket"], db, audience="notifications") is None
+
+
+def test_refresh_rotation_revokes_previous_access_token(client, db, cleanup):
+    user = create_user(db, cleanup, "doctor")
+    login = client.post("/auth/login", json={"email": user.email, "password": TEST_PASSWORD})
+    assert login.status_code == 200
+    old_access = login.json()["access_token"]
+    rotated = client.post("/auth/refresh", json={"refresh_token": login.json()["refresh_token"]})
+    assert rotated.status_code == 200
+    assert client.get("/care/account/profile", headers=auth_header(old_access)).status_code == 401
+    assert client.get("/care/account/profile", headers=auth_header(rotated.json()["access_token"])).status_code == 200
 
 
 def test_direct_registration_is_disabled(client):

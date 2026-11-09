@@ -10,16 +10,19 @@ import type { HealthData, ActivityState } from "../data/healthData";
 
 import { calculateBaseline } from "../utils/baseline";
 import { calculateRiskScore } from "../utils/riskEngine";
-import { createVital } from "../services/api";
+import { createVital, VitalSaveError } from "../services/api";
 
 export default function UploadData() {
   const navigate = useNavigate();
 
-  const { selectedPatient, healthData, refreshVitals } = useHealthData();
+  const { selectedPatient, hasPatients, healthData, refreshVitals } = useHealthData();
 
   const [fileName, setFileName] = useState("");
   const [parsedData, setParsedData] = useState<HealthData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [completedRows, setCompletedRows] = useState(0);
+  const [existingRows, setExistingRows] = useState(0);
+  const [uploadError, setUploadError] = useState("");
   const dataPreview = parsedData.slice(0, 5);
 
   const cleanActivityState = (value: string): ActivityState => {
@@ -43,12 +46,20 @@ export default function UploadData() {
     if (!file) return;
 
     setFileName(file.name);
+    setParsedData([]);
+    setCompletedRows(0);
+    setExistingRows(0);
+    setUploadError("");
 
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
 
       complete: (results) => {
+        if (results.errors.length) {
+          setUploadError(`CSV could not be parsed: ${results.errors[0].message}`);
+          return;
+        }
         const existingPatientData = healthData.filter(
           (record) => record.patientId === selectedPatient.id
         );
@@ -88,6 +99,7 @@ export default function UploadData() {
 
         setParsedData(cleanedData);
       },
+      error: (error) => setUploadError(`CSV could not be read: ${error.message}`),
     });
   };
 
@@ -96,12 +108,20 @@ export default function UploadData() {
       alert("Please choose a CSV file first.");
       return;
     }
+    if (!hasPatients || parsedData.some((row) => row.patientId !== selectedPatient.id)) {
+      setUploadError("The selected patient changed. Choose the CSV again for this patient.");
+      return;
+    }
 
+    let completed = completedRows;
+    let existing = existingRows;
     try {
       setIsUploading(true);
+      setUploadError("");
 
-      for (const record of parsedData) {
-        await createVital({
+      for (const record of parsedData.slice(completedRows)) {
+        try {
+          await createVital({
           patient_id: record.patientId,
           timestamp: record.timestamp,
           heart_rate: record.heartRate,
@@ -115,17 +135,27 @@ export default function UploadData() {
           risk_score: record.riskScore,
           activity_state: record.activityState,
           source: "csv_upload",
-        });
+          });
+        } catch (error) {
+          // A response can be lost after the backend commits. Its duplicate
+          // response on retry confirms the row is already present.
+          if (!(error instanceof VitalSaveError) || error.status !== 409) throw error;
+          existing += 1;
+          setExistingRows(existing);
+        }
+        completed += 1;
+        setCompletedRows(completed);
       }
 
       await refreshVitals();
 
-      alert(`${selectedPatient.name}'s dataset uploaded successfully!`);
+      alert(`${selectedPatient.name}'s dataset uploaded successfully! ${completed - existing} rows saved; ${existing} already present.`);
 
       navigate("/");
     } catch (error) {
-      console.error(error);
-      alert("Upload failed. Please check backend is running.");
+      const reason = error instanceof Error ? error.message : "Connection unavailable";
+      setUploadError(`Upload stopped at row ${completed + 1}. ${completed - existing} rows saved; ${existing} already present; ${parsedData.length - completed} remaining. ${reason}. Retry continues from this row. To correct the file, choose it again; existing readings will be skipped.`);
+      await refreshVitals();
     } finally {
       setIsUploading(false);
     }
@@ -156,7 +186,7 @@ export default function UploadData() {
 
           <p className="mt-2 text-gray-600 dark:text-slate-400">
             Selected patient:
-            <span className="ml-2 font-semibold text-blue-600">
+            <span className="ml-2 font-semibold text-blue-700 dark:text-blue-300">
               {selectedPatient.name}
             </span>
           </p>
@@ -174,6 +204,7 @@ export default function UploadData() {
               type="file"
               accept=".csv"
               onChange={handleFileChange}
+              disabled={isUploading || !hasPatients}
               className="hidden"
             />
 
@@ -247,12 +278,14 @@ export default function UploadData() {
         </Card>
       )}
 
+      {uploadError && <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-800 dark:bg-red-950 dark:text-red-200">{uploadError}</p>}
+      {completedRows > 0 && <p role="status">{completedRows} of {parsedData.length} rows processed ({existingRows} already present).</p>}
       <Button
         onClick={handleUpload}
-        disabled={isUploading}
+        disabled={isUploading || !hasPatients || parsedData.length === 0}
         className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
       >
-        {isUploading ? "Uploading..." : "Upload Dataset"}
+        {isUploading ? "Uploading..." : uploadError && parsedData.length > 0 ? "Retry Upload" : "Upload Dataset"}
       </Button>
     </div>
   );

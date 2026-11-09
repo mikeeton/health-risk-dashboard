@@ -4,6 +4,7 @@ import secrets
 import pyotp
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 import models
@@ -21,6 +22,7 @@ from auth_utils import (
     create_websocket_ticket,
     get_current_user,
     WEBSOCKET_TICKET_EXPIRE_SECONDS,
+    bearer_scheme,
 )
 from routes.audit import write_audit_log
 
@@ -34,6 +36,7 @@ router = APIRouter(
 def websocket_ticket(
     request: schemas.WebSocketTicketRequest,
     current_user: models.User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ):
     """Exchange the main bearer token for a brief, route-scoped socket ticket."""
@@ -46,6 +49,7 @@ def websocket_ticket(
             current_user,
             request.audience,
             request.patient_id,
+            (decode_access_token(credentials.credentials) or {}).get("session_jti") if credentials else None,
         ),
         "expires_in_seconds": WEBSOCKET_TICKET_EXPIRE_SECONDS,
     }
@@ -163,7 +167,7 @@ def login_user(
     db.commit()
 
     return {
-        "access_token": create_access_token(payload),
+        "access_token": create_access_token({**payload, "session_jti": refresh_jti}),
         "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": user,
@@ -221,7 +225,7 @@ def refresh_token(
     db.commit()
 
     return {
-        "access_token": create_access_token(new_payload),
+        "access_token": create_access_token({**new_payload, "session_jti": new_jti}),
         "refresh_token": create_refresh_token({**new_payload, "jti": new_jti}),
         "token_type": "bearer",
     }

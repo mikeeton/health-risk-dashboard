@@ -26,12 +26,19 @@ export default function WithingsIntegration({ patientId }: Props) {
   const [status, setStatus] = useState<Status | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   async function refresh() {
+    setLoading(true);
     try {
       setStatus(await getWithingsStatus(patientId));
+      setLoadError(false);
     } catch {
       setStatus(null);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -67,7 +74,7 @@ export default function WithingsIntegration({ patientId }: Props) {
 
   return (
     <section className="glass-card p-5 sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
             <Activity className="h-5 w-5" />
@@ -75,7 +82,7 @@ export default function WithingsIntegration({ patientId }: Props) {
           <div>
             <h2 className="font-extrabold">Withings live measurements</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {status?.connected
+              {loading ? "Checking connection status…" : loadError ? "Connection status unavailable" : status?.connected
                 ? status.last_successful_sync
                   ? `Connected · last successful sync ${new Date(status.last_successful_sync).toLocaleString()}`
                   : "Connected · no complete measurement available"
@@ -85,7 +92,7 @@ export default function WithingsIntegration({ patientId }: Props) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {!status?.connected ? (
+          {!loading && !loadError && !status?.connected ? (
             <>
               <button
                 disabled={busy}
@@ -103,7 +110,7 @@ export default function WithingsIntegration({ patientId }: Props) {
               </button>
             </>
           ) : (
-            (user?.role === "doctor" || user?.role === "patient") && (
+            !loading && !loadError && (user?.role === "doctor" || user?.role === "patient") && (
               <button
                 disabled={busy}
                 onClick={disconnect}
@@ -115,6 +122,8 @@ export default function WithingsIntegration({ patientId }: Props) {
           )}
         </div>
       </div>
+      {loadError && <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">Device status could not be loaded. <button type="button" onClick={() => void refresh()} className="font-semibold underline">Try again</button>.</div>}
+      {status?.connected && <dl className="mt-4 grid gap-3 text-sm lg:grid-cols-2"><div className="rounded-xl bg-[var(--surface-subtle)] p-3"><dt className="text-[var(--muted-text)]">Sync state</dt><dd className="mt-1 font-semibold capitalize">{status.sync_state}</dd></div><div className="rounded-xl bg-[var(--surface-subtle)] p-3"><dt className="text-[var(--muted-text)]">Last sync attempt</dt><dd className="mt-1 font-semibold">{status.last_sync_at ? new Date(status.last_sync_at).toLocaleString() : "Not recorded"}</dd></div></dl>}
       {message && (
         <p role="status" className="mt-3 text-sm text-amber-700 dark:text-amber-300">
           {message}

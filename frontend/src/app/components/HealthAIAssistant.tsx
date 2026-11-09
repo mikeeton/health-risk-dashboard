@@ -30,7 +30,7 @@ type Props = { patientId: number };
 
 const profiles = {
   patient: {
-    heading: "My Groq AI Assistant",
+    heading: "My AI assistant",
     subtitle: "Pre-trained LLM support with evidence controls and deterministic fallback",
     defaultQuestion: "Can you explain my latest readings simply?",
     prompts: [
@@ -41,7 +41,7 @@ const profiles = {
     ],
   },
   doctor: {
-    heading: "Clinician Groq AI Assistant",
+    heading: "Clinical AI assistant",
     subtitle: "Pre-trained LLM review with evidence controls and mandatory human verification",
     defaultQuestion: "Summarise the current risk and evidence.",
     prompts: [
@@ -52,7 +52,7 @@ const profiles = {
     ],
   },
   nurse: {
-    heading: "Nursing Groq AI Assistant",
+    heading: "Nursing AI assistant",
     subtitle: "Pre-trained LLM support with evidence controls and deterministic fallback",
     defaultQuestion: "What should nursing monitor and escalate?",
     prompts: [
@@ -218,6 +218,7 @@ export default function HealthAIAssistant({ patientId }: Props) {
   const previousPatientId = useRef<number | null>(null);
   const [summary, setSummary] = useState<ClinicalAIResponse | null>(null);
   const [answer, setAnswer] = useState<ClinicalAIResponse | null>(null);
+  const [history, setHistory] = useState<Array<{ question: string; response: ClinicalAIResponse }>>([]);
   const [question, setQuestion] = useState(profile.defaultQuestion);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -249,6 +250,7 @@ export default function HealthAIAssistant({ patientId }: Props) {
     previousPatientId.current = patientId;
     setSummary(null);
     setAnswer(null);
+    setHistory([]);
     setFeedback(null);
     setReviewConfirmed(false);
     setQuestion(profile.defaultQuestion);
@@ -262,7 +264,9 @@ export default function HealthAIAssistant({ patientId }: Props) {
       setLoading(true);
       setError("");
       setQuestion(finalQuestion);
-      setAnswer(await askHealthAI(patientId, finalQuestion));
+      const response = await askHealthAI(patientId, finalQuestion);
+      setAnswer(response);
+      setHistory((items) => [...items, { question: finalQuestion, response }]);
       setReviewConfirmed(false);
       setFeedback(null);
     } catch {
@@ -286,6 +290,7 @@ export default function HealthAIAssistant({ patientId }: Props) {
   async function clearConversation() {
     await clearAIMemory(patientId);
     setAnswer(null);
+    setHistory([]);
     setQuestion(profile.defaultQuestion);
     setReviewConfirmed(false);
   }
@@ -295,7 +300,7 @@ export default function HealthAIAssistant({ patientId }: Props) {
       <div role="note" className="mb-5 flex gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
         <ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0" />
         <span>
-          <strong>Groq LLM-assisted—not a diagnosis.</strong> Safety Rules and deterministic fallback operate separately. Verify every statement against its timestamped evidence.
+          <strong>Groq LLM-assisted—not a diagnosis.</strong> The provider state is shown with each response; safety rules and fallback operate separately. Verify every statement against its timestamped evidence.
         </span>
       </div>
 
@@ -360,6 +365,11 @@ export default function HealthAIAssistant({ patientId }: Props) {
           <Send className="h-4 w-4" /> {loading ? "Validating…" : "Ask AI"}
         </button>
       </div>
+
+      <section className="mt-6 border-t border-[var(--panel-border)] pt-5" aria-labelledby="conversation-history-title">
+        <div className="flex flex-wrap items-baseline justify-between gap-2"><h3 id="conversation-history-title" className="text-lg font-semibold">Session conversation</h3><span className="text-xs text-[var(--muted-text)]">{history.length} {history.length === 1 ? "response" : "responses"} in this view</span></div>
+        {history.length ? <ol className="mt-3 space-y-2">{history.map((entry, index) => <li key={`${entry.response.response_id}-${index}`}><button type="button" onClick={() => { setAnswer(entry.response); setFeedback(null); setReviewConfirmed(false); }} aria-current={answer?.response_id === entry.response.response_id ? "true" : undefined} className={`w-full rounded-xl border p-3 text-left text-sm ${answer?.response_id === entry.response.response_id ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "border-[var(--panel-border)]"}`}><span className="font-semibold">{entry.question}</span><span className="mt-1 block text-xs text-[var(--muted-text)]">{new Date(entry.response.generated_at).toLocaleString()} · {entry.response.provider_status.replaceAll("_", " ")}</span></button></li>)}</ol> : <p className="mt-2 text-sm text-[var(--muted-text)]">Ask a question to start a session conversation. Earlier responses are not restored after a reload.</p>}
+      </section>
 
       {answer && (
         <div className="mt-6" aria-live="polite">

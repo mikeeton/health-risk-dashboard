@@ -39,7 +39,7 @@ export default function PatientTimeline({ records }: Props) {
                 HR {record.heartRate} bpm, SpO₂ {record.spo2}%, BP{" "}
                 {record.systolicBP}/{record.diastolicBP}
               </p>
-              <p className="mt-1 text-xs text-slate-400">{record.timestamp}</p>
+              <p className="mt-1 text-xs text-[var(--muted-text)]">{record.timestamp}</p>
             </div>
           </div>
         ))}

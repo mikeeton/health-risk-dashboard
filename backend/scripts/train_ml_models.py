@@ -27,7 +27,7 @@ from sklearn.preprocessing import StandardScaler
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from ml_engine.evaluation import classification_metrics, fairness_metrics
+from ml_engine.evaluation import classification_metrics, fairness_metrics, patient_bootstrap_intervals
 from ml_engine.features import ENGINEERED_FEATURES, engineer_features
 
 
@@ -43,13 +43,20 @@ def file_sha256(path: Path) -> str:
 
 
 def split(frame):
-    splitter = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
-    train_idx, test_idx = next(splitter.split(frame, frame["target"], groups=frame["patient_id"]))
-    train = frame.iloc[train_idx]
-    test = frame.iloc[test_idx]
-    inner = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=43)
-    fit_idx, validation_idx = next(inner.split(train, train["target"], groups=train["patient_id"]))
-    return train.iloc[fit_idx], train.iloc[validation_idx], test
+    """Patient-disjoint fit, selection, calibration, threshold and test sets."""
+    remaining = frame
+    partitions = {}
+    for name, fraction, seed in (
+        ("test", 0.20, 42),
+        ("threshold", 0.125, 43),
+        ("calibration", 1 / 7, 44),
+        ("selection", 1 / 6, 45),
+    ):
+        splitter = GroupShuffleSplit(n_splits=1, test_size=fraction, random_state=seed)
+        fit_idx, held_idx = next(splitter.split(remaining, remaining["target"], groups=remaining["patient_id"]))
+        partitions[name] = remaining.iloc[held_idx]
+        remaining = remaining.iloc[fit_idx]
+    return remaining, partitions["selection"], partitions["calibration"], partitions["threshold"], partitions["test"]
 
 
 def candidates():
@@ -90,24 +97,38 @@ def choose_operating_threshold(y_true, probabilities) -> float:
 
 def run(args):
     dataset_path = Path(args.dataset).resolve()
+    output = Path(args.output)
+    if (output / "model.joblib").exists() or (output / "evaluation.json").exists():
+        raise FileExistsError(f"Refusing to overwrite an existing model artifact in {output}")
+    manifest_path = getattr(args, "dataset_manifest", None)
+    dataset_manifest = None
+    if manifest_path:
+        dataset_manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+        expected = dataset_manifest.get("sets", {}).get("set-a", {}).get("csv_sha256")
+        if expected != file_sha256(dataset_path):
+            raise ValueError("Training CSV hash does not match the dataset manifest")
+        if args.external_dataset:
+            external_expected = dataset_manifest.get("sets", {}).get("set-b", {}).get("csv_sha256")
+            if external_expected != file_sha256(Path(args.external_dataset)):
+                raise ValueError("External CSV hash does not match the dataset manifest")
     frame = engineer_features(pd.read_csv(dataset_path))
     if "target" not in frame or not set(frame["target"].dropna().astype(int).unique()).issubset({0, 1}):
         raise ValueError("target must be a binary 0/1 outcome column")
     frame["target"] = frame["target"].astype(int)
-    train, validation, test = split(frame)
+    train, selection, calibration, threshold_set, test = split(frame)
     results = {}
     trained = {}
     for name, model in candidates().items():
         model.fit(train[ENGINEERED_FEATURES], train["target"])
-        probabilities = model.predict_proba(validation[ENGINEERED_FEATURES])[:, 1]
-        results[name] = classification_metrics(validation["target"], probabilities)
+        probabilities = model.predict_proba(selection[ENGINEERED_FEATURES])[:, 1]
+        results[name] = classification_metrics(selection["target"], probabilities)
         trained[name] = model
     best_name = max(results, key=lambda name: (results[name]["roc_auc"] or 0, results[name]["f1"]))
     best = trained[best_name]
     calibrated = CalibratedClassifierCV(FrozenEstimator(best), method="sigmoid")
-    calibrated.fit(validation[ENGINEERED_FEATURES], validation["target"])
-    validation_probability = calibrated.predict_proba(validation[ENGINEERED_FEATURES])[:, 1]
-    operating_threshold = choose_operating_threshold(validation["target"], validation_probability)
+    calibrated.fit(calibration[ENGINEERED_FEATURES], calibration["target"])
+    threshold_probability = calibrated.predict_proba(threshold_set[ENGINEERED_FEATURES])[:, 1]
+    operating_threshold = choose_operating_threshold(threshold_set["target"], threshold_probability)
     test_probability = calibrated.predict_proba(test[ENGINEERED_FEATURES])[:, 1]
     anomaly = Pipeline([
         ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
@@ -121,12 +142,16 @@ def run(args):
         "model_version": version,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "dataset": {"name": args.dataset_name, "source_url": args.source_url, "sha256": file_sha256(dataset_path)},
+        "preparation": dataset_manifest,
+        "research_only": True,
+        "clinical_approval": False,
         "outcome_definition": args.outcome_definition,
         "selected_model": best_name,
-        "records": {"total": len(frame), "train": len(train), "validation": len(validation), "test": len(test)},
+        "records": {"total": len(frame), "train": len(train), "selection": len(selection), "calibration": len(calibration), "threshold": len(threshold_set), "test": len(test)},
         "candidate_validation": results,
         "operating_threshold": operating_threshold,
-        "test_metrics": classification_metrics(test["target"], test_probability, operating_threshold),
+        "test_metrics": classification_metrics(test["target"], test_probability, operating_threshold, include_curves=True),
+        "test_confidence_intervals": patient_bootstrap_intervals(test["target"], test_probability, test["patient_id"], operating_threshold),
         "fairness": {},
         "external_validation": None,
         "reference_profile": {
@@ -152,7 +177,8 @@ def run(args):
         external_probability = calibrated.predict_proba(external[ENGINEERED_FEATURES])[:, 1]
         report["external_validation"] = {
             "dataset": str(Path(args.external_dataset).name),
-            "metrics": classification_metrics(external["target"].astype(int), external_probability, operating_threshold),
+            "metrics": classification_metrics(external["target"].astype(int), external_probability, operating_threshold, include_curves=True),
+            "confidence_intervals": patient_bootstrap_intervals(external["target"].astype(int), external_probability, external["patient_id"], operating_threshold),
         }
     test_metrics = report["test_metrics"]
     external_metrics = (report["external_validation"] or {}).get("metrics")
@@ -164,7 +190,6 @@ def run(args):
     }
     report["acceptance_gates"] = gates
     report["approved_for_inference"] = all(gates.values())
-    output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     explanation_pipeline = best
     explanation_background = explanation_pipeline[:-1].transform(
@@ -191,6 +216,7 @@ def parse_args():
     parser.add_argument("--source-url", required=True)
     parser.add_argument("--outcome-definition", required=True)
     parser.add_argument("--external-dataset")
+    parser.add_argument("--dataset-manifest", help="Manifest from prepare_physionet_2012.py; verifies the training CSV hash")
     parser.add_argument("--output", default="artifacts/ml")
     parser.add_argument("--version")
     parser.add_argument("--contamination", type=float, default=0.05)

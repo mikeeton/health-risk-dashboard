@@ -2,17 +2,15 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
-  BrainCircuit,
-  ClipboardList,
   FileText,
   FilePlus2,
   HeartPulse,
   Send,
   ShieldAlert,
-  Users,
 } from "lucide-react";
 
 import AITextBox from "../components/AITextBox";
+import ObservedVitalsTrend from "../components/ObservedVitalsTrend";
 
 import { useHealthData } from "../context/HealthDataContext";
 import {
@@ -58,7 +56,9 @@ export default function DoctorDashboard() {
   const [submittingAction, setSubmittingAction] = useState(false);
 
   const selectedVitals = useMemo(() => {
-    return healthData.filter((record) => record.patientId === selectedPatient.id);
+    return healthData
+      .filter((record) => record.patientId === selectedPatient.id)
+      .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
   }, [healthData, selectedPatient.id]);
 
   const latestVital = selectedVitals[selectedVitals.length - 1];
@@ -68,6 +68,7 @@ export default function DoctorDashboard() {
   );
 
   async function loadDashboard() {
+    setPrediction(null);
     const [casesResult, predictionResult, aiResult] =
       await Promise.allSettled([
         getReviewCases(),
@@ -81,6 +82,8 @@ export default function DoctorDashboard() {
 
     if (predictionResult.status === "fulfilled") {
       setPrediction(predictionResult.value);
+    } else {
+      setPrediction(null);
     }
 
     if (aiResult.status === "fulfilled") {
@@ -146,10 +149,10 @@ export default function DoctorDashboard() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-3xl font-extrabold text-slate-950 dark:text-white">
-              Doctor Dashboard
+              Clinical command centre
             </h1>
             <p className="mt-2 text-slate-500 dark:text-slate-400">
-              Review high-risk patients, AI summaries, predictions, and clinical cases.
+              Review patient observations, prioritised cases, and clinical decisions.
             </p>
           </div>
 
@@ -157,39 +160,35 @@ export default function DoctorDashboard() {
             onClick={loadDashboard}
             className="w-fit rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700"
           >
-            Refresh Dashboard
+            Refresh clinical data
           </button>
         </div>
       </section>
 
-      <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]">
         <div className="glass-card rounded-3xl p-6">
-          <Users className="mb-4 h-7 w-7 text-blue-600" />
-          <p className="text-sm font-bold text-slate-500">Total Patients</p>
-          <h2 className="mt-1 text-3xl font-black">{patients.length}</h2>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-xl font-extrabold">Review priorities</h2>
+            <a href="/review-cases" className="text-sm font-semibold text-blue-700 underline dark:text-blue-300">Open case register</a>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">{highRiskPatients.length} high or critical risk patients; {openCases.length} open review cases</p>
+          <div className="mt-5 divide-y divide-slate-200 dark:divide-slate-800">
+            {highRiskPatients.slice(0, 5).map((patient) => (
+              <div key={patient.id} className="flex items-center justify-between gap-4 py-3">
+                <div><p className="font-semibold">{patient.name}</p><p className="text-sm text-slate-500">{patient.condition}</p></div>
+                <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-800 dark:bg-red-950 dark:text-red-200">{patient.riskLevel}</span>
+              </div>
+            ))}
+            {highRiskPatients.length === 0 && <p className="py-4 text-sm text-slate-500">No assigned patients are currently marked high or critical risk.</p>}
+          </div>
         </div>
-
         <div className="glass-card rounded-3xl p-6">
-          <ShieldAlert className="mb-4 h-7 w-7 text-red-600" />
-          <p className="text-sm font-bold text-slate-500">High Risk Patients</p>
-          <h2 className="mt-1 text-3xl font-black">{highRiskPatients.length}</h2>
-        </div>
-
-        <div className="glass-card rounded-3xl p-6">
-          <ClipboardList className="mb-4 h-7 w-7 text-blue-600" />
-          <p className="text-sm font-bold text-slate-500">Open Review Cases</p>
-          <h2 className="mt-1 text-3xl font-black">{openCases.length}</h2>
-        </div>
-
-        <div className="glass-card rounded-3xl p-6">
-          <BrainCircuit className="mb-4 h-7 w-7 text-blue-600" />
-          <p className="text-sm font-bold text-slate-500">ML Risk Prediction</p>
-          <h2 className="mt-1 text-3xl font-black">
-            {prediction ? `${prediction.prediction_score}/10` : "—"}
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">
-            {prediction?.prediction_level ?? "Unavailable"}
-          </p>
+          <h2 className="text-xl font-extrabold">Selected patient assessment</h2>
+          <p className="mt-1 text-sm text-slate-500">{selectedPatient.name}</p>
+          <p className="mt-6 text-4xl font-black">{prediction ? `${prediction.prediction_score}/10` : "Unavailable"}</p>
+          <p className="mt-2 font-semibold">{prediction?.prediction_level ?? "Prediction unavailable"}</p>
+          <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">{prediction?.message ?? "No prediction returned for this patient."}</p>
+          <p className="mt-4 text-xs text-slate-500">Prediction source: {prediction?.source ?? "not reported"}. Research support only; review the observations and clinical record.</p>
         </div>
       </section>
 
@@ -225,7 +224,7 @@ export default function DoctorDashboard() {
               </div>
 
               <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
-                <p className="text-xs font-bold text-slate-500">Risk</p>
+                <p className="text-xs font-bold text-slate-500">Calculated risk</p>
                 <p className="mt-1 text-2xl font-black">{latestVital.riskScore}/10</p>
               </div>
             </div>
@@ -262,6 +261,8 @@ export default function DoctorDashboard() {
           </div>
         </div>
       </section>
+
+      <ObservedVitalsTrend records={selectedVitals} />
 
       <section className="grid gap-6 xl:grid-cols-2">
         <div className="glass-card rounded-3xl p-6">
@@ -380,13 +381,13 @@ export default function DoctorDashboard() {
           <div className="mb-5 flex items-center gap-3">
             <FileText className="h-6 w-6 text-blue-600" />
             <div>
-              <h2 className="text-xl font-extrabold">Latest Groq AI Assistant Summary</h2>
-              <p className="text-sm text-slate-500">Uses the pre-trained Groq LLM when available; otherwise shows deterministic fallback</p>
+              <h2 className="text-xl font-extrabold">Latest assistant summary</h2>
+              <p className="text-sm text-slate-500">Provider and model are shown with the summary; verify against the source record.</p>
             </div>
           </div>
 
           <AITextBox
-            title={`Latest Groq AI Assistant Summary · ${aiProviderStatus.replaceAll("_", " ")}`}
+            title={`Latest assistant summary · ${aiProviderStatus.replaceAll("_", " ")}`}
             text={aiSummary || "No AI summary available."}
             modelUsed={aiModel}
           />

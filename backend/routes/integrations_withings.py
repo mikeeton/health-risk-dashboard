@@ -8,6 +8,7 @@ authenticated Withings Data API before validation and persistence.
 from datetime import datetime, timedelta, timezone
 import json
 import logging
+import math
 import os
 import secrets
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlsplit, urlunsplit
@@ -17,12 +18,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 import httpx
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from pydantic import ValidationError
 
 import models
+import schemas
 from access_control import get_accessible_patient, require_roles
 from auth_utils import create_access_token, decode_access_token, get_current_user
 from config import get_settings
 from database import get_db
+from early_warning import evaluate_partial_device_observation
 from live_updates import publish
 from measurement_ingestion import PatientUpdate, ingest_vital
 from routes.audit import write_audit_log
@@ -36,6 +41,7 @@ WITHINGS_AUTHORIZE = "https://account.withings.com/oauth2_user/authorize2"
 logger = logging.getLogger(__name__)
 
 WITHINGS_VITAL_MEASURE_TYPES = {
+    "weight_kg": 1,
     "heart_rate": 11,
     "spo2": 54,
     "systolic_bp": 10,
@@ -57,6 +63,12 @@ WITHINGS_WEBHOOK_TOKEN_PARAMETER = "withings_token"
 
 def utc_now_naive():
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def utc_iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.replace(tzinfo=timezone.utc).isoformat() if value.tzinfo is None else value.astimezone(timezone.utc).isoformat()
 
 
 def integration_configured() -> bool:
@@ -97,15 +109,23 @@ def mark_sync_error(
     *,
     code: str,
     message: str,
+    attempt: models.DeviceSyncAttempt | None = None,
 ) -> None:
-    connection.last_error_at = utc_now_naive()
+    attempted_at = utc_now_naive()
+    connection.last_sync_at = attempted_at
+    connection.last_error_at = attempted_at
     connection.last_error_code = code[:80]
     connection.last_error_message = message[:500]
-    connection.updated_at = utc_now_naive()
+    connection.updated_at = attempted_at
+    if attempt is not None:
+        attempt.completed_at = attempted_at
+        attempt.state = "error"
+        attempt.error_code = code[:80]
+        attempt.error_message = message[:500]
     db.commit()
 
 
-def mark_sync_success(connection: models.WithingsConnection, db: Session) -> None:
+def mark_sync_success(connection: models.WithingsConnection, db: Session, *, attempt: models.DeviceSyncAttempt | None = None) -> None:
     completed_at = utc_now_naive()
     connection.last_sync_at = completed_at
     connection.last_successful_sync = completed_at
@@ -113,6 +133,9 @@ def mark_sync_success(connection: models.WithingsConnection, db: Session) -> Non
     connection.last_error_code = None
     connection.last_error_message = None
     connection.updated_at = completed_at
+    if attempt is not None:
+        attempt.completed_at = completed_at
+        attempt.state = "success"
     db.commit()
 
 
@@ -331,11 +354,19 @@ def webhook_verification(
 
 def measurement_values(group: dict) -> dict[int, float]:
     values = {}
-    for item in group.get("measures", []):
+    measures = group.get("measures")
+    if not isinstance(measures, list):
+        return values
+    for item in measures:
+        if not isinstance(item, dict):
+            continue
         try:
-            values[int(item["type"])] = float(item["value"]) * (
-                10 ** int(item.get("unit", 0))
-            )
+            unit = int(item.get("unit", 0))
+            if not -6 <= unit <= 6:
+                continue
+            value = float(item["value"]) * (10 ** unit)
+            if math.isfinite(value):
+                values[int(item["type"])] = value
         except (KeyError, TypeError, ValueError):
             continue
     return values
@@ -383,7 +414,12 @@ async def webhook(
     if not connection:
         return Response(status_code=204)
 
+    attempt = models.DeviceSyncAttempt(patient_id=connection.patient_id, provider="withings", attempted_at=utc_now_naive(), state="pending")
+    db.add(attempt)
+    db.commit()
     complete_groups = 0
+    partial_groups = 0
+    rejected_groups = 0
     unavailable_fields: set[str] = set()
     try:
         token = await valid_access_token(connection, db)
@@ -396,20 +432,61 @@ async def webhook(
             },
             access_token=token,
         )
-        for group in body.get("measuregrps", []):
+        groups = body.get("measuregrps")
+        if not isinstance(groups, list):
+            raise HTTPException(status_code=502, detail="Withings returned malformed measurement groups")
+        for group in groups:
+            if not isinstance(group, dict) or group.get("grpid") is None or group.get("date") is None:
+                rejected_groups += 1
+                attempt.rejected = rejected_groups
+                continue
+            try:
+                measured_at = datetime.fromtimestamp(int(group["date"]), tz=timezone.utc).isoformat()
+            except (TypeError, ValueError, OverflowError):
+                rejected_groups += 1
+                attempt.rejected = rejected_groups
+                continue
             external_id = f"withings:{userid}:{group.get('grpid')}"
             values = measurement_values(group)
             mapped, missing = map_withings_vital(values)
+            unavailable_fields.update(missing)
             if missing:
-                unavailable_fields.update(missing)
-                logger.warning(
-                    "Skipping incomplete Withings measurement",
-                    extra={
-                        "patient_id": connection.patient_id,
-                        "external_id": external_id,
-                        "missing_fields": missing,
-                    },
-                )
+                try:
+                    observation = schemas.DeviceObservationCreate.model_validate({"timestamp": measured_at, **mapped})
+                except ValidationError:
+                    rejected_groups += 1
+                    attempt.rejected = rejected_groups
+                    logger.warning("Rejected invalid Withings measurement", extra={"patient_id": connection.patient_id, "external_id": external_id})
+                    continue
+                existing_observation = db.query(models.DeviceObservation).filter(models.DeviceObservation.external_id == external_id).first()
+                if not existing_observation:
+                    db.add(models.DeviceObservation(
+                        patient_id=connection.patient_id,
+                        source="withings",
+                        external_id=external_id,
+                        measured_at=observation.timestamp,
+                        measurements=observation.model_dump(exclude_none=True, exclude={"timestamp"}),
+                        missing_fields=missing,
+                        assessment_state="not_assessed_partial",
+                    ))
+                    try:
+                        db.commit()
+                    except IntegrityError:
+                        db.rollback()
+                        if not db.query(models.DeviceObservation.id).filter(models.DeviceObservation.external_id == external_id).first():
+                            raise
+                stored_observation = db.query(models.DeviceObservation).filter(models.DeviceObservation.external_id == external_id).first()
+                if stored_observation.assessment_state in {"not_assessed_partial", "assessment_failed"}:
+                    try:
+                        evaluate_partial_device_observation(db, stored_observation)
+                    except Exception:
+                        db.rollback()
+                        stored_observation = db.query(models.DeviceObservation).filter(models.DeviceObservation.external_id == external_id).first()
+                        stored_observation.assessment_state = "assessment_failed"
+                        db.commit()
+                        raise
+                    attempt.accepted_partial += 1
+                partial_groups += 1
                 continue
             complete_groups += 1
             risk_score = calculate_risk_score(
@@ -419,9 +496,6 @@ async def webhook(
                 mapped["diastolic_bp"],
                 mapped["sleep_hours"],
             )
-            measured_at = datetime.fromtimestamp(
-                int(group.get("date", enddate)), tz=timezone.utc
-            ).isoformat()
             last_checkup = datetime.now(timezone.utc).date().isoformat()
             result = ingest_vital(
                 db,
@@ -460,6 +534,7 @@ async def webhook(
                 ),
             )
             if result.created:
+                attempt.accepted_complete += 1
                 await result.hook_result
     except HTTPException as error:
         mark_sync_error(
@@ -467,6 +542,7 @@ async def webhook(
             db,
             code="provider_request_failed",
             message=str(error.detail),
+            attempt=attempt,
         )
         raise
     except Exception:
@@ -475,18 +551,20 @@ async def webhook(
             db,
             code="sync_failed",
             message="Withings synchronization failed before data could be stored.",
+            attempt=attempt,
         )
         raise
 
-    if complete_groups:
-        mark_sync_success(connection, db)
+    if complete_groups or partial_groups:
+        mark_sync_success(connection, db, attempt=attempt)
     else:
         missing_summary = ", ".join(sorted(unavailable_fields)) or "all vital fields"
         mark_sync_error(
             connection,
             db,
-            code="missing_required_fields",
-            message=f"Provider data unavailable for required fields: {missing_summary}.",
+            code="no_valid_measurements",
+            message=f"No valid provider measurements were stored ({rejected_groups} rejected; missing: {missing_summary}).",
+            attempt=attempt,
         )
     return Response(status_code=204)
 
@@ -504,9 +582,8 @@ def connection_status(
         .first()
     )
     last_successful_sync = (
-        connection.last_successful_sync or connection.last_sync_at
-        if connection
-        else None
+        connection.last_successful_sync or (connection.last_sync_at if not connection.last_error_at else None)
+        if connection else None
     )
     data_stale = (
         not last_successful_sync
@@ -532,14 +609,74 @@ def connection_status(
     return {
         "configured": integration_configured(),
         "connected": bool(connection),
-        "last_sync_at": connection.last_sync_at if connection else None,
-        "last_successful_sync": last_successful_sync,
-        "last_error_at": connection.last_error_at if connection else None,
+        "last_sync_at": utc_iso(connection.last_sync_at) if connection else None,
+        "last_successful_sync": utc_iso(last_successful_sync),
+        "last_error_at": utc_iso(connection.last_error_at) if connection else None,
         "last_error_code": connection.last_error_code if connection else None,
         "last_error_message": connection.last_error_message if connection else None,
         "data_stale": data_stale,
         "sync_state": sync_state,
+        "partial_observation_count": db.query(models.DeviceObservation).filter(models.DeviceObservation.patient_id == patient_id, models.DeviceObservation.source == "withings").count(),
     }
+
+
+@router.get("/observations/{patient_id}")
+def device_observations(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    get_accessible_patient(db, patient_id, current_user)
+    rows = (
+        db.query(models.DeviceObservation)
+        .filter(models.DeviceObservation.patient_id == patient_id)
+        .order_by(models.DeviceObservation.measured_at.desc(), models.DeviceObservation.id.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "source": row.source,
+            "measured_at": row.measured_at,
+            "received_at": utc_iso(row.received_at),
+            "measurements": row.measurements,
+            "missing_fields": row.missing_fields,
+            "assessment_state": row.assessment_state,
+        }
+        for row in rows
+    ]
+
+
+@router.get("/sync-history/{patient_id}")
+def sync_history(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    get_accessible_patient(db, patient_id, current_user)
+    rows = (
+        db.query(models.DeviceSyncAttempt)
+        .filter(models.DeviceSyncAttempt.patient_id == patient_id)
+        .order_by(models.DeviceSyncAttempt.attempted_at.desc(), models.DeviceSyncAttempt.id.desc())
+        .limit(30)
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "provider": row.provider,
+            "attempted_at": utc_iso(row.attempted_at),
+            "completed_at": utc_iso(row.completed_at),
+            "state": row.state,
+            "accepted_complete": row.accepted_complete,
+            "accepted_partial": row.accepted_partial,
+            "rejected": row.rejected,
+            "error_code": row.error_code,
+            "error_message": row.error_message,
+        }
+        for row in rows
+    ]
 
 
 @router.delete("/connection/{patient_id}", status_code=204)
