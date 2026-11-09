@@ -456,7 +456,7 @@ async def webhook(
                 except ValidationError:
                     rejected_groups += 1
                     attempt.rejected = rejected_groups
-                    logger.warning("Rejected invalid Withings measurement", extra={"patient_id": connection.patient_id, "external_id": external_id})
+                    logger.warning("Rejected invalid Withings measurement")
                     continue
                 existing_observation = db.query(models.DeviceObservation).filter(models.DeviceObservation.external_id == external_id).first()
                 if not existing_observation:

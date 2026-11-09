@@ -2,6 +2,10 @@
 
 React, TypeScript, Vite, and Tailwind CSS power Vitala's role-specific workspaces. The browser client calls the FastAPI backend; it does not contain production patient data or a standalone database.
 
+## API client structure
+
+`src/app/services/api.ts` preserves existing imports while domain modules beside it group authentication, clinical records, care workflows, notifications, analytics, AI, integrations, referrals, research, and administration. Shared request and error handling lives in `httpClient.ts`; shared record types begin in `src/app/types/api.ts`. Add new endpoints to their domain module with explicit request and response types.
+
 ## Local development
 
 Start the [backend](../README.md#run-locally) first. Then, in PowerShell from this directory:

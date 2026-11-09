@@ -61,46 +61,12 @@ def utc_now_naive() -> datetime:
 
 @router.post("/register", response_model=schemas.UserResponse)
 def register_user(
-    user: schemas.UserCreate,
-    db: Session = Depends(get_db)
+    _user: schemas.UserCreate,
 ):
     raise HTTPException(
         status_code=403,
         detail="Direct registration is disabled. Submit an access request for approval.",
     )
-
-    existing_user = (
-        db.query(models.User)
-        .filter(models.User.email == user.email.lower())
-        .first()
-    )
-
-    if existing_user:
-        raise HTTPException(
-            status_code=409,
-            detail="User already exists"
-        )
-
-    new_user = models.User(
-        email=user.email.lower(),
-        full_name=user.full_name.strip(),
-        role=user.role.lower(),
-        password_hash=hash_password(user.password),
-    )
-
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    write_audit_log(
-        db=db,
-        action="REGISTER_USER",
-        entity="User",
-        entity_id=str(new_user.id),
-        user_email=new_user.email,
-    )
-
-    return new_user
 
 
 @router.post("/login", response_model=schemas.TokenResponse)

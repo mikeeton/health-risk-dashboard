@@ -170,9 +170,6 @@ def _assigned_clinicians(db, patient) -> list[models.User]:
         )
         .all()
     ]
-    assignment_ids.extend(
-        value for value in (patient.primary_doctor_id, patient.assigned_nurse_id) if value
-    )
     if not assignment_ids:
         return []
     return (

@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 import type { HealthData } from "../data/healthData";
 
-import type { Patient, RiskLevel } from "../../types/patient";
+import type { Patient } from "../../types/patient";
+import type { PatientRecord, VitalRecord } from "../types/api";
 import { getPatients, getVitals } from "../services/api";
 import { useAuth } from "./AuthContext";
 
@@ -19,36 +20,6 @@ type HealthDataContextType = {
   refreshVitals: () => Promise<void>;
 };
 
-type BackendPatient = {
-  id: number;
-  user_id?: number | null;
-  primary_doctor_id?: number | null;
-  assigned_nurse_id?: number | null;
-  name: string;
-  age: number;
-  condition: string;
-  risk_level?: RiskLevel | null;
-  last_checkup?: string | null;
-};
-
-type BackendVital = {
-  id: number;
-  patient_id: number;
-  timestamp: string;
-  heart_rate: number;
-  spo2: number;
-  systolic_bp: number;
-  diastolic_bp: number;
-  steps: number;
-  sleep_hours: number;
-  active_minutes: number;
-  calories: number;
-  risk_score: number;
-  activity_state: HealthData["activityState"];
-  source: HealthData["source"];
-  verification_status: string;
-};
-
 const fallbackPatient: Patient = {
   id: 1,
   name: "Sarah Johnson",
@@ -62,7 +33,7 @@ const HealthDataContext = createContext<HealthDataContextType | undefined>(
   undefined
 );
 
-function mapBackendPatient(patient: BackendPatient): Patient {
+function mapBackendPatient(patient: PatientRecord): Patient {
   return {
     id: patient.id,
     userId: patient.user_id ?? null,
@@ -76,7 +47,7 @@ function mapBackendPatient(patient: BackendPatient): Patient {
   };
 }
 
-function mapBackendVital(vital: BackendVital): HealthData {
+function mapBackendVital(vital: VitalRecord): HealthData {
   return {
     id: String(vital.id),
     patientId: vital.patient_id,
@@ -159,7 +130,7 @@ export function HealthDataProvider({
 
       try {
         const backendPatients = await getPatients();
-        const mappedPatients: Patient[] = (backendPatients as BackendPatient[]).map(
+        const mappedPatients: Patient[] = backendPatients.map(
           mapBackendPatient
         );
 

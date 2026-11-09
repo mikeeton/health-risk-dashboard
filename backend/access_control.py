@@ -39,8 +39,6 @@ def patient_query_for_user(db: Session, user: models.User):
         return query.filter(false())
 
     if role == "doctor":
-        # Prefer the assignment table, while keeping legacy primary_doctor_id as
-        # a fallback for older rows and partially migrated databases.
         assigned_patient_ids = (
             db.query(models.PatientStaffAssignment.patient_id)
             .filter(models.PatientStaffAssignment.staff_user_id == user.id)
@@ -48,10 +46,7 @@ def patient_query_for_user(db: Session, user: models.User):
             .filter(models.PatientStaffAssignment.status == "active")
         )
 
-        return query.filter(
-            (models.Patient.id.in_(assigned_patient_ids))
-            | (models.Patient.primary_doctor_id == user.id)
-        )
+        return query.filter(models.Patient.id.in_(assigned_patient_ids))
 
     if role == "nurse":
         # Nurses follow the same assignment model as doctors, but only rows with
@@ -63,10 +58,7 @@ def patient_query_for_user(db: Session, user: models.User):
             .filter(models.PatientStaffAssignment.status == "active")
         )
 
-        return query.filter(
-            (models.Patient.id.in_(assigned_patient_ids))
-            | (models.Patient.assigned_nurse_id == user.id)
-        )
+        return query.filter(models.Patient.id.in_(assigned_patient_ids))
 
     if role == "patient":
         return query.filter(models.Patient.user_id == user.id)

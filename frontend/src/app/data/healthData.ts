@@ -3,6 +3,8 @@ export type ActivityState =
   | "walking"
   | "running"
   | "sleeping"
+  | "active"
+  | "watch_sync"
   | "withings_device"
   | "condition_based_simulator";
 

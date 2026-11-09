@@ -47,11 +47,7 @@ def row_dict(row, fields):
 
 
 def active_care_user_ids(db: Session, patient: models.Patient) -> set[int]:
-    ids = {
-        value
-        for value in (patient.user_id, patient.primary_doctor_id, patient.assigned_nurse_id)
-        if value
-    }
+    ids = {patient.user_id} if patient.user_id else set()
     ids.update(
         item[0]
         for item in db.query(models.PatientStaffAssignment.staff_user_id)
@@ -442,8 +438,20 @@ def create_appointment(
     user: models.User = Depends(get_current_user),
 ):
     patient = get_accessible_patient(db, payload.patient_id, user)
-    clinician_id = payload.clinician_user_id or patient.primary_doctor_id
-    if not clinician_id or clinician_id not in active_care_user_ids(db, patient):
+    active_clinicians = (
+        db.query(models.PatientStaffAssignment.staff_user_id, models.PatientStaffAssignment.role)
+        .join(models.User, models.User.id == models.PatientStaffAssignment.staff_user_id)
+        .filter(models.PatientStaffAssignment.patient_id == patient.id)
+        .filter(models.PatientStaffAssignment.status == "active")
+        .filter(models.PatientStaffAssignment.role.in_(["doctor", "nurse"]))
+        .filter(models.User.status == "active", models.User.role == models.PatientStaffAssignment.role)
+        .order_by(models.PatientStaffAssignment.id)
+        .all()
+    )
+    clinician_id = payload.clinician_user_id or next(
+        (staff_id for staff_id, role in active_clinicians if role == "doctor"), None
+    )
+    if not clinician_id or clinician_id not in {staff_id for staff_id, _ in active_clinicians}:
         raise HTTPException(400, "Clinician must belong to the active care team")
     item = models.Appointment(
         **payload.model_dump(exclude={"clinician_user_id"}),

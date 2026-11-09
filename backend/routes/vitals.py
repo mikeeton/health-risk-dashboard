@@ -36,7 +36,7 @@ def create_vital(
     )
 
     if not result.created:
-        logging.error(f"Vital record already exists for patient {vital.patient_id} at timestamp {vital.timestamp}")
+        logging.info("Duplicate vital submission rejected")
         raise HTTPException(
             status_code=409,
             detail="Vital record already exists for this patient and timestamp"

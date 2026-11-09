@@ -4,6 +4,8 @@ The role expansion uses PostgreSQL-backed, audited workflows. Frontend
 visibility is not the security boundary: every patient-scoped endpoint calls
 the shared assignment-aware access-control layer.
 
+Doctor and nurse access requires an active `patient_staff_assignments` row. `patients.primary_doctor_id` and `patients.assigned_nurse_id` are legacy migration fields and do not restore access after an assignment is removed.
+
 ## Patient
 
 - Dedicated **My Care** and **AI Assistant** navigation.

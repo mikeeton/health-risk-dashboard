@@ -45,6 +45,8 @@ migration files.
 - `20260621_0003_referrals_notifications`: adds referral requests and richer notification metadata.
 - `20260623_0004_constraints`: adds status/role check constraints and uniqueness protection for active assignments and pending referrals.
 
+Later revisions continue this chain through `20261109_0021_authoritative_staff_assignments`. That revision imports a legacy doctor or nurse pointer only where the patient has no assignment history for that role. An existing removed assignment is never reactivated. Live access checks use active assignment rows only; legacy columns do not grant access.
+
 ## Final-Year Project Notes
 
 Migrations are part of the project evidence: they show how the schema evolved

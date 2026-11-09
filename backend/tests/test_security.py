@@ -134,6 +134,16 @@ def create_patient(
         last_checkup=datetime.now().date().isoformat(),
     )
     db.add(patient)
+    db.flush()
+    for staff_id, role in ((doctor_id, "doctor"), (nurse_id, "nurse")):
+        if staff_id is not None:
+            db.add(models.PatientStaffAssignment(
+                patient_id=patient.id,
+                staff_user_id=staff_id,
+                role=role,
+                status="active",
+                assigned_at=datetime.now(timezone.utc).isoformat(),
+            ))
     db.commit()
     db.refresh(patient)
 
@@ -235,7 +245,6 @@ def test_complete_role_based_clinical_workflow(
         cleanup,
         name=f"Workflow Patient {uuid4().hex[:8]}",
         doctor_id=doctor.id,
-        nurse_id=nurse.id,
         user_id=patient_user.id,
     )
 
@@ -740,6 +749,52 @@ def test_admin_staff_assignment_grants_and_removes_patient_access(client, db, cl
     assert denied_after_removal.status_code == 404
 
 
+def test_legacy_staff_columns_cannot_restore_revoked_access(client, db, cleanup):
+    doctor = create_user(db, cleanup, "doctor")
+    nurse = create_user(db, cleanup, "nurse")
+    patient_user = create_user(db, cleanup, "patient")
+    patient = create_patient(
+        db, cleanup, name="Revoked Legacy Patient", doctor_id=doctor.id,
+        nurse_id=nurse.id, user_id=patient_user.id,
+    )
+    assignment = db.query(models.PatientStaffAssignment).filter_by(
+        patient_id=patient.id, staff_user_id=doctor.id, role="doctor"
+    ).one()
+    assignment.status = "removed"
+    db.commit()
+    assert patient.primary_doctor_id == doctor.id
+
+    doctor_headers = auth_header(create_access_token({"sub": doctor.email, "role": doctor.role, "user_id": doctor.id}))
+    patient_headers = auth_header(create_access_token({"sub": patient_user.email, "role": patient_user.role, "user_id": patient_user.id}))
+    nurse_headers = auth_header(create_access_token({"sub": nurse.email, "role": nurse.role, "user_id": nurse.id}))
+    for path in (
+        f"/patients/{patient.id}", f"/vitals/{patient.id}",
+        f"/events/{patient.id}", f"/care/team/{patient.id}",
+        f"/care/export/{patient.id}",
+    ):
+        assert client.get(path, headers=doctor_headers).status_code == 404
+    assert client.post(
+        "/role-actions/doctor/clinical-note",
+        json={"patient_id": patient.id, "title": "Revoked note", "description": "Must be denied"},
+        headers=doctor_headers,
+    ).status_code == 404
+    assert doctor.id not in {item["id"] for item in client.get(
+        f"/care/team/{patient.id}", headers=patient_headers,
+    ).json()}
+    assert client.post(
+        "/care/appointments",
+        json={"patient_id": patient.id, "clinician_user_id": doctor.id,
+              "starts_at": "2026-12-01T10:00:00Z", "appointment_type": "Review"},
+        headers=patient_headers,
+    ).status_code == 400
+    assert client.post(
+        "/role-actions/nurse/raise-alert",
+        json={"patient_id": patient.id, "note": "Review current observation"},
+        headers=nurse_headers,
+    ).status_code == 200
+    assert db.query(models.Notification).filter_by(user_email=doctor.email, title="High-risk patient alert").count() == 0
+
+
 def test_live_socket_permission_tracks_assignment_and_account_revocation(db, cleanup):
     doctor = create_user(db, cleanup, "doctor")
     other_doctor = create_user(db, cleanup, "doctor")
@@ -923,7 +978,7 @@ def test_refresh_rotation_revokes_previous_access_token(client, db, cleanup):
     assert client.get("/care/account/profile", headers=auth_header(rotated.json()["access_token"])).status_code == 200
 
 
-def test_direct_registration_is_disabled(client):
+def test_direct_registration_is_disabled(client, db):
     response = client.post(
         "/auth/register",
         json={
@@ -934,6 +989,27 @@ def test_direct_registration_is_disabled(client):
         },
     )
     assert response.status_code == 403
+    assert db.query(models.User).filter_by(email="privilege-escalation@example.com").first() is None
+
+
+def test_approved_registration_creates_login_without_direct_registration(client, db, cleanup):
+    admin = create_user(db, cleanup, "admin")
+    email = unique_email("approved-nurse")
+    cleanup["registration_emails"].append(email)
+    requested = client.post("/registration-requests/", json={
+        "email": email, "full_name": "Approved Nurse", "role": "nurse", "password": TEST_PASSWORD,
+    })
+    assert requested.status_code == 200
+    assert db.query(models.User).filter_by(email=email).first() is None
+    approved = client.post(
+        f"/registration-requests/{requested.json()['id']}/approve",
+        headers=auth_header(create_access_token({"sub": admin.email, "role": admin.role, "user_id": admin.id})),
+    )
+    assert approved.status_code == 200
+    cleanup["emails"].append(email)
+    approved_user = db.query(models.User).filter_by(email=email).one()
+    assert approved_user.role == "nurse"
+    assert verify_password(TEST_PASSWORD, approved_user.password_hash)
 
 
 def test_weak_registration_password_is_rejected(client):

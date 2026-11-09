@@ -267,19 +267,26 @@ def nurse_raise_alert(
         related_entity_id=None,
     )
 
-    if patient.primary_doctor_id:
-        doctor = db.query(models.User).filter(models.User.id == patient.primary_doctor_id).first()
-        if doctor:
-            create_notification(
-                db,
-                user_email=doctor.email,
-                title="High-risk patient alert",
-                message=f"A nursing alert was raised for {patient.name}.",
-                notification_type="alert",
-                link="/review-cases",
-                related_entity="ReviewCase",
-                related_entity_id=None,
-            )
+    assigned_doctors = (
+        db.query(models.User)
+        .join(models.PatientStaffAssignment, models.PatientStaffAssignment.staff_user_id == models.User.id)
+        .filter(models.PatientStaffAssignment.patient_id == patient.id)
+        .filter(models.PatientStaffAssignment.role == "doctor")
+        .filter(models.PatientStaffAssignment.status == "active")
+        .filter(models.User.role == "doctor", models.User.status == "active")
+        .all()
+    )
+    for doctor in assigned_doctors:
+        create_notification(
+            db,
+            user_email=doctor.email,
+            title="High-risk patient alert",
+            message=f"A nursing alert was raised for {patient.name}.",
+            notification_type="alert",
+            link="/review-cases",
+            related_entity="ReviewCase",
+            related_entity_id=None,
+        )
 
     db.commit()
     db.refresh(case)

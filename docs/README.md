@@ -16,6 +16,7 @@ These are the only Word documents kept in the project. Earlier drafts of the gui
 - [Patient baseline v2](architecture/PATIENT_BASELINE.md)
 - [Canonical risk assessment](architecture/CANONICAL_RISK_ASSESSMENT.md)
 - [Role workflows](architecture/ROLE_WORKFLOWS.md)
+- [Request and risk walkthrough](architecture/REQUEST_FLOW.md)
 - [Application and research separation](RESEARCH_ARCHITECTURE.md)
 
 ## Setup and deployment

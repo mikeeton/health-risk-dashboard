@@ -5,15 +5,7 @@ import {
   loginUser,
   logoutUser,
 } from "../services/api";
-
-type UserRole = "admin" | "doctor" | "patient" | "nurse";
-
-type AuthUser = {
-  id: number;
-  email: string;
-  full_name: string;
-  role: UserRole;
-};
+import type { AuthUser } from "../types/api";
 
 type AuthContextType = {
   user: AuthUser | null;

@@ -174,56 +174,6 @@ def ensure_database_schema():
         if "users" not in table_names or "patients" not in table_names:
             return
 
-        doctor_id = connection.execute(
-            text(
-                """
-                SELECT id
-                FROM users
-                WHERE role = 'doctor'
-                  AND COALESCE(status, 'active') = 'active'
-                ORDER BY id
-                LIMIT 1
-                """
-            )
-        ).scalar()
-
-        nurse_id = connection.execute(
-            text(
-                """
-                SELECT id
-                FROM users
-                WHERE role = 'nurse'
-                  AND COALESCE(status, 'active') = 'active'
-                ORDER BY id
-                LIMIT 1
-                """
-            )
-        ).scalar()
-
-        if doctor_id:
-            connection.execute(
-                text(
-                    """
-                    UPDATE patients
-                    SET primary_doctor_id = :doctor_id
-                    WHERE primary_doctor_id IS NULL
-                    """
-                ),
-                {"doctor_id": doctor_id},
-            )
-
-        if nurse_id:
-            connection.execute(
-                text(
-                    """
-                    UPDATE patients
-                    SET assigned_nurse_id = :nurse_id
-                    WHERE assigned_nurse_id IS NULL
-                    """
-                ),
-                {"nurse_id": nurse_id},
-            )
-
         connection.execute(
             text(
                 """
