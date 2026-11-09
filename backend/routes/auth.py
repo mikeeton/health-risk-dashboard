@@ -3,7 +3,7 @@ import hashlib
 import secrets
 import pyotp
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Header
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,44 @@ from auth_utils import (
     bearer_scheme,
 )
 from routes.audit import write_audit_log
+from config import get_settings
+
+settings = get_settings()
+
+REFRESH_COOKIE = "vitala_refresh"
+
+
+def _cookie_mode(request: Request) -> bool:
+    return request.headers.get("X-Auth-Mode") == "cookie" or REFRESH_COOKIE in request.cookies
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        REFRESH_COOKIE, token, httponly=True,
+        secure=settings.environment == "production", samesite="none" if settings.environment == "production" else "lax",
+        path="/auth", max_age=settings.refresh_token_expire_days * 86400,
+    )
+
+
+def _csrf_token(jti: str) -> str:
+    import hmac
+    return hmac.new(settings.secret_key.encode(), ("refresh:" + jti).encode(), hashlib.sha256).hexdigest()
+
+
+def _requested_refresh_token(request: Request, body: schemas.RefreshTokenRequest | None, csrf: str | None) -> str:
+    import hmac
+    if REFRESH_COOKIE in request.cookies:
+        token = request.cookies[REFRESH_COOKIE]
+        payload = decode_access_token(token)
+        jti = payload.get("jti") if payload else None
+        if not jti or not csrf or not hmac.compare_digest(csrf, _csrf_token(jti)):
+            raise HTTPException(status_code=403, detail="Invalid refresh request")
+        return token
+    if request.headers.get("X-Auth-Mode") == "cookie":
+        raise HTTPException(status_code=401, detail="Refresh cookie missing")
+    if body and body.refresh_token:
+        return body.refresh_token
+    raise HTTPException(status_code=401, detail="Refresh token missing")
 
 router = APIRouter(
     prefix="/auth",
@@ -72,6 +110,8 @@ def register_user(
 @router.post("/login", response_model=schemas.TokenResponse)
 def login_user(
     login: schemas.UserLogin,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     user = (
@@ -132,9 +172,12 @@ def login_user(
     )
     db.commit()
 
+    if _cookie_mode(request):
+        _set_refresh_cookie(response, refresh_token)
     return {
         "access_token": create_access_token({**payload, "session_jti": refresh_jti}),
-        "refresh_token": refresh_token,
+        "refresh_token": None if _cookie_mode(request) else refresh_token,
+        "csrf_token": _csrf_token(refresh_jti) if _cookie_mode(request) else None,
         "token_type": "bearer",
         "user": user,
     }
@@ -142,10 +185,14 @@ def login_user(
 
 @router.post("/refresh")
 def refresh_token(
-    request: schemas.RefreshTokenRequest,
+    http_request: Request,
+    response: Response,
+    request: schemas.RefreshTokenRequest | None = None,
+    x_csrf_token: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    payload = decode_access_token(request.refresh_token)
+    token = _requested_refresh_token(http_request, request, x_csrf_token)
+    payload = decode_access_token(token)
 
     if not payload or payload.get("token_type") != "refresh":
         raise HTTPException(
@@ -193,16 +240,22 @@ def refresh_token(
     )
     db.commit()
 
+    cookie_mode = _cookie_mode(http_request)
+    new_refresh_token = create_refresh_token({**new_payload, "jti": new_jti})
+    if cookie_mode:
+        _set_refresh_cookie(response, new_refresh_token)
     return {
         "access_token": create_access_token({**new_payload, "session_jti": new_jti}),
-        "refresh_token": create_refresh_token({**new_payload, "jti": new_jti}),
+        "refresh_token": None if cookie_mode else new_refresh_token,
+        "csrf_token": _csrf_token(new_jti) if cookie_mode else None,
         "token_type": "bearer",
     }
 
 
 @router.post("/logout", status_code=204)
-def logout(request: schemas.RefreshTokenRequest, db: Session = Depends(get_db)):
-    payload = decode_access_token(request.refresh_token)
+def logout(http_request: Request, response: Response, request: schemas.RefreshTokenRequest | None = None, x_csrf_token: str | None = Header(default=None), db: Session = Depends(get_db)):
+    token = _requested_refresh_token(http_request, request, x_csrf_token)
+    payload = decode_access_token(token)
     jti = payload.get("jti") if payload else None
     if jti:
         session = (
@@ -216,6 +269,8 @@ def logout(request: schemas.RefreshTokenRequest, db: Session = Depends(get_db)):
         if session and session.revoked_at is None:
             session.revoked_at = utc_now_naive()
             db.commit()
+    if _cookie_mode(http_request):
+        response.delete_cookie(REFRESH_COOKIE, path="/auth", secure=settings.environment == "production", samesite="none" if settings.environment == "production" else "lax")
 
 
 @router.post("/password-reset/confirm", status_code=204)

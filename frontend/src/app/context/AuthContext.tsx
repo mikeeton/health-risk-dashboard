@@ -60,17 +60,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     sessionStorage.setItem("health-auth-user", JSON.stringify(data.user));
     sessionStorage.setItem("health-auth-token", data.access_token);
-    sessionStorage.setItem("health-refresh-token", data.refresh_token);
+    if (data.csrf_token) sessionStorage.setItem("health-csrf-token", data.csrf_token);
+    sessionStorage.removeItem("health-refresh-token");
   };
 
   const logout = () => {
-    void logoutUser(sessionStorage.getItem("health-refresh-token"));
+    void logoutUser(sessionStorage.getItem("health-csrf-token"));
     setUser(null);
     setToken(null);
 
     sessionStorage.removeItem("health-auth-user");
     sessionStorage.removeItem("health-auth-token");
     sessionStorage.removeItem("health-refresh-token");
+    sessionStorage.removeItem("health-csrf-token");
   };
 
   return (

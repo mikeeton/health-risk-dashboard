@@ -22,7 +22,7 @@ test("concurrent expired requests share one token refresh", async ({ page }) => 
   const result = await page.evaluate(async () => {
     const { apiFetch } = await import("/src/app/services/httpClient.ts");
     sessionStorage.setItem("health-auth-token", "old-access");
-    sessionStorage.setItem("health-refresh-token", "old-refresh");
+    sessionStorage.setItem("health-csrf-token", "old-csrf");
     const originalFetch = window.fetch;
     let refreshes = 0;
     const retried: string[] = [];
@@ -31,7 +31,7 @@ test("concurrent expired requests share one token refresh", async ({ page }) => 
       if (url.endsWith("/auth/refresh")) {
         refreshes += 1;
         await new Promise((resolve) => setTimeout(resolve, 30));
-        return new Response(JSON.stringify({ access_token: "new-access", refresh_token: "new-refresh" }), { status: 200 });
+        return new Response(JSON.stringify({ access_token: "new-access", csrf_token: "new-csrf" }), { status: 200 });
       }
       const bearer = new Headers(init?.headers).get("Authorization");
       if (bearer === "Bearer old-access") return new Response(null, { status: 401 });

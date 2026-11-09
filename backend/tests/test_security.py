@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 import pyotp
@@ -994,6 +996,37 @@ def test_refresh_tokens_rotate_and_reuse_is_rejected(client, db, cleanup):
         json={"refresh_token": original_refresh},
     )
     assert replay.status_code == 401
+
+
+def test_browser_refresh_cookie_is_http_only_and_requires_csrf(client, db, cleanup):
+    user = create_user(db, cleanup, "doctor")
+    login = client.post("/auth/login", headers={"X-Auth-Mode": "cookie"}, json={"email": user.email, "password": TEST_PASSWORD})
+    assert login.status_code == 200
+    assert login.json()["refresh_token"] is None
+    assert "httponly" in login.headers["set-cookie"].lower()
+    csrf = login.json()["csrf_token"]
+    assert client.post("/auth/refresh", headers={"X-Auth-Mode": "cookie"}).status_code == 403
+    rotated = client.post("/auth/refresh", headers={"X-Auth-Mode": "cookie", "X-CSRF-Token": csrf})
+    assert rotated.status_code == 200
+    assert rotated.json()["refresh_token"] is None
+    assert rotated.json()["csrf_token"] != csrf
+    assert client.post("/auth/logout", headers={"X-Auth-Mode": "cookie", "X-CSRF-Token": rotated.json()["csrf_token"]}).status_code == 204
+
+
+def test_simultaneous_refresh_requests_rotate_only_once(client, db, cleanup):
+    user = create_user(db, cleanup, "doctor")
+    login = client.post("/auth/login", json={"email": user.email, "password": TEST_PASSWORD})
+    token = login.json()["refresh_token"]
+    barrier = Barrier(2)
+
+    def refresh_once():
+        with TestClient(app) as worker:
+            barrier.wait(timeout=10)
+            return worker.post("/auth/refresh", json={"refresh_token": token}).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: refresh_once(), range(2)))
+    assert sorted(results) == [200, 401]
 
 
 def test_logout_revokes_access_token_and_socket_ticket(client, db, cleanup):

@@ -52,7 +52,14 @@ logger = logging.getLogger(__name__)
 def run_monitor_cycle(elapsed_minutes: int) -> int:
     """Keep blocking database and model work outside the ASGI event loop."""
     db = None
+    lock_connection = None
     try:
+        # One API worker at a time may reconcile alerts and device syncs.
+        if engine.dialect.name == "postgresql":
+            lock_connection = engine.connect()
+            acquired = lock_connection.execute(text("SELECT pg_try_advisory_lock(21091201)")).scalar()
+            if not acquired:
+                return elapsed_minutes
         db = SessionLocal()
         reconcile_vital_assessments(db, limit=20)
         reconcile_stale_sync_attempts(db, limit=20)
@@ -74,6 +81,10 @@ def run_monitor_cycle(elapsed_minutes: int) -> int:
     finally:
         if db is not None:
             db.close()
+        if lock_connection is not None:
+            if acquired:
+                lock_connection.execute(text("SELECT pg_advisory_unlock(21091201)"))
+            lock_connection.close()
 
 
 async def run_monitor_cycle_async(elapsed_minutes: int) -> int:

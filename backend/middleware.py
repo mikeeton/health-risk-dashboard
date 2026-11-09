@@ -1,6 +1,11 @@
 from collections import defaultdict, deque
 from time import monotonic
 from uuid import UUID, uuid4
+import hashlib
+import logging
+
+import redis
+import redis.asyncio as aioredis
 
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -11,6 +16,7 @@ from config import get_settings
 from observability import request_tracker
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 def client_ip(request: Request) -> str:
@@ -119,6 +125,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
         self._buckets: dict[str, deque[float]] = defaultdict(deque)
+        self._redis = aioredis.Redis.from_url(settings.redis_url) if settings.redis_url else None
 
     async def dispatch(self, request: Request, call_next):
         if not settings.rate_limit_enabled:
@@ -135,6 +142,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             window_seconds = settings.auth_rate_limit_window_seconds
 
         key = f"{client_ip(request)}:{request.url.path}"
+        if self._redis is not None:
+            try:
+                redis_key = "vitala:rate:" + hashlib.sha256(key.encode()).hexdigest()
+                count, ttl = await self._redis.eval(
+                    "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('EXPIRE',KEYS[1],ARGV[1]) end; return {n,redis.call('TTL',KEYS[1])}",
+                    1, redis_key, window_seconds,
+                )
+                if count > limit:
+                    return JSONResponse(status_code=429, content={"detail": "Too many requests. Please try again shortly."}, headers={"Retry-After": str(max(1, ttl))})
+                return await call_next(request)
+            except redis.RedisError:
+                logger.exception("Shared rate limiter unavailable")
+                if settings.environment == "production" or settings.require_redis:
+                    return JSONResponse(status_code=503, content={"detail": "Rate limiter unavailable"})
         now = monotonic()
         bucket = self._buckets[key]
 

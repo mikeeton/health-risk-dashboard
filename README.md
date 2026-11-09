@@ -65,7 +65,13 @@ npm.cmd run build
 npm.cmd run test:e2e
 ```
 
-The current isolated local backend run passed **166 tests** after a clean Alembic upgrade, downgrade, and upgrade. The most recent full browser run passed **40 tests** with one skip. Frontend lint and the production build passed after the unused-module cleanup. Browser tests use synthetic API fixtures; they do not prove real provider delivery or production reliability. See the [test inventory](docs/testing/COMPLETE_TEST_INVENTORY.md) and [engineering audit](docs/reports/ENGINEERING_AUDIT_2026-11-09.md).
+The isolated local backend runner rehearses an Alembic upgrade, downgrade, and upgrade before running the suite. Browser tests use synthetic API fixtures; they do not prove real provider delivery or production reliability. See the [test inventory](docs/testing/COMPLETE_TEST_INVENTORY.md) and [engineering audit](docs/reports/ENGINEERING_AUDIT_2026-11-09.md).
+
+## Security and reliability status
+
+Browser refresh tokens are held in an HttpOnly cookie; the browser keeps only the short-lived access token and a request-verification token in session storage. Existing JSON refresh tokens remain available to non-browser API clients. PostgreSQL serializes refresh rotation and coordinates the background monitor across API workers. When `REDIS_URL` is configured, the rate limiter and AI circuit breaker share state across workers. Without Redis, those two controls use process-local state, so a multi-worker production setup still needs Redis or another shared coordinator.
+
+Backend dependencies are currently specified as ranges in `backend/requirements.txt`; a platform-tested lock file is still needed. Citation IDs and timestamps are checked, but they cannot establish that every generated medical statement is supported by its source. Provider output requires clinical review. Real-device delivery, prospective alert reliability, and external ML validation remain unproven by local tests.
 
 ## Clinical and ML boundaries
 

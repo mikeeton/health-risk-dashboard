@@ -42,6 +42,7 @@ function clearStoredSession() {
   sessionStorage.removeItem("health-auth-user");
   sessionStorage.removeItem("health-auth-token");
   sessionStorage.removeItem("health-refresh-token");
+  sessionStorage.removeItem("health-csrf-token");
 }
 
 function expireSession() {
@@ -50,22 +51,22 @@ function expireSession() {
 }
 
 async function refreshAccessToken() {
-  const refreshToken = sessionStorage.getItem("health-refresh-token");
-  if (!refreshToken) return null;
+  const csrfToken = sessionStorage.getItem("health-csrf-token");
+  if (!csrfToken) return null;
 
   const response = await window.fetch(`${API_BASE_URL}/auth/refresh`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    credentials: "include",
+    headers: { "X-Auth-Mode": "cookie", "X-CSRF-Token": csrfToken },
   });
   if (!response.ok) return null;
 
   const data = (await response.json()) as {
     access_token: string;
-    refresh_token: string;
+    csrf_token: string;
   };
   sessionStorage.setItem("health-auth-token", data.access_token);
-  sessionStorage.setItem("health-refresh-token", data.refresh_token);
+  sessionStorage.setItem("health-csrf-token", data.csrf_token);
   window.dispatchEvent(
     new CustomEvent(AUTH_TOKEN_REFRESHED_EVENT, {
       detail: { accessToken: data.access_token },

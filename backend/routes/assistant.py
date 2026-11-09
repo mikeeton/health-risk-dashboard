@@ -15,6 +15,7 @@ from uuid import uuid4
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException
 from groq import Groq
+import redis
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
@@ -33,6 +34,44 @@ PROMPT_VERSION = "clinical-assistant-v3-evidence"
 _groq_client: Groq | None = None
 _circuit_failures = 0
 _circuit_open_until = 0.0
+_circuit_redis = redis.Redis.from_url(settings.redis_url) if settings.redis_url else None
+
+
+def _circuit_is_open() -> bool:
+    if _circuit_redis is not None:
+        try:
+            return bool(_circuit_redis.exists("vitala:ai:circuit:open"))
+        except redis.RedisError:
+            logger.exception("Shared AI circuit breaker unavailable")
+            return True
+    return monotonic() < _circuit_open_until
+
+
+def _circuit_success() -> None:
+    global _circuit_failures
+    _circuit_failures = 0
+    if _circuit_redis is not None:
+        try:
+            _circuit_redis.delete("vitala:ai:circuit:failures")
+        except redis.RedisError:
+            logger.exception("Shared AI circuit breaker unavailable")
+
+
+def _circuit_failure() -> None:
+    global _circuit_failures, _circuit_open_until
+    if _circuit_redis is not None:
+        try:
+            failures = _circuit_redis.incr("vitala:ai:circuit:failures")
+            if failures == 1:
+                _circuit_redis.expire("vitala:ai:circuit:failures", settings.ai_circuit_reset_seconds)
+            if failures >= settings.ai_circuit_failure_threshold:
+                _circuit_redis.set("vitala:ai:circuit:open", "1", ex=settings.ai_circuit_reset_seconds)
+            return
+        except redis.RedisError:
+            logger.exception("Shared AI circuit breaker unavailable")
+    _circuit_failures += 1
+    if _circuit_failures >= settings.ai_circuit_failure_threshold:
+        _circuit_open_until = monotonic() + settings.ai_circuit_reset_seconds
 
 
 class EvidenceCitation(BaseModel):
@@ -431,7 +470,7 @@ def request_structured_ai(
     conversation: list[dict],
 ) -> tuple[ClinicalAIOutput, str, str]:
     global _circuit_failures, _circuit_open_until
-    if monotonic() < _circuit_open_until:
+    if _circuit_is_open():
         return deterministic_output(context, provider_unavailable=True), "none", "circuit_open"
     client = get_groq_client()
     if client is None:
@@ -483,7 +522,7 @@ def request_structured_ai(
             validated = validate_output_evidence(
                 parsed, allowed_evidence_ids(context), context, allow_critical=False
             )
-            _circuit_failures = 0
+            _circuit_success()
             return validated, settings.ai_model, "available"
         except (ValidationError, ValueError, json.JSONDecodeError) as error:
             last_error = f"invalid_output:{type(error).__name__}"
@@ -502,9 +541,7 @@ def request_structured_ai(
                 extra={"attempt": attempt + 1, "error_type": type(error).__name__},
             )
 
-    _circuit_failures += 1
-    if _circuit_failures >= settings.ai_circuit_failure_threshold:
-        _circuit_open_until = monotonic() + settings.ai_circuit_reset_seconds
+    _circuit_failure()
     return deterministic_output(context, provider_unavailable=True), "none", last_error
 
 

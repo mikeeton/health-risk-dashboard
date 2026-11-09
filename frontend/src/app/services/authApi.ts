@@ -4,8 +4,10 @@ import type { LoginRequest, TokenResponse } from "../types/api";
 export async function loginUser(credentials: LoginRequest): Promise<TokenResponse> {
   const response = await window.fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      "X-Auth-Mode": "cookie",
     },
     body: JSON.stringify(credentials),
   });
@@ -15,12 +17,12 @@ export async function loginUser(credentials: LoginRequest): Promise<TokenRespons
   return response.json() as Promise<TokenResponse>;
 }
 
-export async function logoutUser(refreshToken: string | null) {
-  if (!refreshToken) return;
+export async function logoutUser(csrfToken: string | null) {
+  if (!csrfToken) return;
   await window.fetch(`${API_BASE_URL}/auth/logout`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    credentials: "include",
+    headers: { "X-Auth-Mode": "cookie", "X-CSRF-Token": csrfToken },
   });
 }
 
