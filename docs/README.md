@@ -2,6 +2,15 @@
 
 Start with the [project README](../README.md) to run Vitala locally. This index separates software guidance from research and dissertation evidence. Live deployment is paused.
 
+## Current technical guide
+
+- [Architecture](ARCHITECTURE.md)
+- [Security overview](SECURITY.md) and [private reporting policy](security/SECURITY.md)
+- [Testing and evidence](TESTING.md)
+- [ML model card](ML_MODEL_CARD.md)
+
+These pages describe the current system and point to detailed contracts. The reports below retain their original dates and should be read as historical evidence.
+
 ## Final Word documents
 
 - [Dissertation](dissertation/Health_Risk_Dashboard_Dissertation.docx) — revised 9 November 2026; approximately 10,000 words in the main chapters
@@ -36,7 +45,7 @@ These are the only Word documents kept in the project. Earlier drafts of the gui
 - [Product test and deployment-readiness report](testing/PRODUCT_TEST_REPORT.md)
 - [Formal test matrix](FORMAL_TEST_MATRIX.md)
 - [Complete automated test inventory](testing/COMPLETE_TEST_INVENTORY.md)
-- [Latest local verification record](reports/LOCAL_VERIFICATION_2026-11-09.md)
+- [9 November local verification snapshot](reports/LOCAL_VERIFICATION_2026-11-09.md)
 - [Engineering audit](reports/ENGINEERING_AUDIT_2026-11-09.md)
 - [Dated audit and progress reports](reports/README.md)
 - [Accessibility test plan](ACCESSIBILITY_TEST_PLAN.md)

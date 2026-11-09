@@ -17,6 +17,8 @@
 
 The frontend uses React, TypeScript, Vite, and Tailwind CSS. The backend uses FastAPI, SQLAlchemy, Alembic, and PostgreSQL. WebSockets provide live update hints; persisted database records remain authoritative. Redis, Withings, and Groq are optional integrations.
 
+For a technical review, start with [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md), [testing](docs/TESTING.md), and the [model card](docs/ML_MODEL_CARD.md). The [documentation index](docs/README.md) keeps dissertation and historical evidence separate.
+
 ## Run locally
 
 Install **Python 3.12**, **Node.js 22**, and **PostgreSQL**. The backend requires a PostgreSQL database; it does not silently switch to SQLite.
