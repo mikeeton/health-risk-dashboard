@@ -4,7 +4,7 @@ Start with the [project README](../README.md) to run Vitala locally. This index 
 
 ## Final Word documents
 
-- [Dissertation](dissertation/Health_Risk_Dashboard_Dissertation.docx)
+- [Dissertation](dissertation/Health_Risk_Dashboard_Dissertation.docx) — revised 9 November 2026; approximately 10,000 words in the main chapters
 - [Presentation and viva guide](dissertation/Presentation_and_Viva_Guide.docx)
 
 These are the only Word documents kept in the project. Earlier drafts of the guide were removed.
