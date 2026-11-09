@@ -6,6 +6,10 @@ the shared assignment-aware access-control layer.
 
 Doctor and nurse access requires an active `patient_staff_assignments` row. `patients.primary_doctor_id` and `patients.assigned_nurse_id` are legacy migration fields and do not restore access after an assignment is removed.
 
+A doctor creating a new patient record receives the sole initial staff assignment.
+The request cannot link an existing patient account or assign other staff;
+administrators use approval and assignment workflows for those changes.
+
 ## Patient
 
 - Dedicated **My Care** and **AI Assistant** navigation.

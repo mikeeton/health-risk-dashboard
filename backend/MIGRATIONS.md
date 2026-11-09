@@ -10,6 +10,8 @@ from the repository root:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-postgresql.ps1
 ```
 
+When Docker is unavailable, use `.\backend\venv\Scripts\python.exe .\scripts\run-local-backend-tests.py` from the repository root with a local PostgreSQL connection configured in `backend/.env`.
+
 See [`docs/testing/LOCAL_POSTGRESQL.md`](../docs/testing/LOCAL_POSTGRESQL.md)
 for isolation guarantees, diagnostic options, and the optional Redis profile.
 

@@ -251,6 +251,16 @@ def approve_referral(
     if referral.status != "pending":
         raise HTTPException(status_code=400, detail="Referral has already been reviewed")
 
+    if referral.receiving_user_id is not None and (
+        receiving_user is None
+        or receiving_user.role not in {"doctor", "nurse"}
+        or receiving_user.status != "active"
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Receiving clinician is no longer active; choose a new referral target.",
+        )
+
     referral.status = "approved"
     referral.admin_note = payload.admin_note
     referral.reviewed_at = datetime.now().isoformat(timespec="seconds")

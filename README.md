@@ -51,9 +51,12 @@ The frontend runs at `http://localhost:5173` by default. Set `VITE_API_BASE_URL`
 ## Check the project
 
 ```powershell
-cd backend
-.\venv\Scripts\python.exe -m pytest tests -q
+.\backend\venv\Scripts\python.exe .\scripts\run-local-backend-tests.py
 ```
+
+This creates and removes a fresh local PostgreSQL test database. Direct pytest
+refuses to run unless `APP_ENV=test` and `DATABASE_URL` explicitly name a local
+`*_test` database. See [isolated PostgreSQL verification](docs/testing/LOCAL_POSTGRESQL.md).
 
 ```powershell
 cd frontend
@@ -62,7 +65,7 @@ npm.cmd run build
 npm.cmd run test:e2e
 ```
 
-The latest completed local run (9 November 2026) passed **159 backend tests** and **38 browser tests**, with one existing browser skip. Frontend lint and the production build passed. Browser tests use synthetic API fixtures; they do not prove real provider delivery or production reliability. See the [test inventory](docs/testing/COMPLETE_TEST_INVENTORY.md) and [local verification record](docs/reports/LOCAL_VERIFICATION_2026-11-09.md).
+The current isolated local backend run passed **166 tests** after a clean Alembic upgrade, downgrade, and upgrade. The most recent full browser run passed **40 tests** with one skip. Frontend lint and the production build passed after the unused-module cleanup. Browser tests use synthetic API fixtures; they do not prove real provider delivery or production reliability. See the [test inventory](docs/testing/COMPLETE_TEST_INVENTORY.md) and [engineering audit](docs/reports/ENGINEERING_AUDIT_2026-11-09.md).
 
 ## Clinical and ML boundaries
 

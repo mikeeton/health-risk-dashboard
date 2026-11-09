@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker
 import models
 from database import Base
 from early_warning import _critical_reasons, _trend_reasons, _patient_threshold, _data_quality, evaluate_new_vital, evaluate_partial_device_observation
+from routes.care_workflows import active_care_user_ids
 
 
 def make_vital(patient_id, index, *, spo2=97, heart=75, systolic=120, risk=2):
@@ -53,12 +54,15 @@ def test_urgent_alert_is_deduplicated_and_only_assigned_clinician_is_notified():
     session = sessionmaker(bind=engine)()
     doctor = models.User(email="assigned@example.com", full_name="Assigned Doctor", role="doctor", password_hash="x")
     outsider = models.User(email="outsider@example.com", full_name="Other Doctor", role="doctor", password_hash="x")
+    changed_role = models.User(email="changed@example.com", full_name="Changed Role", role="nurse", password_hash="x")
     admin = models.User(email="admin@example.com", full_name="Admin", role="admin", password_hash="x")
-    session.add_all([doctor, outsider, admin]); session.flush()
+    session.add_all([doctor, outsider, changed_role, admin]); session.flush()
     patient = models.Patient(name="Alert Patient", age=62, condition="Monitoring", risk_level="Low")
     session.add(patient); session.flush()
     session.add(models.PatientStaffAssignment(patient_id=patient.id, staff_user_id=doctor.id, role="doctor", status="active", assigned_at="2026-07-31T00:00:00+00:00"))
+    session.add(models.PatientStaffAssignment(patient_id=patient.id, staff_user_id=changed_role.id, role="doctor", status="active", assigned_at="2026-07-31T00:00:00+00:00"))
     session.commit()
+    assert active_care_user_ids(session, patient) == {doctor.id}
 
     first = make_vital(patient.id, 1, spo2=88)
     session.add(first); session.flush()

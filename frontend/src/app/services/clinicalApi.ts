@@ -1,5 +1,13 @@
 import { API_BASE_URL, apiFetch, ensureOk, readApiError } from "./httpClient";
-import type { PatientCreateRequest, PatientRecord, VitalCreateRequest, VitalRecord } from "../types/api";
+import type {
+  PatientCreateRequest,
+  PatientRecord,
+  ReviewCaseCreateRequest,
+  ReviewCaseRecord,
+  ReviewCaseUpdateRequest,
+  VitalCreateRequest,
+  VitalRecord,
+} from "../types/api";
 
 export async function getPatients(): Promise<PatientRecord[]> {
   const response = await apiFetch(`${API_BASE_URL}/patients`);
@@ -76,7 +84,7 @@ export async function deleteVital(vitalId: string | number) {
   return response.json();
 }
 
-export async function createReviewCase(review: unknown) {
+export async function createReviewCase(review: ReviewCaseCreateRequest): Promise<ReviewCaseRecord> {
   const response = await apiFetch(`${API_BASE_URL}/reviews`, {
     method: "POST",
     headers: {
@@ -87,21 +95,21 @@ export async function createReviewCase(review: unknown) {
 
   await ensureOk(response, "Failed to create review case");
 
-  return response.json();
+  return response.json() as Promise<ReviewCaseRecord>;
 }
 
-export async function getReviewCases() {
+export async function getReviewCases(): Promise<ReviewCaseRecord[]> {
   const response = await apiFetch(`${API_BASE_URL}/reviews`);
 
   await ensureOk(response, "Failed to fetch review cases");
 
-  return response.json();
+  return response.json() as Promise<ReviewCaseRecord[]>;
 }
 
 export async function updateReviewCase(
   caseId: number,
-  update: unknown
-) {
+  update: ReviewCaseUpdateRequest
+): Promise<ReviewCaseRecord> {
   const response = await apiFetch(`${API_BASE_URL}/reviews/${caseId}`, {
     method: "PATCH",
     headers: {
@@ -112,7 +120,7 @@ export async function updateReviewCase(
 
   await ensureOk(response, "Failed to update review case");
 
-  return response.json();
+  return response.json() as Promise<ReviewCaseRecord>;
 }
 
 export async function getAuditLogs() {

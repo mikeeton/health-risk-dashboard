@@ -185,6 +185,25 @@ def _session_is_active(payload: dict, db: Session) -> bool:
     return session is not None
 
 
+def socket_session_is_active(
+    db: Session,
+    user_id: int,
+    session_jti: str | None,
+    ticket_expires_at: int | None,
+) -> bool:
+    """Recheck a long-lived socket against the login session before delivery.
+
+    Legacy tickets without a session binding may only live until their own
+    short expiry. Bound tickets remain valid while the login session is active.
+    """
+    if session_jti:
+        return _session_is_active({"user_id": user_id, "session_jti": session_jti}, db)
+    return (
+        isinstance(ticket_expires_at, int)
+        and ticket_expires_at > datetime.now(timezone.utc).timestamp()
+    )
+
+
 def get_user_from_token(token: str | None, db: Session):
     if not token:
         return None

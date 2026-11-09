@@ -27,7 +27,7 @@ def test_notification_database_checks_leave_event_loop_free(monkeypatch):
     monkeypatch.setattr(
         notifications,
         "notification_socket_signature",
-        lambda _user_id: check_threads.append(threading.get_ident()) or None,
+        lambda *_args: check_threads.append(threading.get_ident()) or None,
     )
     socket = ClosingSocket()
 

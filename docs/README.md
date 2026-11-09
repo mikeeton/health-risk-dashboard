@@ -37,6 +37,7 @@ These are the only Word documents kept in the project. Earlier drafts of the gui
 - [Formal test matrix](FORMAL_TEST_MATRIX.md)
 - [Complete automated test inventory](testing/COMPLETE_TEST_INVENTORY.md)
 - [Latest local verification record](reports/LOCAL_VERIFICATION_2026-11-09.md)
+- [Engineering audit](reports/ENGINEERING_AUDIT_2026-11-09.md)
 - [Dated audit and progress reports](reports/README.md)
 - [Accessibility test plan](ACCESSIBILITY_TEST_PLAN.md)
 - [Usability evaluation protocol](USABILITY_EVALUATION.md)

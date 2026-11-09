@@ -8,7 +8,12 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from access_control import require_admin, role_name
-from auth_utils import get_current_user, get_user_from_websocket_ticket
+from auth_utils import (
+    decode_access_token,
+    get_current_user,
+    get_user_from_websocket_ticket,
+    socket_session_is_active,
+)
 from database import SessionLocal, get_db
 from config import get_settings
 from notification_utils import create_notification as add_notification
@@ -102,10 +107,18 @@ def notification_socket_user_id(ticket: str | None) -> int | None:
         return current_user.id if current_user else None
 
 
-def notification_socket_signature(user_id: int) -> tuple[int, int | None] | None:
+def notification_socket_signature(
+    user_id: int,
+    session_jti: str | None = None,
+    ticket_expires_at: int | None = None,
+) -> tuple[int, int | None] | None:
     with SessionLocal() as db:
         current_user = db.get(models.User, user_id)
         if current_user is None or current_user.status != "active":
+            return None
+        if ticket_expires_at is not None and not socket_session_is_active(
+            db, user_id, session_jti, ticket_expires_at
+        ):
             return None
         latest = (
             db.query(models.Notification)
@@ -133,13 +146,18 @@ async def notification_socket(websocket: WebSocket, ticket: str | None = None):
         return
 
     await websocket.accept()
+    ticket_payload = decode_access_token(ticket) or {}
+    session_jti = ticket_payload.get("session_jti")
+    ticket_expires_at = ticket_payload.get("exp")
     try:
         last_signature: tuple[int, int | None] | None = None
 
         while True:
             # Database pool waits must not block unrelated ASGI requests.
             # Each check closes its session before the socket sends or sleeps.
-            signature = await asyncio.to_thread(notification_socket_signature, user_id)
+            signature = await asyncio.to_thread(
+                notification_socket_signature, user_id, session_jti, ticket_expires_at
+            )
             if signature is None:
                 await websocket.close(code=1008)
                 return

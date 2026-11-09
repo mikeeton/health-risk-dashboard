@@ -90,7 +90,13 @@ def system_summary(
             .filter(models.ReviewCase.patient_id.in_(patient_ids))
             .count()
         ),
-        "audit_logs": db.query(models.AuditLog).count(),
+        "audit_logs": (
+            db.query(models.AuditLog).count()
+            if current_user.role == "admin"
+            else db.query(models.AuditLog)
+            .filter(models.AuditLog.user_email == current_user.email)
+            .count()
+        ),
         "medications": db.query(models.Medication)
         .filter(models.Medication.patient_id.in_(patient_ids))
         .count()

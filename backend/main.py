@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 from contextlib import asynccontextmanager, suppress
 
@@ -11,7 +12,7 @@ from sqlalchemy import inspect, text
 
 import models
 from access_control import can_access_patient, require_admin
-from auth_utils import get_current_user
+from auth_utils import decode_access_token, get_current_user, socket_session_is_active
 from auth_utils import get_user_from_websocket_ticket
 from config import get_settings
 from database import SessionLocal, engine, get_db
@@ -45,6 +46,7 @@ from simulator_service import generate_websocket_vital
 settings = get_settings()
 initialize_error_reporting()
 _monitor_task = None
+logger = logging.getLogger(__name__)
 
 
 def run_monitor_cycle(elapsed_minutes: int) -> int:
@@ -64,7 +66,8 @@ def run_monitor_cycle(elapsed_minutes: int) -> int:
             evaluate_overdue_observations(db)
             return 0
         return elapsed_minutes
-    except Exception:
+    except Exception as error:
+        logger.error("Background monitor cycle failed: %s", type(error).__name__)
         if db is not None:
             db.rollback()
         return elapsed_minutes
@@ -326,12 +329,24 @@ def metrics(current_user: models.User = Depends(get_current_user)):
     }
 
 
-def live_socket_access_valid(user_id: int, patient_id: int) -> bool:
+def live_socket_access_valid(
+    user_id: int,
+    patient_id: int,
+    session_jti: str | None = None,
+    ticket_expires_at: int | None = None,
+) -> bool:
     """Recheck persisted account and patient scope before each socket delivery."""
     db = SessionLocal()
     try:
         user = db.query(models.User).filter(models.User.id == user_id).first()
-        return bool(user and user.status == "active" and can_access_patient(db, patient_id, user))
+        return bool(
+            user and user.status == "active"
+            and can_access_patient(db, patient_id, user)
+            and (
+                ticket_expires_at is None
+                or socket_session_is_active(db, user_id, session_jti, ticket_expires_at)
+            )
+        )
     finally:
         db.close()
 
@@ -359,6 +374,9 @@ async def websocket_live_monitoring(websocket: WebSocket, patient_id: int):
         return
 
     await websocket.accept()
+    ticket_payload = decode_access_token(ticket) or {}
+    session_jti = ticket_payload.get("session_jti")
+    ticket_expires_at = ticket_payload.get("exp")
     update_queue = subscribe(patient_id)
 
     try:
@@ -368,7 +386,10 @@ async def websocket_live_monitoring(websocket: WebSocket, patient_id: int):
                     update_queue.get(),
                     timeout=settings.websocket_interval_seconds,
                 )
-                if not await asyncio.to_thread(live_socket_access_valid, user_id, patient_id):
+                if not await asyncio.to_thread(
+                    live_socket_access_valid, user_id, patient_id,
+                    session_jti, ticket_expires_at,
+                ):
                     await websocket.close(code=1008)
                     break
                 await websocket.send_json(external_record)
@@ -376,12 +397,15 @@ async def websocket_live_monitoring(websocket: WebSocket, patient_id: int):
             except asyncio.TimeoutError:
                 pass
 
-            if not await asyncio.to_thread(live_socket_access_valid, user_id, patient_id):
+            if not await asyncio.to_thread(
+                live_socket_access_valid, user_id, patient_id,
+                session_jti, ticket_expires_at,
+            ):
                 await websocket.close(code=1008)
                 break
             await websocket.send_json(generate_websocket_vital(patient_id))
 
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected for patient {patient_id}")
+        logger.info("Live monitoring socket disconnected")
     finally:
         unsubscribe(patient_id, update_queue)
