@@ -17,5 +17,5 @@ numba
 groq
 argon2-cffi
 redis[hiredis]>=5.2,<7
-sentry-sdk[fastapi]>=2.20,<3
+sentry-sdk[fastapi]>=2.74.0,<3
 pyotp>=2.9,<3
