@@ -390,6 +390,7 @@ export default function Layout() {
               <button
                 onClick={() => setMobileOpen(true)}
                 className="app-icon-button shrink-0 lg:hidden"
+                aria-label="Open navigation"
               >
                 <Menu className="h-5 w-5" />
               </button>

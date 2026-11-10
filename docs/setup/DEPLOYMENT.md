@@ -87,7 +87,7 @@ The client uses TLS based on `rediss://`, bounded socket timeouts, and no URL lo
 ## 4. Configure Render Free
 
 1. Push/review this branch and create a Render Blueprint/Web Service from the repository. Syncing the Blueprint may identify old resources no longer declared; do not approve deletion of the old database, Key Value service, or cron until rollback is no longer needed.
-2. Confirm: root `backend`, runtime Python, plan `free`, build `pip install -r requirements.txt`, start `python scripts/start_render.py`, health path `/health/ready`.
+2. Confirm: root `backend`, runtime Python 3.12, plan `free`, build `pip install --require-hashes -r requirements.lock`, start `python scripts/start_render.py`, health path `/health/ready`.
 3. Supply external values for `DATABASE_URL`, `SECRET_KEY`, and optional credentials. Override `CORS_ORIGINS`, `FRONTEND_URL`, and `ALLOWED_HOSTS` after final URLs are known.
 4. Run the Alembic command explicitly against Neon before deployment. The web start command intentionally does not migrate or train.
 5. Deploy and record `https://<new-service>.onrender.com`. Verify `/health/live` and `/health/ready`.
@@ -130,4 +130,4 @@ Set repository **Variables** (not secrets) `PRODUCTION_API_URL` and `PRODUCTION_
 
 ## Verification before cutover
 
-Run backend tests with `pip install -r backend/requirements-dev.txt`, frontend lint/build/tests, `alembic upgrade head` on a disposable PostgreSQL database, and a local `/health/live`/`/health/ready` smoke test. External deployment is only proven after the provider dashboard steps and endpoint tests succeed.
+Run backend tests after `pip install --require-hashes -r backend/requirements-dev.lock`, frontend lint/build/tests, `alembic upgrade head` on a disposable PostgreSQL database, and a local `/health/live`/`/health/ready` smoke test. External deployment is only proven after the provider dashboard steps and endpoint tests succeed.

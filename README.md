@@ -28,7 +28,7 @@ From the repository root, set up the backend in PowerShell:
 ```powershell
 cd backend
 python -m venv venv
-.\venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\venv\Scripts\python.exe -m pip install --require-hashes -r requirements-dev.lock
 Copy-Item .env.example .env
 ```
 
@@ -73,7 +73,7 @@ The isolated local backend runner rehearses an Alembic upgrade, downgrade, and u
 
 Browser refresh tokens are held in an HttpOnly cookie; the browser keeps only the short-lived access token and a request-verification token in session storage. Existing JSON refresh tokens remain available to non-browser API clients. PostgreSQL serializes refresh rotation and coordinates the background monitor across API workers. When `REDIS_URL` is configured, the rate limiter and AI circuit breaker share state across workers. Without Redis, those two controls use process-local state, so a multi-worker production setup still needs Redis or another shared coordinator.
 
-Backend dependencies are currently specified as ranges in `backend/requirements.txt`; a platform-tested lock file is still needed. Citation IDs and timestamps are checked, but they cannot establish that every generated medical statement is supported by its source. Provider output requires clinical review. Real-device delivery, prospective alert reliability, and external ML validation remain unproven by local tests.
+Backend dependency inputs remain in `backend/requirements.txt` and `backend/requirements-dev.txt`; install from the pinned, hashed `requirements-dev.lock` for local development or `requirements.lock` for the API runtime. With Python 3.12 active, install `pip-tools==7.6.2`, then regenerate both locks from the repository root with `powershell -ExecutionPolicy Bypass -File .\scripts\lock-backend.ps1`. Citation IDs and timestamps are checked, but they cannot establish that every generated medical statement is supported by its source. Provider output requires clinical review. Real-device delivery, prospective alert reliability, and external ML validation remain unproven by local tests.
 
 ## Clinical and ML boundaries
 

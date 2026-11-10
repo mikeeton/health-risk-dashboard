@@ -45,7 +45,6 @@ from simulator_service import generate_websocket_vital
 
 settings = get_settings()
 initialize_error_reporting()
-_monitor_task = None
 logger = logging.getLogger(__name__)
 
 
@@ -101,15 +100,13 @@ async def preemptive_monitor_loop():
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global _monitor_task
-    _monitor_task = asyncio.create_task(preemptive_monitor_loop())
+    monitor_task = asyncio.create_task(preemptive_monitor_loop())
     try:
         yield
     finally:
-        if _monitor_task:
-            _monitor_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await _monitor_task
+        monitor_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await monitor_task
 
 
 def ensure_database_schema():

@@ -46,10 +46,11 @@ def main() -> int:
         with admin_engine.connect() as connection:
             connection.execute(text(f'CREATE DATABASE "{test_name}"'))
         print(f"Created disposable local database {test_name}", flush=True)
+        alembic = (sys.executable, "-c", "from alembic.config import main; main()")
         commands = (
-            (sys.executable, "-m", "alembic", "upgrade", "head"),
-            (sys.executable, "-m", "alembic", "downgrade", "20260728_0005"),
-            (sys.executable, "-m", "alembic", "upgrade", "head"),
+            (*alembic, "upgrade", "head"),
+            (*alembic, "downgrade", "20260728_0005"),
+            (*alembic, "upgrade", "head"),
             (
                 sys.executable, "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider",
                 "--basetemp", str(BASE_TEMP),

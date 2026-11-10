@@ -345,7 +345,7 @@ test("an expired session refreshes once and redirects cleanly when renewal fails
       })
     );
     sessionStorage.setItem("health-auth-token", "expired-access-token");
-    sessionStorage.setItem("health-refresh-token", "expired-refresh-token");
+    sessionStorage.setItem("health-csrf-token", "expired-csrf-token");
   });
 
   await page.goto("/");

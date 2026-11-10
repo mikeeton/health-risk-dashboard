@@ -62,16 +62,17 @@ try {
     if (-not (Test-Path -LiteralPath $pythonExecutable)) {
         $pythonExecutable = (Get-Command python -ErrorAction Stop).Source
     }
+    $alembicEntry = 'from alembic.config import main; main()'
 
     Push-Location $backendDirectory
     try {
         Write-Host "Applying all migrations to an empty PostgreSQL database..."
-        Invoke-Checked $pythonExecutable @("-m", "alembic", "upgrade", "head")
+        Invoke-Checked $pythonExecutable @("-c", $alembicEntry, "upgrade", "head")
 
         Write-Host "Rehearsing the CI downgrade target and returning to head..."
-        Invoke-Checked $pythonExecutable @("-m", "alembic", "downgrade", "20260728_0005")
-        Invoke-Checked $pythonExecutable @("-m", "alembic", "upgrade", "head")
-        Invoke-Checked $pythonExecutable @("-m", "alembic", "current", "--check-heads")
+        Invoke-Checked $pythonExecutable @("-c", $alembicEntry, "downgrade", "20260728_0005")
+        Invoke-Checked $pythonExecutable @("-c", $alembicEntry, "upgrade", "head")
+        Invoke-Checked $pythonExecutable @("-c", $alembicEntry, "current", "--check-heads")
 
         if (-not $SkipBackendTests) {
             Write-Host "Running the complete backend test suite against PostgreSQL..."

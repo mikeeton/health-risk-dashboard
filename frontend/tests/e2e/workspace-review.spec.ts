@@ -267,3 +267,74 @@ for (const view of views) {
     await context.close();
   });
 }
+
+const mobileEvidence = join(process.cwd(), "..", "docs", "evidence", "local-demo-2026-11-10");
+
+async function captureMobile(page: Page, filename: string) {
+  if (process.env.CAPTURE_MOBILE_EVIDENCE !== "1") return;
+  await mkdir(mobileEvidence, { recursive: true });
+  await page.screenshot({ path: join(mobileEvidence, filename), fullPage: true });
+}
+
+async function expectMobileFit(page: Page) {
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+}
+
+test("360px mobile emulation keeps sign-in usable and errors readable", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  try {
+    const page = await context.newPage();
+    await page.route("**/auth/login", (route) => route.fulfill({ status: 401, json: { detail: "Invalid credentials" } }));
+    await page.goto("/login");
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Password")).toBeVisible();
+    const submit = page.getByRole("button", { name: "Sign In" });
+    await expect(submit).toBeVisible();
+    await expectMobileFit(page);
+    await page.getByLabel("Email").fill("unknown@example.test");
+    await page.getByLabel("Password").fill("wrong-password");
+    await submit.click();
+    await expect(page.getByText("Login failed")).toBeVisible();
+    await expect(page.getByText("Check your email, password, and backend server.")).toBeVisible();
+    await captureMobile(page, "sign-in-validation-chromium-360.png");
+  } finally { await context.close(); }
+});
+
+test("360px mobile emulation keeps patient overview and navigation usable", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  try {
+    const page = await context.newPage();
+    await setup(page, "patient", "light");
+    await page.goto("/patient");
+    await expect(page.getByRole("heading", { name: "My health record" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Latest measurements" })).toBeVisible();
+    await expect(page.getByText("Heart rate", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Recent readings" })).toBeVisible();
+    await expectMobileFit(page);
+    await captureMobile(page, "patient-overview-chromium-360.png");
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    await expect(page.getByRole("button", { name: "Close navigation" }).first()).toBeVisible();
+    await page.getByRole("link", { name: "Notifications", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Events and notifications" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open navigation" })).toBeVisible();
+    await expectMobileFit(page);
+  } finally { await context.close(); }
+});
+
+test("360px mobile emulation keeps clinical alerts and filters readable", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  try {
+    const page = await context.newPage();
+    await setup(page, "doctor", "light");
+    await page.goto("/notifications");
+    await expect(page.getByRole("heading", { name: "Events and notifications" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Observation needs review" })).toBeVisible();
+    await expect(page.getByText("Check the linked clinical case.")).toBeVisible();
+    await page.getByRole("button", { name: "Clinical events" }).click();
+    await expect(page.getByRole("button", { name: "Clinical events" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("heading", { name: "Observation needs review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "System update" })).toHaveCount(0);
+    await expectMobileFit(page);
+    await captureMobile(page, "clinical-alerts-chromium-360.png");
+  } finally { await context.close(); }
+});

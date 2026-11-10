@@ -4,6 +4,7 @@ These are dated development records for the Vitala research prototype. Read the 
 
 | Topic | Main record |
 | --- | --- |
+| Current local demo checks | [10 November verification](LOCAL_DEMO_VERIFICATION_2026-11-10.md) |
 | Earlier local checks | [9 November verification snapshot](LOCAL_VERIFICATION_2026-11-09.md) |
 | Engineering audit | [9 November audit](ENGINEERING_AUDIT_2026-11-09.md) |
 | ML validity and limitations | [Pipeline validation](ML_PIPELINE_VALIDATION_REPORT.md) |
