@@ -1,5 +1,9 @@
 fastapi
-uvicorn[standard]
+uvicorn
+httptools
+websockets
+watchfiles
+pyyaml
 sqlalchemy
 alembic
 python-dotenv
