@@ -236,7 +236,7 @@ export default function UploadData() {
           </h2>
         </div>
 
-        <div className="overflow-x-auto rounded-lg bg-slate-50 p-4 font-mono text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+        <div role="region" aria-label="Expected CSV columns" tabIndex={0} className="overflow-x-auto rounded-lg bg-slate-50 p-4 font-mono text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
           patientId,timestamp,heartRate,spo2,systolicBP,diastolicBP,steps,sleepHours,activeMinutes,calories,activityState
         </div>
 
@@ -250,7 +250,7 @@ export default function UploadData() {
         <Card className="p-6">
           <h2 className="mb-4 text-xl font-semibold">Preview</h2>
 
-          <div className="overflow-x-auto">
+          <div role="region" aria-label="CSV preview" tabIndex={0} className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b text-left">
                 <tr>

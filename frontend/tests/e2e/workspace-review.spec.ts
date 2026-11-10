@@ -107,6 +107,11 @@ test("secondary routes stay accessible and usable across themes and widths", asy
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await expect(page.locator("main")).toBeVisible();
+    if (view.path === "/upload") {
+      const columns = page.getByRole("region", { name: "Expected CSV columns" });
+      await columns.focus();
+      await expect(columns).toBeFocused();
+    }
     await page.waitForTimeout(600);
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations.filter((item) => ["critical", "serious"].includes(item.impact ?? "")).map((item) => ({ id: item.id, targets: item.nodes.map((node) => node.target.join(" ")) })), view.path).toEqual([]);
