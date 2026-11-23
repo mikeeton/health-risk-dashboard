@@ -40,3 +40,11 @@ scripts/build_project_textbook.py
 # Raw research datasets remain local. The compact, reviewed model artefact and
 # evaluation report may be deployed with the backend release.
 backend/data/
+
+# Generated dissertation review files stay local. The build scripts and
+# source evidence remain available without publishing duplicate Word drafts.
+docs/dissertation/Health_Risk_Dashboard_Dissertation_Updated_*.docx
+docs/dissertation/Vitala_Dissertation_*.docx
+docs/dissertation/Vitala_*Images*.zip
+docs/dissertation/Vitala_Repository_Graphs_and_Evidence.zip
+docs/dissertation/graphs-reproduced/

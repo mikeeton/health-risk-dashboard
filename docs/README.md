@@ -2,21 +2,33 @@
 
 Start with the [project README](../README.md) to run Vitala locally. This index separates software guidance from research and dissertation evidence. Live deployment is paused.
 
+```mermaid
+flowchart TD
+  A[Project README] --> B[Workspaces and frontend]
+  A --> C[Backend and architecture]
+  A --> D[Security and testing]
+  A --> E[Model and research evidence]
+  E --> F[Local dissertation drafts]
+```
+
 ## Current technical guide
 
 - [Architecture](ARCHITECTURE.md)
 - [Security overview](SECURITY.md) and [private reporting policy](security/SECURITY.md)
 - [Testing and evidence](TESTING.md)
 - [ML model card](ML_MODEL_CARD.md)
+- [Visual workspace and route guide](WORKSPACES.md)
+- [Frontend code map](../frontend/README.md) and [backend code map](../backend/README.md)
 
 These pages describe the current system and point to detailed contracts. The reports below retain their original dates and should be read as historical evidence.
 
-## Final Word documents
+## Dissertation and Word documents
 
-- [Dissertation](dissertation/Health_Risk_Dashboard_Dissertation.docx) — revised 9 November 2026; approximately 10,000 words in the main chapters
+- [Tracked dissertation](dissertation/Health_Risk_Dashboard_Dissertation.docx): dated repository copy
 - [Presentation and viva guide](dissertation/Presentation_and_Viva_Guide.docx)
+- [Dissertation file guide](dissertation/README.md): local submission copies and generated graph evidence
 
-These are the only Word documents kept in the project. Earlier drafts of the guide were removed.
+Newer submission Word drafts and generated graph packs stay local and are ignored by Git. Historical Markdown evidence remains available for review.
 
 ## Architecture and workflows
 
@@ -35,6 +47,7 @@ These are the only Word documents kept in the project. Earlier drafts of the gui
 - [Groq AI setup](setup/AI_SETUP.md)
 - [Withings integration setup](setup/WITHINGS_SETUP.md)
 - [Database migrations](../backend/MIGRATIONS.md)
+- [Script map](../scripts/README.md)
 
 ## Security and testing
 

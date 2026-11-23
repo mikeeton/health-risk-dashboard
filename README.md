@@ -4,6 +4,16 @@
 
 > **Research use only.** Vitala is not clinically validated or approved as a medical device. Use synthetic or appropriately governed research data. Clinicians must verify every alert and model output. Live deployment is paused; this README focuses on local development.
 
+```mermaid
+flowchart LR
+  A[Doctor, nurse, patient and admin workspaces] --> B[FastAPI access checks]
+  B --> C[(PostgreSQL records)]
+  B --> D[Deterministic urgent rules]
+  B -. governed research .-> E[Versioned ML and optional AI]
+  C -. update hints .-> F[WebSocket and optional Redis]
+  F -. refresh .-> A
+```
+
 ## What is in the project
 
 | Area | Purpose |
@@ -14,6 +24,19 @@
 | Admin | Access approvals, user management, audit records, and operations |
 | Research | Model evaluation, provenance, calibration, and prospective evidence |
 | AI assistant | Optional governed summaries with source references and missing-data disclosures |
+
+Explore the [visual workspace guide](docs/WORKSPACES.md) for a diagram of each major section and the routes behind it. The [frontend guide](frontend/README.md) and [backend guide](backend/README.md) explain their code maps.
+
+<details>
+<summary>View synthetic mobile captures</summary>
+
+| Sign-in | Patient overview | Alerts |
+| --- | --- | --- |
+| <img src="docs/evidence/local-demo-2026-11-10/sign-in-validation-chromium-360.png" alt="Vitala sign-in on emulated mobile Chromium" width="220"> | <img src="docs/evidence/local-demo-2026-11-10/patient-overview-chromium-360.png" alt="Patient overview on emulated mobile Chromium" width="220"> | <img src="docs/evidence/local-demo-2026-11-10/clinical-alerts-chromium-360.png" alt="Clinical alerts on emulated mobile Chromium" width="220"> |
+
+These are synthetic browser fixtures at 360 pixels, not real patient data or physical-device tests.
+
+</details>
 
 The frontend uses React, TypeScript, Vite, and Tailwind CSS. The backend uses FastAPI, SQLAlchemy, Alembic, and PostgreSQL. WebSockets provide live update hints; persisted database records remain authoritative. Redis, Withings, and Groq are optional integrations.
 
@@ -73,6 +96,8 @@ The isolated local backend runner rehearses an Alembic upgrade, downgrade, and u
 
 Browser refresh tokens are held in an HttpOnly cookie; the browser keeps only the short-lived access token and a request-verification token in session storage. Existing JSON refresh tokens remain available to non-browser API clients. PostgreSQL serializes refresh rotation and coordinates the background monitor across API workers. When `REDIS_URL` is configured, the rate limiter and AI circuit breaker share state across workers. Without Redis, those two controls use process-local state, so a multi-worker production setup still needs Redis or another shared coordinator.
 
+An earlier commit included an environment file. Ignoring `.env` prevents a future accidental add but does not erase historical exposure; compromised credentials must be revoked or rotated before any public deployment. Never copy secret values into issues, screenshots or documentation.
+
 Backend dependency inputs remain in `backend/requirements.txt` and `backend/requirements-dev.txt`; install from the pinned, hashed `requirements-dev.lock` for local development or `requirements.lock` for the API runtime. With Python 3.12 active, install `pip-tools==7.6.2`, then regenerate both locks from the repository root with `powershell -ExecutionPolicy Bypass -File .\scripts\lock-backend.ps1`. Citation IDs and timestamps are checked, but they cannot establish that every generated medical statement is supported by its source. Provider output requires clinical review. Real-device delivery, prospective alert reliability, and external ML validation remain unproven by local tests.
 
 ## Clinical and ML boundaries
@@ -87,11 +112,11 @@ Withings sync, alert retry, patient access, session revocation, and role-specifi
 backend/              API, database models, migrations, ML, and tests
 frontend/             Web application and browser tests
 docs/                 Architecture, setup, research, and evidence
-docs/dissertation/    Final dissertation and presentation guide
+docs/dissertation/    Tracked academic record; later drafts stay local
 scripts/              Research and documentation utilities
 ```
 
-Start with the [documentation index](docs/README.md) for deeper technical material. The two retained Word documents are the [dissertation](docs/dissertation/Health_Risk_Dashboard_Dissertation.docx) and [presentation and viva guide](docs/dissertation/Presentation_and_Viva_Guide.docx). Historical evaluation reports remain in Markdown so their claims can be checked against the code.
+Start with the [documentation index](docs/README.md) for deeper technical material. The tracked [dissertation](docs/dissertation/Health_Risk_Dashboard_Dissertation.docx) and [presentation and viva guide](docs/dissertation/Presentation_and_Viva_Guide.docx) are dated academic records. The [dissertation file guide](docs/dissertation/README.md) explains which newer submission copies and generated graphs remain local. Historical evaluation reports remain in Markdown so their claims can be checked against the code.
 
 ## Author
 

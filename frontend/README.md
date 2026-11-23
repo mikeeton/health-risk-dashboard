@@ -2,11 +2,35 @@
 
 React, TypeScript, Vite, and Tailwind CSS power Vitala's role-specific workspaces. The browser client calls the FastAPI backend; it does not contain production patient data or a standalone database.
 
+```mermaid
+flowchart LR
+  A[Protected route] --> B[Role workspace]
+  B --> C[Typed domain API client]
+  C --> D[FastAPI access check]
+  D --> E[(PostgreSQL)]
+  E -. updated state .-> B
+```
+
+## Screen map
+
+| Workspace | Routes | Primary task |
+| --- | --- | --- |
+| Doctor | `/doctor`, `/analytics`, `/reports`, `/review-cases`, `/referrals` | Review assigned patients and record decisions |
+| Nurse | `/nurse`, `/care`, `/review-cases` | Complete observations, medication and escalation work |
+| Patient | `/patient`, `/devices`, `/care` | Understand personal data and device state |
+| Administrator | `/admin`, `/admin/users`, `/admin/approvals`, `/admin/assignments`, `/admin/operations`, `/admin/research`, `/audit-logs` | Manage accounts, operations and restricted research |
+| Shared | `/notifications`, `/account`, `/ai-assistant` | Inbox, security and governed summaries |
+| Public | `/login`, `/register`, `/reset-password` | Access and account recovery |
+
+The [visual workspace guide](../docs/WORKSPACES.md) shows the user journeys and synthetic mobile captures. The [route file](src/app/routes.tsx) is the source of truth for browser navigation.
+
 ## API client structure
 
 `src/app/services/api.ts` preserves existing imports while domain modules beside it group authentication, clinical records, care workflows, notifications, analytics, AI, integrations, referrals, research, and administration. Shared request and error handling lives in `httpClient.ts`; shared record types begin in `src/app/types/api.ts`. Add new endpoints to their domain module with explicit request and response types.
 
 Unused mock-patient, random-vital, and local health-record storage modules were removed. Theme preference remains in local storage; authenticated health records come from the API.
+
+`src/app/pages/` contains page-level experiences, `components/` provides shared interaction patterns, `context/` holds session and health-data state, and `services/` owns HTTP and socket calls. Keep new patient data behind the API and preserve loading, empty, error and source-provenance states in each screen.
 
 ## Local development
 
