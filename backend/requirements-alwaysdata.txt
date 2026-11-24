@@ -17,4 +17,4 @@ pandas
 joblib
 groq
 argon2-cffi
-pyotp>=2.9,<3
+pyotp>=2.12.1,<3
